@@ -1,0 +1,283 @@
+# ShareHODL Blockchain Alert Rules
+
+groups:
+  - name: sharehodl.blockchain
+    rules:
+      # Node health alerts
+      - alert: ShareHODLNodeDown
+        expr: up{job="sharehodl-nodes"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL node {{ $labels.instance }} is down"
+          description: "ShareHODL blockchain node {{ $labels.instance }} has been down for more than 1 minute."
+          runbook_url: "https://docs.sharehodl.io/runbooks/node-down"
+
+      - alert: ShareHODLNodeNotSyncing
+        expr: increase(tendermint_consensus_height[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL node {{ $labels.instance }} is not producing blocks"
+          description: "ShareHODL blockchain node {{ $labels.instance }} hasn't produced any blocks in the last 5 minutes."
+
+      - alert: ShareHODLHighBlockTime
+        expr: rate(tendermint_consensus_block_interval_seconds_sum[5m]) / rate(tendermint_consensus_block_interval_seconds_count[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL blockchain has high block time"
+          description: "Average block time is {{ $value }}s, which is higher than expected (>10s)."
+
+      - alert: ShareHODLLowPeerCount
+        expr: tendermint_p2p_peers < 3
+        for: 5m
+        labels:
+          severity: warning
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL node {{ $labels.instance }} has low peer count"
+          description: "ShareHODL node {{ $labels.instance }} has only {{ $value }} peers connected."
+
+      # Validator alerts
+      - alert: ShareHODLValidatorMissedBlocks
+        expr: increase(tendermint_consensus_validator_missed_blocks_total[10m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL validator {{ $labels.instance }} missing blocks"
+          description: "Validator {{ $labels.instance }} has missed {{ $value }} blocks in the last 10 minutes."
+
+      - alert: ShareHODLValidatorJailed
+        expr: tendermint_consensus_validator_power == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL validator {{ $labels.instance }} is jailed"
+          description: "Validator {{ $labels.instance }} has been jailed and has 0 voting power."
+
+      # Transaction pool alerts
+      - alert: ShareHODLHighMempool
+        expr: tendermint_mempool_size > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL node {{ $labels.instance }} has large mempool"
+          description: "Mempool size is {{ $value }} transactions, which indicates potential congestion."
+
+      - alert: ShareHODLMempoolFull
+        expr: tendermint_mempool_size >= tendermint_mempool_max_size
+        for: 1m
+        labels:
+          severity: critical
+          service: sharehodl-blockchain
+        annotations:
+          summary: "ShareHODL node {{ $labels.instance }} mempool is full"
+          description: "Mempool is at maximum capacity, new transactions will be rejected."
+
+  - name: sharehodl.system
+    rules:
+      # System resource alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}."
+
+      - alert: LowDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} filesystem {{ $labels.mountpoint }}."
+
+      - alert: CriticalDiskSpace
+        expr: (1 - (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes{fstype!="tmpfs"})) * 100 > 95
+        for: 1m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }} filesystem {{ $labels.mountpoint }}."
+
+      - alert: HighLoadAverage
+        expr: node_load1 > node_cpu_count * 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "High load average on {{ $labels.instance }}"
+          description: "Load average is {{ $value }} on {{ $labels.instance }}."
+
+  - name: sharehodl.security
+    rules:
+      # Security alerts
+      - alert: SecurityScannerDown
+        expr: up{job="security-scanner"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "Security scanner is down"
+          description: "ShareHODL security scanner has been down for more than 5 minutes."
+
+      - alert: HighSecurityFindings
+        expr: sharehodl_security_findings_total{severity="critical"} > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: security
+        annotations:
+          summary: "Critical security findings detected"
+          description: "{{ $value }} critical security findings have been detected."
+
+      - alert: VulnerabilityDetected
+        expr: increase(sharehodl_security_vulnerabilities_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "New security vulnerabilities detected"
+          description: "{{ $value }} new security vulnerabilities have been detected in the last hour."
+
+      - alert: FailedAuthenticationAttempts
+        expr: increase(sharehodl_failed_auth_attempts_total[5m]) > 10
+        for: 0m
+        labels:
+          severity: warning
+          service: security
+        annotations:
+          summary: "High number of failed authentication attempts"
+          description: "{{ $value }} failed authentication attempts in the last 5 minutes."
+
+  - name: sharehodl.business
+    rules:
+      # Business logic alerts
+      - alert: HighTransactionFees
+        expr: avg(sharehodl_transaction_fee_uhodl) > 1000000  # 1 HODL
+        for: 10m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High average transaction fees"
+          description: "Average transaction fee is {{ $value }} uHODL."
+
+      - alert: LowTradingVolume
+        expr: sum(increase(sharehodl_dex_trading_volume_usd[1h])) < 10000  # $10k per hour
+        for: 2h
+        labels:
+          severity: info
+          service: business
+        annotations:
+          summary: "Low trading volume on DEX"
+          description: "DEX trading volume is only ${{ $value }} in the last hour."
+
+      - alert: GovernanceProposalStuck
+        expr: sharehodl_governance_proposal_voting_period_remaining_seconds < 86400 and sharehodl_governance_proposal_participation_rate < 0.33
+        for: 1h
+        labels:
+          severity: warning
+          service: governance
+        annotations:
+          summary: "Governance proposal may not reach quorum"
+          description: "Proposal {{ $labels.proposal_id }} has less than 24 hours remaining and only {{ $value }}% participation."
+
+  - name: sharehodl.infrastructure
+    rules:
+      # Infrastructure alerts
+      - alert: ContainerRestartLoop
+        expr: increase(container_restart_count[1h]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Container {{ $labels.name }} is restarting frequently"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last hour."
+
+      - alert: DatabaseConnectionFailure
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Database connection failure"
+          description: "Cannot connect to PostgreSQL database."
+
+      - alert: RedisConnectionFailure
+        expr: up{job="redis"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Redis connection failure"
+          description: "Cannot connect to Redis cache."
+
+  - name: sharehodl.endpoints
+    rules:
+      # Endpoint monitoring
+      - alert: ShareHODLAPIDown
+        expr: probe_success{job="blackbox",instance=~".*:1317.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: api
+        annotations:
+          summary: "ShareHODL API endpoint {{ $labels.instance }} is down"
+          description: "API endpoint {{ $labels.instance }} is not responding."
+
+      - alert: ShareHODLRPCDown
+        expr: probe_success{job="blackbox",instance=~".*:26657.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: rpc
+        annotations:
+          summary: "ShareHODL RPC endpoint {{ $labels.instance }} is down"
+          description: "RPC endpoint {{ $labels.instance }} is not responding."
+
+      - alert: SlowAPIResponse
+        expr: probe_duration_seconds{job="blackbox"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: api
+        annotations:
+          summary: "Slow API response from {{ $labels.instance }}"
+          description: "API endpoint {{ $labels.instance }} is responding slowly ({{ $value }}s)."

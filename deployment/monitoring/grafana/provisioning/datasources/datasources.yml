@@ -1,0 +1,139 @@
+# Grafana datasources configuration for ShareHODL blockchain monitoring
+
+apiVersion: 1
+
+datasources:
+  # Prometheus datasource
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      httpMethod: GET
+      manageAlerts: true
+      prometheusType: Prometheus
+      prometheusVersion: 2.47.0
+      cacheLevel: High
+      disableRecordingRules: false
+      incrementalQueryOverlapWindow: 10m
+      queryTimeout: 60s
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: traceId
+          datasourceUid: jaeger
+
+  # Loki datasource for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: jaeger
+          matcherRegex: "traceID=(\\w+)"
+          name: TraceID
+          url: "$${__value.raw}"
+
+  # Jaeger datasource for tracing
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    uid: jaeger
+    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        tags: [{ key: 'service.name', value: 'sharehodl' }]
+        filterByTraceID: true
+        filterBySpanID: true
+        customQuery: false
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags: [{ key: 'service.name', value: 'sharehodl' }]
+        queries:
+          - name: 'Request rate'
+            query: 'sum(rate(traces_spanmetrics_calls_total{$$__tags}[5m]))'
+          - name: 'Request duration'
+            query: 'histogram_quantile(0.9, sum(rate(traces_spanmetrics_latency_bucket{$$__tags}[5m])) by (le))'
+
+  # ElasticSearch datasource for logs
+  - name: ElasticSearch
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: sharehodl-logs-*
+    editable: true
+    jsonData:
+      interval: Daily
+      timeField: "@timestamp"
+      esVersion: 8.9.0
+      includeFrozen: false
+      logMessageField: message
+      logLevelField: level
+      maxConcurrentShardRequests: 5
+
+  # PostgreSQL datasource for application data
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    database: sharehodl
+    user: sharehodl
+    editable: true
+    secureJsonData:
+      password: sharehodl2024!
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+
+  # Redis datasource for cache metrics
+  - name: Redis
+    type: redis-datasource
+    access: proxy
+    url: redis://redis:6379
+    editable: true
+    secureJsonData:
+      password: sharehodl2024!
+    jsonData:
+      client: standalone
+      poolSize: 5
+      timeout: 10
+      pingInterval: 0
+
+  # TestData datasource for testing
+  - name: TestData
+    type: testdata
+    uid: testdata
+    editable: true
+    jsonData: {}
+
+  # CloudWatch datasource (if running on AWS)
+  # - name: CloudWatch
+  #   type: cloudwatch
+  #   access: proxy
+  #   editable: true
+  #   jsonData:
+  #     authType: credentials
+  #     defaultRegion: us-east-1
+  #   secureJsonData:
+  #     accessKey: YOUR_ACCESS_KEY
+  #     secretKey: YOUR_SECRET_KEY
+
+  # InfluxDB datasource (alternative time series DB)
+  # - name: InfluxDB
+  #   type: influxdb
+  #   access: proxy
+  #   url: http://influxdb:8086
+  #   database: sharehodl
+  #   editable: true
+  #   jsonData:
+  #     httpMode: GET
+  #     httpHeaderName1: Authorization
+  #   secureJsonData:
+  #     httpHeaderValue1: Token YOUR_INFLUXDB_TOKEN

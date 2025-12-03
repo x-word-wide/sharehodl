@@ -1,0 +1,94 @@
+# ShareHODL Security Scanner Dockerfile
+# Contains security tools and scanners for automated security testing
+
+FROM golang:1.21-alpine AS scanner-builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    git \
+    make \
+    gcc \
+    musl-dev \
+    linux-headers
+
+# Set working directory
+WORKDIR /src
+
+# Copy security module source
+COPY security/ ./security/
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Build security scanner binary
+RUN go build -o security-scanner ./security/cmd/scanner/
+
+# Runtime stage
+FROM alpine:3.18
+
+# Install security tools and runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    git \
+    jq \
+    curl \
+    bash \
+    python3 \
+    py3-pip \
+    nodejs \
+    npm \
+    openssh-client \
+    nmap \
+    netcat-openbsd
+
+# Install Python security tools
+RUN pip3 install --no-cache-dir \
+    bandit \
+    safety \
+    semgrep \
+    trufflehog
+
+# Install Node.js security tools
+RUN npm install -g \
+    eslint \
+    retire \
+    audit-ci \
+    npm-audit
+
+# Install Go security tools
+RUN go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest && \
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
+    go install honnef.co/go/tools/cmd/staticcheck@latest
+
+# Create security user
+RUN adduser -D -s /bin/bash security
+
+# Set working directory
+WORKDIR /app
+
+# Copy security scanner binary from builder stage
+COPY --from=scanner-builder /src/security-scanner /usr/local/bin/security-scanner
+
+# Copy security scripts and configurations
+COPY deployment/security/ ./config/
+COPY scripts/security-scan.sh /usr/local/bin/security-scan.sh
+
+# Make scripts executable
+RUN chmod +x /usr/local/bin/security-scanner /usr/local/bin/security-scan.sh
+
+# Create directories for reports and data
+RUN mkdir -p /app/reports /app/data && \
+    chown -R security:security /app
+
+# Switch to security user
+USER security
+
+# Environment variables
+ENV SCAN_CONFIG_PATH="/app/config"
+ENV REPORTS_PATH="/app/reports"
+ENV GO_PATH="/usr/local/go/bin"
+ENV PATH="$PATH:$GO_PATH:/home/security/go/bin"
+
+# Default command
+CMD ["/usr/local/bin/security-scan.sh"]

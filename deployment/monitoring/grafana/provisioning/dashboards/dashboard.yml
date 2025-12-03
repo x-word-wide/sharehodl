@@ -1,0 +1,70 @@
+# Dashboard provisioning configuration for ShareHODL blockchain
+
+apiVersion: 1
+
+providers:
+  # ShareHODL Core Dashboards
+  - name: 'ShareHODL Core'
+    orgId: 1
+    folder: 'ShareHODL Blockchain'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/sharehodl-core
+
+  # System Monitoring Dashboards
+  - name: 'System Monitoring'
+    orgId: 1
+    folder: 'Infrastructure'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/system
+
+  # Security Monitoring Dashboards
+  - name: 'Security Monitoring'
+    orgId: 1
+    folder: 'Security'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/security
+
+  # Business Metrics Dashboards
+  - name: 'Business Metrics'
+    orgId: 1
+    folder: 'Business'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/business
+
+  # Application Logs Dashboards
+  - name: 'Logs'
+    orgId: 1
+    folder: 'Logs'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/logs
+
+  # Tracing Dashboards
+  - name: 'Distributed Tracing'
+    orgId: 1
+    folder: 'Tracing'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards/tracing

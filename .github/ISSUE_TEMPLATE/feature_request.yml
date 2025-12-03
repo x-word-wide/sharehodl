@@ -1,0 +1,165 @@
+name: 🚀 Feature Request
+description: Suggest a new feature for ShareHODL blockchain
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting a feature! Please provide detailed information to help us understand your request.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: A brief summary of the feature you're requesting
+      placeholder: Briefly describe the feature...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which area does this feature belong to?
+      options:
+        - Core Protocol
+        - HODL Token Module
+        - ERC-EQUITY Module
+        - DEX Trading Engine
+        - Governance System
+        - Validator System
+        - Security Framework
+        - Block Explorer
+        - CLI Tools
+        - API/SDK
+        - Documentation
+        - Testing
+        - Performance
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this feature solve? What's the motivation?
+      placeholder: |
+        Is your feature request related to a problem? Please describe.
+        A clear and concise description of what the problem is.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Describe the solution you'd like to see implemented
+      placeholder: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative Solutions
+      description: Describe any alternative solutions or features you've considered
+      placeholder: A clear and concise description of any alternative solutions or features you've considered.
+
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical Details
+      description: |
+        If you have technical knowledge, please provide implementation details:
+        - API changes needed
+        - Database schema changes
+        - Protocol modifications
+        - Security considerations
+      render: markdown
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: How important is this feature to you?
+      options:
+        - Low (nice to have)
+        - Medium (would be helpful)
+        - High (important for my use case)
+        - Critical (blocking my use case)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: complexity
+    attributes:
+      label: Estimated Complexity
+      description: If you have development experience, how complex do you think this feature is?
+      options:
+        - Simple (small change, few hours)
+        - Medium (moderate change, few days)
+        - Complex (significant change, weeks)
+        - Major (large architectural change, months)
+        - Unknown
+
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact Areas
+      description: Which areas might this feature impact? (Check all that apply)
+      options:
+        - label: Breaking changes to existing APIs
+        - label: Database migrations required
+        - label: Performance implications
+        - label: Security implications
+        - label: Consensus protocol changes
+        - label: Client/SDK changes required
+        - label: Documentation updates needed
+
+  - type: textarea
+    id: use-cases
+    attributes:
+      label: Use Cases
+      description: |
+        Describe specific use cases where this feature would be beneficial:
+        - Who would use this feature?
+        - How would they use it?
+        - What business/technical value does it provide?
+      placeholder: |
+        1. As a [user type], I want to [goal] so that [benefit]
+        2. ...
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: |
+        Define what "done" looks like for this feature:
+      placeholder: |
+        - [ ] Feature works as described
+        - [ ] Tests are written and passing
+        - [ ] Documentation is updated
+        - [ ] ...
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Are you willing to help implement this feature?
+      options:
+        - label: I'm willing to implement this feature myself
+        - label: I can help with testing
+        - label: I can help with documentation
+        - label: I can help with code review
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: |
+        Add any other context, mockups, or examples about the feature request here.
+        You can attach images or files if needed.

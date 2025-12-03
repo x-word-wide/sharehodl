@@ -1,0 +1,193 @@
+# ShareHODL Blockchain - Git Ignore File
+
+# Binaries and build artifacts
+/build/
+/dist/
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+sharehodld
+
+# Go specific
+vendor/
+go.work
+*.prof
+*.test
+coverage.txt
+coverage.html
+coverage.out
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# SECURITY: Credentials and sensitive data
+.env*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.cert
+*.crt
+secrets/
+private/
+**/credentials.json
+**/keystore/
+**/wallets/
+**/mnemonic.txt
+**/*_mnemonic.txt
+**/private_key*
+**/secret*
+!**/secret_*.go
+
+# SECURITY: Blockchain specific sensitive files
+.sharehodl/
+.sharehodld/
+genesis_export.json
+node_key.json
+priv_validator_key.json
+testnet/
+mytestnet/
+network/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Logs and temporary files
+*.log
+logs/
+*.log.*
+debug/
+*.tmp
+*.temp
+/tmp/
+/temp/
+tests/e2e/testdata/*.tmp
+test_results/
+benchmark_results/
+
+# Docker volumes and data
+docker-compose.override.yml
+docker-volumes/
+.docker/
+
+# SECURITY: Terraform files (contains sensitive infrastructure data)
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+terraform.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# SECURITY: Kubernetes secrets
+**/secrets.yaml
+**/secrets.yml
+!**/secrets.example.yaml
+
+# Node/npm (for frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Python (for scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+venv/
+env/
+ENV/
+
+# Backup files
+*.backup
+*.bak
+*.orig
+backup/
+
+# Monitoring and metrics data
+prometheus_data/
+grafana_data/
+loki_data/
+jaeger_data/
+
+# Local configuration overrides
+local.config.yml
+local.config.yaml
+config.local.yml
+config.local.yaml
+**/local-*.yml
+**/local-*.yaml
+
+# Generated documentation
+docs/_build/
+docs/.doctrees/
+site/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+
+# SECURITY: Deployment specific sensitive files
+deployment/terraform/*.tfvars
+!deployment/terraform/example.tfvars
+deployment/kubernetes/*-secret.yaml
+deployment/.env*
+!deployment/.env.example
+
+# Protobuf generated files
+*.pb.go
+*.pb.gw.go
+
+# Cosmos SDK specific
+simd
+
+# ShareHODL specific build artifacts
+.sharehodl-data/
+sharehodl-data/
+sharehodl-*.tar.gz
+sharehodl-*.zip
+dependency-graph.png
+
+# Don't ignore these important files
+!.gitignore
+!.github/
+!Makefile
+!Dockerfile
+!docker-compose.yml
+!README.md
+!LICENSE
+!SECURITY.md
+!CONTRIBUTING.md

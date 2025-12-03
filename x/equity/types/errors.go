@@ -1,0 +1,63 @@
+package types
+
+import (
+	"cosmossdk.io/errors"
+)
+
+// x/equity module sentinel errors
+var (
+	ErrCompanyNotFound         = errors.Register(ModuleName, 1, "company not found")
+	ErrCompanyAlreadyExists    = errors.Register(ModuleName, 2, "company already exists") 
+	ErrShareClassNotFound      = errors.Register(ModuleName, 3, "share class not found")
+	ErrShareClassAlreadyExists = errors.Register(ModuleName, 4, "share class already exists")
+	ErrShareholdingNotFound    = errors.Register(ModuleName, 5, "shareholding not found")
+	ErrInsufficientShares      = errors.Register(ModuleName, 6, "insufficient shares")
+	ErrUnauthorized           = errors.Register(ModuleName, 7, "unauthorized")
+	ErrCompanyNotVerified     = errors.Register(ModuleName, 8, "company not verified")
+	ErrCompanyNotActive       = errors.Register(ModuleName, 9, "company not active")
+	ErrInsufficientFunds      = errors.Register(ModuleName, 10, "insufficient funds")
+	ErrExceedsAuthorized      = errors.Register(ModuleName, 11, "exceeds authorized shares")
+	ErrTransferRestricted     = errors.Register(ModuleName, 12, "transfer restricted")
+	ErrSharesLocked           = errors.Register(ModuleName, 13, "shares are locked")
+	ErrInvalidSymbol          = errors.Register(ModuleName, 14, "invalid company symbol")
+	ErrSymbolTaken            = errors.Register(ModuleName, 15, "symbol already taken")
+	ErrDividendNotFound       = errors.Register(ModuleName, 16, "dividend not found")
+	ErrDividendAlreadyPaid    = errors.Register(ModuleName, 17, "dividend already paid")
+	ErrInvalidDividendDate    = errors.Register(ModuleName, 18, "invalid dividend date")
+	ErrVestingNotFound        = errors.Register(ModuleName, 19, "vesting schedule not found")
+	ErrSharesNotVested        = errors.Register(ModuleName, 20, "shares not yet vested")
+	
+	// Business listing errors
+	ErrListingNotFound           = errors.Register(ModuleName, 21, "listing not found")
+	ErrListingAlreadyExists      = errors.Register(ModuleName, 22, "listing already exists")
+	ErrInvalidListingID          = errors.Register(ModuleName, 23, "invalid listing ID")
+	ErrInvalidCompanyName        = errors.Register(ModuleName, 24, "invalid company name")
+	ErrInvalidLegalEntityName    = errors.Register(ModuleName, 25, "invalid legal entity name")
+	ErrInvalidRegistrationNumber = errors.Register(ModuleName, 26, "invalid registration number")
+	ErrInvalidTokenSymbol        = errors.Register(ModuleName, 27, "invalid token symbol")
+	ErrInvalidTotalShares        = errors.Register(ModuleName, 28, "invalid total shares")
+	ErrInvalidInitialPrice       = errors.Register(ModuleName, 29, "invalid initial price")
+	ErrInvalidScore              = errors.Register(ModuleName, 30, "invalid verification score")
+	ErrInvalidReason             = errors.Register(ModuleName, 31, "invalid rejection reason")
+	ErrListingNotPending         = errors.Register(ModuleName, 32, "listing not in pending status")
+	ErrListingNotApproved        = errors.Register(ModuleName, 33, "listing not approved")
+	ErrInsufficientValidators    = errors.Register(ModuleName, 34, "insufficient validators assigned")
+	ErrValidatorAlreadyReviewed  = errors.Register(ModuleName, 35, "validator already reviewed this listing")
+	ErrValidatorNotAssigned      = errors.Register(ModuleName, 36, "validator not assigned to this listing")
+	ErrRequiredDocumentsMissing  = errors.Register(ModuleName, 37, "required documents missing")
+	ErrProhibitedIndustry        = errors.Register(ModuleName, 38, "prohibited industry")
+	ErrInvalidJurisdiction       = errors.Register(ModuleName, 39, "invalid jurisdiction")
+	ErrInsufficientListingFee    = errors.Register(ModuleName, 40, "insufficient listing fee")
+	
+	// Dividend system errors
+	ErrDividendAlreadyClaimed    = errors.Register(ModuleName, 41, "dividend already claimed")
+	ErrDividendNotEligible       = errors.Register(ModuleName, 42, "not eligible for dividend")
+	ErrDividendPaymentFailed     = errors.Register(ModuleName, 43, "dividend payment failed")
+	ErrInvalidDividendType       = errors.Register(ModuleName, 44, "invalid dividend type")
+	ErrDividendNotProcessable    = errors.Register(ModuleName, 45, "dividend not ready for processing")
+	ErrInsufficientDividendFunds = errors.Register(ModuleName, 46, "insufficient funds for dividend payment")
+	ErrDividendSnapshotExists    = errors.Register(ModuleName, 47, "dividend snapshot already exists")
+	ErrDividendSnapshotNotReady  = errors.Register(ModuleName, 48, "dividend snapshot not ready")
+	ErrInvalidPaymentMethod      = errors.Register(ModuleName, 49, "invalid payment method")
+	ErrDividendPolicyNotSet      = errors.Register(ModuleName, 50, "dividend policy not set")
+)
