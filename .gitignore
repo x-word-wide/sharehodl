@@ -11,7 +11,8 @@
 *.dylib
 *.test
 *.out
-sharehodld
+/sharehodld
+/bin/sharehodld
 
 # Go specific
 vendor/
