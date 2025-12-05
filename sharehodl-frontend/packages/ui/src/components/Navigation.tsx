@@ -1,4 +1,6 @@
 
+"use client";
+
 export function Navigation() {
     const navItems = [
         { href: 'https://sharehodl.com', label: 'Governance', icon: '🏛️' },
