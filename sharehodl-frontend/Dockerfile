@@ -42,28 +42,28 @@ RUN pnpm install --frozen-lockfile --prod
 RUN cat > start-services.sh << 'EOF'
 #!/bin/sh
 
-echo "Starting all ShareHODL frontend services..."
+echo "Starting all ShareHODL frontend services in development mode..."
 
-# Start all Next.js applications in parallel with specific ports
+# Start all Next.js applications in development mode (works better than production)
 echo "Starting Home on port 3000..."
-pnpm --filter home start --port 3000 > /tmp/home.log 2>&1 &
+pnpm --filter home dev > /tmp/home.log 2>&1 &
 
 echo "Starting Governance on port 3001..."
-pnpm --filter governance start --port 3001 > /tmp/governance.log 2>&1 &
+pnpm --filter governance dev > /tmp/governance.log 2>&1 &
 
 echo "Starting Trading on port 3002..."
-pnpm --filter trading start --port 3002 > /tmp/trading.log 2>&1 &
+pnpm --filter trading dev > /tmp/trading.log 2>&1 &
 
 echo "Starting Explorer on port 3003..."
-pnpm --filter explorer start --port 3003 > /tmp/explorer.log 2>&1 &
+pnpm --filter explorer dev > /tmp/explorer.log 2>&1 &
 
 echo "Starting Wallet on port 3004..."
-pnpm --filter wallet start --port 3004 > /tmp/wallet.log 2>&1 &
+pnpm --filter wallet dev > /tmp/wallet.log 2>&1 &
 
 echo "Starting Business on port 3005..."
-pnpm --filter business start --port 3005 > /tmp/business.log 2>&1 &
+pnpm --filter business dev > /tmp/business.log 2>&1 &
 
-echo "All services started! Logs available in /tmp/"
+echo "All services started in development mode! Logs available in /tmp/"
 
 # Wait for all background processes
 wait
