@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Navigation } from "@repo/ui";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -67,6 +68,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      <Navigation />
       <main className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-3">
