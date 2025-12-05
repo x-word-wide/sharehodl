@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Navigation } from "@repo/ui";
 import { ShareHODLAPI, ShareHODLWebSocket } from './lib/api';
 import AdvancedTrading from './components/AdvancedTrading';
 
@@ -121,7 +120,6 @@ export default function Home() {
   if (view === 'trading') {
     return (
       <div className="min-h-screen bg-background">
-        <Navigation />
         <div className="flex items-center justify-between p-4 border-b">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             📊 ShareDEX Professional Trading
@@ -140,7 +138,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       <main className="container mx-auto px-4 py-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-3">

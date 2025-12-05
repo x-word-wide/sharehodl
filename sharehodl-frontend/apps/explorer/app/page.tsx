@@ -1,4 +1,4 @@
-import { Button, Card, CardContent, CardHeader, CardTitle, Navigation } from "@repo/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "@repo/ui";
 import { BlockList } from "./components/BlockList";
 import { TransactionList } from "./components/TransactionList";
 import { Search, Activity, Box, Users, Zap } from "lucide-react";
@@ -6,7 +6,6 @@ import { Search, Activity, Box, Users, Zap } from "lucide-react";
 export default function Home() {
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section */}
         <section className="mb-12 text-center">
