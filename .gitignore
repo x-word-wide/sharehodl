@@ -168,6 +168,18 @@ deployment/kubernetes/*-secret.yaml
 deployment/.env*
 !deployment/.env.example
 
+# SECURITY: AWS credentials and keys - NEVER COMMIT
+.aws/
+aws-credentials.txt
+aws-secrets.env
+aws-config.local.sh
+aws-deployment.env
+*.pem
+*.ppk
+*-key.pem
+*-keypair.pem
+aws-config-secrets.env
+
 # Protobuf generated files
 *.pb.go
 *.pb.gw.go
