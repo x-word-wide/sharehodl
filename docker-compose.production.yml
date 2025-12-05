@@ -20,30 +20,35 @@ services:
       - NEXT_PUBLIC_CHAIN_ID=sharehodl-mainnet
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001", "&&", "curl", "-f", "http://localhost:3002"]
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:3001 && curl -f http://localhost:3002 && curl -f http://localhost:3004"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 120s
     networks:
       - sharehodl-network
-
-  # NGINX Reverse Proxy
-  nginx:
-    image: nginx:alpine
-    container_name: sharehodl-nginx
-    ports:
-      - "80:80"
-      - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      sharehodl-frontend:
-        condition: service_healthy
-    networks:
-      - sharehodl-network
-    restart: unless-stopped
+      - app-logs:/tmp
+
+  # Alternative: Individual services for better isolation
+  # Uncomment if needed for debugging
+  
+  # governance:
+  #   build:
+  #     context: ./sharehodl-frontend
+  #     dockerfile: Dockerfile.single
+  #     args:
+  #       APP_NAME: governance
+  #       PORT: 3001
+  #   container_name: sharehodl-governance
+  #   ports:
+  #     - "3001:3001"
+  #   restart: unless-stopped
+  #   networks:
+  #     - sharehodl-network
+
+volumes:
+  app-logs:
 
 networks:
   sharehodl-network:

@@ -12,14 +12,11 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/*/package.json ./apps/*/
-COPY packages/*/package.json ./packages/*/
+COPY apps ./apps
+COPY packages ./packages
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY . .
 
 # Build all applications
 RUN pnpm build
@@ -33,29 +30,40 @@ RUN npm install -g pnpm
 # Set working directory
 WORKDIR /app
 
-# Copy package files for runtime dependencies
+# Copy package files and source for runtime
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/*/package.json ./apps/*/
-COPY packages/*/package.json ./packages/*/
+COPY --from=builder /app/apps ./apps
+COPY --from=builder /app/packages ./packages
 
 # Install only production dependencies
 RUN pnpm install --frozen-lockfile --prod
-
-# Copy built applications
-COPY --from=builder /app/apps ./apps
-COPY --from=builder /app/packages ./packages
 
 # Create startup script
 RUN cat > start-services.sh << 'EOF'
 #!/bin/sh
 
-# Start all Next.js applications in parallel
-pnpm --filter home start --port 3000 &
-pnpm --filter governance start --port 3001 &
-pnpm --filter trading start --port 3002 &
-pnpm --filter explorer start --port 3003 &
-pnpm --filter wallet start --port 3004 &
-pnpm --filter business start --port 3005 &
+echo "Starting all ShareHODL frontend services..."
+
+# Start all Next.js applications in parallel with specific ports
+echo "Starting Home on port 3000..."
+pnpm --filter home start --port 3000 > /tmp/home.log 2>&1 &
+
+echo "Starting Governance on port 3001..."
+pnpm --filter governance start --port 3001 > /tmp/governance.log 2>&1 &
+
+echo "Starting Trading on port 3002..."
+pnpm --filter trading start --port 3002 > /tmp/trading.log 2>&1 &
+
+echo "Starting Explorer on port 3003..."
+pnpm --filter explorer start --port 3003 > /tmp/explorer.log 2>&1 &
+
+echo "Starting Wallet on port 3004..."
+pnpm --filter wallet start --port 3004 > /tmp/wallet.log 2>&1 &
+
+echo "Starting Business on port 3005..."
+pnpm --filter business start --port 3005 > /tmp/business.log 2>&1 &
+
+echo "All services started! Logs available in /tmp/"
 
 # Wait for all background processes
 wait
