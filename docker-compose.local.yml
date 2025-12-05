@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  # ShareHODL Frontend Applications - Local Development
+  sharehodl-frontend-local:
+    build:
+      context: ./sharehodl-frontend
+      dockerfile: Dockerfile
+    container_name: sharehodl-frontend-local
+    ports:
+      - "3000:3000"  # Home
+      - "3001:3001"  # Governance  
+      - "3002:3002"  # Trading
+      - "3003:3003"  # Explorer
+      - "3004:3004"  # Wallet
+      - "3005:3005"  # Business
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_CHAIN_ID=sharehodl-local
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -f http://localhost:3001 && curl -f http://localhost:3002 && curl -f http://localhost:3004"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - app-logs-local:/tmp
+
+volumes:
+  app-logs-local:
