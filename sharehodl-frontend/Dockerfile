@@ -24,8 +24,8 @@ RUN pnpm build
 # Production stage
 FROM node:20-alpine AS runner
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and curl
+RUN npm install -g pnpm && apk add --no-cache curl
 
 # Set working directory
 WORKDIR /app
@@ -35,38 +35,62 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY --from=builder /app/apps ./apps
 COPY --from=builder /app/packages ./packages
 
-# Install only production dependencies
-RUN pnpm install --frozen-lockfile --prod
+# Install ALL dependencies (dev mode needs dev dependencies)
+RUN pnpm install --frozen-lockfile
 
 # Create startup script
 RUN cat > start-services.sh << 'EOF'
 #!/bin/sh
 
-echo "Starting all ShareHODL frontend services in development mode..."
+echo "=========================================="
+echo "Starting ShareHODL Services in Docker"
+echo "=========================================="
 
-# Start all Next.js applications in development mode (works better than production)
-echo "Starting Home on port 3000..."
-pnpm --filter home dev > /tmp/home.log 2>&1 &
+# Function to start service and verify
+start_service() {
+    APP=$1
+    PORT=$2
+    echo "Starting $APP on port $PORT..."
+    pnpm --filter $APP dev > /tmp/$APP.log 2>&1 &
+    PID=$!
+    echo $PID > /tmp/$APP.pid
+    sleep 10
+    if curl -f http://localhost:$PORT > /dev/null 2>&1; then
+        echo "✅ $APP started successfully on port $PORT"
+    else
+        echo "❌ $APP failed to start on port $PORT"
+    fi
+}
 
-echo "Starting Governance on port 3001..."
-pnpm --filter governance dev > /tmp/governance.log 2>&1 &
+# Start all services with verification
+start_service "home" "3000"
+start_service "governance" "3001"  
+start_service "trading" "3002"
+start_service "explorer" "3003"
+start_service "wallet" "3004"
+start_service "business" "3005"
 
-echo "Starting Trading on port 3002..."
-pnpm --filter trading dev > /tmp/trading.log 2>&1 &
+echo ""
+echo "All services started! Keeping container alive..."
 
-echo "Starting Explorer on port 3003..."
-pnpm --filter explorer dev > /tmp/explorer.log 2>&1 &
-
-echo "Starting Wallet on port 3004..."
-pnpm --filter wallet dev > /tmp/wallet.log 2>&1 &
-
-echo "Starting Business on port 3005..."
-pnpm --filter business dev > /tmp/business.log 2>&1 &
-
-echo "All services started in development mode! Logs available in /tmp/"
-
-# Wait for all background processes
-wait
+# Keep container running
+while true; do
+    sleep 60
+    # Check if all services are still running
+    for app in home governance trading explorer wallet business; do
+        if ! kill -0 $(cat /tmp/$app.pid) 2>/dev/null; then
+            echo "Restarting $app..."
+            case $app in
+                home) start_service "home" "3000" ;;
+                governance) start_service "governance" "3001" ;;
+                trading) start_service "trading" "3002" ;;
+                explorer) start_service "explorer" "3003" ;;
+                wallet) start_service "wallet" "3004" ;;
+                business) start_service "business" "3005" ;;
+            esac
+        fi
+    done
+done
 EOF
 
 RUN chmod +x start-services.sh
