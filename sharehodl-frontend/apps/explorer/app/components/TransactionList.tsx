@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@repo/ui";
 import { ArrowRightLeft } from "lucide-react";
 
 const MOCK_TXS = [
@@ -11,43 +10,43 @@ const MOCK_TXS = [
 
 export function TransactionList() {
     return (
-        <Card className="h-full">
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <ArrowRightLeft className="h-5 w-5" />
+        <div style={{border: "1px solid #ddd", padding: "1rem", borderRadius: "8px", height: "100%"}}>
+            <div style={{marginBottom: "1rem"}}>
+                <h3 style={{display: "flex", alignItems: "center", gap: "8px", fontSize: "18px", margin: "0"}}>
+                    <ArrowRightLeft style={{height: "20px", width: "20px"}} />
                     Latest Transactions
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="space-y-4">
+                </h3>
+            </div>
+            <div>
+                <div style={{display: "flex", flexDirection: "column", gap: "16px"}}>
                     {MOCK_TXS.map((tx) => (
                         <div
                             key={tx.hash}
-                            className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+                            style={{display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #eee", paddingBottom: "16px"}}
                         >
-                            <div className="flex items-center gap-4">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-secondary-foreground">
+                            <div style={{display: "flex", alignItems: "center", gap: "16px"}}>
+                                <div style={{display: "flex", height: "40px", width: "40px", alignItems: "center", justifyContent: "center", borderRadius: "8px", backgroundColor: "#f5f5f5"}}>
                                     Tx
                                 </div>
                                 <div>
-                                    <div className="font-medium text-primary">{tx.hash}</div>
-                                    <div className="text-xs text-muted-foreground">
+                                    <div style={{fontWeight: "500", fontSize: "14px", fontFamily: "monospace"}}>{tx.hash}</div>
+                                    <div style={{fontSize: "12px", color: "#666"}}>
                                         {tx.time}
                                     </div>
                                 </div>
                             </div>
-                            <div className="text-right">
-                                <div className="text-sm font-medium">
+                            <div style={{textAlign: "right"}}>
+                                <div style={{fontSize: "14px", fontWeight: "500"}}>
                                     {tx.type}
                                 </div>
-                                <div className="text-xs text-muted-foreground">
+                                <div style={{fontSize: "12px", color: "#666", fontFamily: "monospace"}}>
                                     {tx.from}
                                 </div>
                             </div>
                         </div>
                     ))}
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }
