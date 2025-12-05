@@ -1,0 +1,104 @@
+{
+  "accounts": [
+    {
+      "name": "validator",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "100000000000000",
+        "shodl": "100000000000000"
+      },
+      "role": "validator",
+      "description": "Primary validator for local network"
+    },
+    {
+      "name": "alice",
+      "address": "sharehodl1...", 
+      "balance": {
+        "hodl": "10000000000",
+        "shodl": "1000000000"
+      },
+      "role": "individual_investor",
+      "description": "Individual investor for testing"
+    },
+    {
+      "name": "bob",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "10000000000",
+        "shodl": "1000000000"
+      },
+      "role": "individual_investor", 
+      "description": "Individual investor for testing"
+    },
+    {
+      "name": "charlie",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "10000000000",
+        "shodl": "1000000000"
+      },
+      "role": "trader",
+      "description": "Active trader for DEX testing"
+    },
+    {
+      "name": "diana",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "10000000000", 
+        "shodl": "1000000000"
+      },
+      "role": "governance_participant",
+      "description": "Governance participant for proposal testing"
+    },
+    {
+      "name": "sharehodl-corp",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "50000000000",
+        "shodl": "5000000000"
+      },
+      "role": "company",
+      "description": "ShareHODL Corp test company"
+    },
+    {
+      "name": "techstart",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "25000000000",
+        "shodl": "2500000000"
+      },
+      "role": "company",
+      "description": "TechStart Inc test company"
+    },
+    {
+      "name": "greenenergy",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "75000000000",
+        "shodl": "7500000000"
+      },
+      "role": "company",
+      "description": "GreenEnergy LLC test company"
+    },
+    {
+      "name": "faucet",
+      "address": "sharehodl1...",
+      "balance": {
+        "hodl": "1000000000000000",
+        "shodl": "100000000000000"
+      },
+      "role": "faucet",
+      "description": "Faucet account for dispensing test tokens"
+    }
+  ],
+  "total_supply": {
+    "hodl": "1000000000000000",
+    "shodl": "100000000000000"
+  },
+  "distribution": {
+    "validators": "10%",
+    "companies": "15%",
+    "individuals": "5%",
+    "faucet": "70%"
+  }
+}

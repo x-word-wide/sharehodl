@@ -16,13 +16,13 @@ const (
 
 	// MemStoreKey defines the in-memory store key
 	MemStoreKey = "mem_hodl"
-
-	// ParamsKey defines the key to store the params
-	ParamsKey = "params"
 )
 
 // KVStore keys
 var (
+	// ParamsKey tracks module parameters
+	ParamsKey = []byte{0x00}
+	
 	// MintedSupplyKey tracks total minted HODL supply
 	MintedSupplyKey = []byte{0x01}
 	

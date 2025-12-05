@@ -415,7 +415,9 @@ func (k Keeper) assignValidatorsForReview(ctx sdk.Context, listingID uint64, req
 	eligibleValidators := []ValidatorInfo{}
 	for _, validator := range validators {
 		// Simplified check - assume all validators can review listings
-		eligibleValidators = append(eligibleValidators, validator)
+		if validatorInfo, ok := validator.(ValidatorInfo); ok {
+			eligibleValidators = append(eligibleValidators, validatorInfo)
+		}
 	}
 	
 	if len(eligibleValidators) < requiredCount {

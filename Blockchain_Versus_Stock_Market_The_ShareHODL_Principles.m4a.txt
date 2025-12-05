@@ -1,0 +1,613 @@
+00:00:00 [Speaker 1]
+Welcome back to the Deep Dive.
+00:00:01 [Speaker 1]
+Today, we're gonna put two, really distinct visions for the financial future right up against each other.
+00:00:09 [Speaker 1]
+Our mission is to do a deep structural comparison.
+00:00:13 [Speaker 1]
+On one side, you have the traditional stock market model, decades old, still paper based at its core.
+00:00:21 [Speaker 1]
+And on the other, this revolutionary purpose built blockchain infrastructure called Share OGL.
+
+00:00:27 [Speaker 2]
+And, you know, we're looking beyond just tokenizing an asset here.
+00:00:31 [Speaker 2]
+This isn't just about digitizing something that already exists.
+
+00:00:34 [Speaker 1]
+No.
+00:00:34 [Speaker 1]
+Is this still It's
+
+00:00:35 [Speaker 2]
+a complete replacement of the whole structure, the exchange, the clearing house, the settlement layers, everything.
+00:00:43 [Speaker 2]
+Important because, that modular framework lets them create very specific financial tools.
+
+00:00:49 [Speaker 1]
+Okay.
+00:00:49 [Speaker 1]
+So let's unpack this a bit.
+00:00:50 [Speaker 1]
+This whole thing is guided by what they have in principles.
+00:00:53 [Speaker 1]
+Okay.
+00:00:53 [Speaker 1]
+To really set this date, let's zoom in on three of those that I think really define the core idea here.
+
+00:00:57 [Speaker 2]
+I think these three are absolutely foundational.
+00:00:59 [Speaker 2]
+First, and this is huge, ownership is real.
+00:01:02 [Speaker 2]
+It's a total rejection of the old model where, you know, your broker holds custody of your share.
+
+00:01:07 [Speaker 1]
+Got it.
+00:01:08 [Speaker 1]
+What's the second one?
+
+00:01:09 [Speaker 2]
+Second, settlement is instant, which basically means zero tolerance for the risk and the cost that comes with waiting days for a trade to clear.
+
+00:01:17 [Speaker 1]
+And the third?
+
+00:01:18 [Speaker 2]
+And third, markets never close.
+00:01:21 [Speaker 2]
+This is a demand for continuous operation.
+00:01:24 [Speaker 2]
+The whole idea of market hours just disappears.
+
+00:01:28 [Speaker 1]
+That sets a very, very high bar.
+00:01:30 [Speaker 1]
+Mhmm.
+00:01:30 [Speaker 1]
+So our comparison today is gonna show what that really means in practice.
+00:01:34 [Speaker 1]
+We'll focus on three core areas, speed and access, the nature of ownership itself, and, the whole process of how companies get validated.
+00:01:44 [Speaker 1]
+Let's start with the most dramatic metric here, the one people feel immediately, speed and availability.
+
+00:01:48 [Speaker 2]
+It's really the difference between a part time service and, like, a global utility that's always on.
+
+00:01:54 [Speaker 1]
+When we talk about traditional so constrained by time zones, by banking hours?
+
+00:01:58 [Speaker 2]
+Absolutely.
+00:01:58 [Speaker 2]
+Traditional exchanges, they run about eight hours a day, five days a week.
+00:02:02 [Speaker 2]
+And if you factor in weekends, holidays, all the off hours, the annual uptime for actually trading and price discovery is, roughly 13%.
+
+00:02:13 [Speaker 1]
+13%.
+00:02:14 [Speaker 1]
+I mean, just stop and think about that.
+00:02:15 [Speaker 1]
+That limitation has massive real world consequences, doesn't it?
+00:02:19 [Speaker 1]
+It's huge.
+00:02:20 [Speaker 1]
+If some major geopolitical news breaks at 5PM on a Friday
+
+00:02:24 [Speaker 2]
+The market's blind.
+00:02:25 [Speaker 2]
+It's frozen for sixty hours.
+
+00:02:27 [Speaker 1]
+Exactly.
+00:02:27 [Speaker 1]
+And that creates this huge risk.
+00:02:29 [Speaker 1]
+You get those gap openings on Monday morning where prices just violently adjust to catch up.
+
+00:02:33 [Speaker 2]
+Right.
+00:02:33 [Speaker 2]
+Sure.
+00:02:34 [Speaker 2]
+GL just solves this by being two four seven three sixty five.
+00:02:37 [Speaker 2]
+You're looking at, like, 99.9% uptime.
+
+00:02:40 [Speaker 1]
+So 20 times the access?
+
+00:02:42 [Speaker 2]
+20 times the access.
+00:02:43 [Speaker 2]
+It ensures price discovery is continuous, and it lets you manage your risk the second news breaks no matter where you are in the world.
+
+00:02:49 [Speaker 1]
+That access is powerful.
+00:02:50 [Speaker 1]
+Mhmm.
+00:02:50 [Speaker 1]
+But the real test of a market's efficiency is how fast the capital actually moves.
+
+00:02:55 [Speaker 2]
+Mhmm.
+
+00:02:55 [Speaker 1]
+So let's talk settlement, t plus two.
+00:02:57 [Speaker 1]
+Everyone in finance knows that term.
+
+00:02:59 [Speaker 2]
+Oh, yeah.
+00:02:59 [Speaker 2]
+And t plus two is more than just a two day delay.
+00:03:02 [Speaker 2]
+Right?
+00:03:02 [Speaker 2]
+It requires a massive amount of capital to be locked up as collateral during that period.
+
+00:03:06 [Speaker 1]
+Because you have all these intermediaries.
+
+00:03:08 [Speaker 2]
+Exactly.
+00:03:09 [Speaker 2]
+Clearing houses, depository institutions, they all have to verify and move the assets.
+00:03:15 [Speaker 2]
+Assets.
+00:03:15 [Speaker 2]
+It creates this inherent systemic counterparty risk.
+
+00:03:19 [Speaker 1]
+And share each deal just gets rid of that completely.
+
+00:03:23 [Speaker 2]
+It does.
+00:03:23 [Speaker 2]
+Because it's on a blockchain, the trade is verified and settled at the same time.
+00:03:27 [Speaker 2]
+The moment a block is confirmed, which is about six seconds, it's done.
+
+00:03:31 [Speaker 1]
+So wait.
+00:03:32 [Speaker 1]
+What's the math on that?
+00:03:33 [Speaker 1]
+Two plus two could be up to seventy two hours?
+
+00:03:35 [Speaker 2]
+And this is six seconds.
+00:03:36 [Speaker 2]
+So the infrastructure is about 28,800 times for final settlement
+
+00:03:41 [Speaker 1]
+Wow.
+
+00:03:42 [Speaker 2]
+Which means counterparty risk is just gone instantly.
+
+00:03:45 [Speaker 1]
+And if settlement is instant, that means you, the investor, have to have instant control.
+00:03:50 [Speaker 1]
+Yeah.
+00:03:50 [Speaker 1]
+It changes the whole idea of ownership.
+00:03:52 [Speaker 1]
+For you as a user, it just means instant liquidity.
+00:03:54 [Speaker 1]
+You sell, and six seconds later, that money is yours.
+
+00:03:57 [Speaker 2]
+Which brings us to that second principle.
+00:03:59 [Speaker 2]
+Ownership is real.
+00:04:00 [Speaker 2]
+We're moving from speed to control.
+00:04:02 [Speaker 2]
+In the current system, when you buy shares through a broker, you have what's called beneficial ownership.
+00:04:08 [Speaker 2]
+The actual shares are held in street name by the broker or in, like, the DTCC.
+
+00:04:13 [Speaker 1]
+So it's kinda like ownership by proxy.
+
+00:04:15 [Speaker 2]
+That's a great way to put it.
+00:04:16 [Speaker 2]
+You're relying on that intermediary for everything.
+00:04:19 [Speaker 2]
+Access, voting, all of it.
+
+00:04:22 [Speaker 1]
+And if they face a crisis or decide to, you know, limit trading on something, your control is gone.
+
+00:04:28 [Speaker 2]
+Exactly.
+00:04:29 [Speaker 2]
+The blockchain model just flips that.
+00:04:31 [Speaker 2]
+Your shares are represented by something called an ERC equity token standard, and this isn't just a generic token.
+
+00:04:37 [Speaker 1]
+Okay.
+00:04:37 [Speaker 1]
+What's special about it?
+
+00:04:38 [Speaker 2]
+It's designed to embed corporate actions, voting rights, dividend triggers, compliance rules, the asset itself.
+
+00:04:44 [Speaker 1]
+And these tokens live in my wallet?
+
+00:04:46 [Speaker 2]
+In your private wallet.
+00:04:47 [Speaker 2]
+Direct custody.
+00:04:48 [Speaker 2]
+You hold the keys, you have the control, and it's all verifiable on a public ledger.
+
+00:04:53 [Speaker 1]
+That's a huge psychological shift, isn't it?
+00:04:55 [Speaker 1]
+You go from being a customer to being a true owner.
+
+00:04:57 [Speaker 2]
+It is.
+00:04:58 [Speaker 2]
+And this changes the economics for businesses too.
+00:05:00 [Speaker 2]
+The traditional way to go public is famously bureaucratic and expensive.
+
+00:05:04 [Speaker 1]
+You're talking millions of dollars.
+
+00:05:06 [Speaker 2]
+Minimum initial costs often top $10,000,000, and the timeline can be, what, twelve to eighteen months dominated by investment bankers and
+
+00:05:15 [Speaker 1]
+Huge barrier to entry for smaller companies.
+
+00:05:17 [Speaker 2]
+Absolutely.
+00:05:18 [Speaker 2]
+It basically shuts out small and medium sized businesses.
+00:05:21 [Speaker 2]
+So with the new model, you get this radical reduction in cost and time.
+00:05:25 [Speaker 2]
+Listing fees can be as low as 1,000 to $25,000.
+
+00:05:29 [Speaker 1]
+And the timeline.
+
+00:05:30 [Speaker 2]
+The whole process from application to actively trading is compressed down to just two to six weeks.
+
+00:05:36 [Speaker 1]
+That speed is incredible.
+00:05:38 [Speaker 1]
+But that brings up the big question.
+00:05:40 [Speaker 1]
+Right?
+00:05:40 [Speaker 1]
+If you cut out the bankers, the lawyers, the eighteen months of due diligence.
+00:05:45 [Speaker 1]
+Mhmm.
+
+00:05:45 [Speaker 1]
+How do you stop from who's checking these businesses?
+
+00:05:48 [Speaker 2]
+That is the critical question, and it's handled by what they call the dual role validator system.
+00:05:52 [Speaker 2]
+This is probably the most innovative part of the whole design.
+
+00:05:55 [Speaker 1]
+Okay.
+00:05:55 [Speaker 1]
+Dual role.
+00:05:56 [Speaker 1]
+What are the two roles?
+
+00:05:57 [Speaker 2]
+So first, they do the technical job.
+00:05:58 [Speaker 2]
+They validate transactions and secure the blockchain.
+00:06:01 [Speaker 2]
+Secure the blockchain.
+00:06:02 [Speaker 2]
+But second, they perform real world business verification.
+00:06:05 [Speaker 2]
+They're the new gatekeepers.
+
+00:06:06 [Speaker 1]
+But wait a second.
+00:06:07 [Speaker 1]
+Doesn't that create a massive conflict of interest?
+00:06:10 [Speaker 1]
+If the validator gets paid to approve companies, aren't they just incentivized to rubber stamp anyone?
+
+00:06:15 [Speaker 2]
+That's the key tension.
+00:06:17 [Speaker 2]
+And the system tries to the nature of the reward.
+00:06:19 [Speaker 2]
+They don't get a short term cash bonus for approving someone.
+
+00:06:23 [Speaker 1]
+So what do they get?
+
+00:06:23 [Speaker 2]
+When they approve a quality company, they receive equity stakes, actual long term ownership shares in that business.
+
+00:06:32 [Speaker 1]
+Okay.
+00:06:32 [Speaker 1]
+So their own success is tied to the long term health of the business they're approving.
+
+00:06:37 [Speaker 2]
+Precisely.
+00:06:37 [Speaker 2]
+It forces them to act like long term partners.
+00:06:40 [Speaker 2]
+If they make a bad call and approve a junk company, they're left holding worthless equity.
+00:06:44 [Speaker 2]
+It aligns their economic self interest with the quality of the market.
+
+00:06:47 [Speaker 1]
+Alright.
+00:06:48 [Speaker 1]
+Let's shift gears and move into the trading itself.
+00:06:49 [Speaker 1]
+The decentralized exchange or Technics.
+00:06:53 [Speaker 1]
+This needs to feel like an institutional grade platform, right, not just a basic crypto swap tool.
+
+00:06:57 [Speaker 2]
+For sure.
+00:06:58 [Speaker 2]
+And it is.
+00:06:59 [Speaker 2]
+At its core, it uses a price time priority matching algorithm.
+00:07:03 [Speaker 2]
+That's the gold standard.
+00:07:04 [Speaker 2]
+It's what the NYSE and Nasdaq, you use.
+
+00:07:07 [Speaker 1]
+So best price gets executed first.
+00:07:10 [Speaker 1]
+If prices are tied, the feed order in line gets priority.
+
+00:07:13 [Speaker 2]
+Exactly.
+00:07:14 [Speaker 2]
+And crucially, it supports all the order types a professional trader would expect.
+
+00:07:18 [Speaker 1]
+Like what?
+00:07:18 [Speaker 1]
+Not just market and limit orders.
+
+00:07:20 [Speaker 2]
+No.
+00:07:21 [Speaker 2]
+You limit, stop, and stop limit.
+00:07:23 [Speaker 2]
+But beyond that, it integrates sophisticated time and force options.
+00:07:27 [Speaker 2]
+Things like f o k or fill or kill.
+
+00:07:30 [Speaker 1]
+Why is something like fill or kill so important?
+
+00:07:33 [Speaker 2]
+It's essential for anyone executing a large precise strategy.
+00:07:37 [Speaker 2]
+It means the order has to be filled entirely right now or it's just canceled.
+
+00:07:41 [Speaker 1]
+So you avoid partial fills that could leave you exposed?
+
+00:07:43 [Speaker 2]
+Right.
+00:07:43 [Speaker 2]
+You get the whole block at your price or you get nothing.
+00:07:46 [Speaker 2]
+It gives you deterministic execution.
+00:07:48 [Speaker 2]
+Then you also have IOC, immediate or cancel, which allows for parts it's that level of control that serious markets need.
+
+00:07:55 [Speaker 1]
+And in this twenty four seven environment, risk management has to be built in.
+00:07:59 [Speaker 1]
+What stops a flash crash at 3AM when liquidity might be thin?
+
+00:08:02 [Speaker 2]
+Two key things.
+00:08:03 [Speaker 2]
+First, circuit breakers.
+00:08:05 [Speaker 2]
+They automatically halt trading for a bit if the price or volume moves too fast outside of preset limits.
+
+00:08:10 [Speaker 1]
+Gives people a second to breathe and process what's happening.
+
+00:08:13 [Speaker 2]
+Exactly.
+00:08:13 [Speaker 2]
+And second, they have position limits to prevent any single person or group from gaining too much control over company stock, which helps mitigate manipulation.
+
+00:08:22 [Speaker 1]
+Let's talk about cost.
+00:08:23 [Speaker 1]
+This is a business.
+00:08:24 [Speaker 1]
+How much are you actually saving on a trade?
+
+00:08:27 [Speaker 2]
+The difference is stark.
+00:08:28 [Speaker 2]
+On a traditional brokerage, with all the hidden fees, you might pay between half a 2% of the trade value.
+
+00:08:35 [Speaker 1]
+Okay.
+
+00:08:35 [Speaker 2]
+Share HODL uses that maker taker fee model we talked about earlier.
+00:08:39 [Speaker 2]
+The result is trading fees are usually between point 010.03%.
+
+00:08:45 [Speaker 1]
+Woah.
+00:08:45 [Speaker 1]
+So that's a potential cost reduction of 10 to 50 times.
+
+00:08:49 [Speaker 2]
+Yes.
+00:08:49 [Speaker 2]
+10 to 50 x cheaper.
+00:08:51 [Speaker 2]
+That fundamentally changes the game for both high frequency traders and small retail investors.
+
+00:08:56 [Speaker 1]
+And what about dividends?
+00:08:57 [Speaker 1]
+That's always been a clunky, multi step process.
+
+00:08:59 [Speaker 2]
+The dividend module automates it completely.
+00:09:02 [Speaker 2]
+Distributions are made instantly using the platform's stablecoin, HODL, wallet.
+00:09:06 [Speaker 2]
+It handles fractional shares perfectly, and it has a fully automated dividend reinvestment program or DRIP.
+
+00:09:13 [Speaker 1]
+So you can just set it and forget it.
+00:09:14 [Speaker 1]
+Your dividends automatically buy you more shares, compounding your investment without any fees.
+
+00:09:20 [Speaker 2]
+Exactly.
+00:09:21 [Speaker 2]
+Zero extra steps.
+
+00:09:22 [Speaker 1]
+Yeah.
+
+00:09:22 [Speaker 2]
+So for a new system like this to actually work to earn confidence, it has to be fair and stable.
+00:09:28 [Speaker 2]
+And that brings us to governance.
+00:09:30 [Speaker 2]
+Right.
+
+00:09:30 [Speaker 1]
+How are the rules made?
+
+00:09:31 [Speaker 2]
+They use what's called a multi tier governance framework.
+00:09:34 [Speaker 2]
+It brings everyone to the table.
+00:09:36 [Speaker 2]
+The HODL token hold the validators and the actual shareholders of the companies.
+
+00:09:41 [Speaker 1]
+That sounds complicated.
+00:09:44 [Speaker 1]
+How do you make sure a vote to, say, upgrade the network software isn't treated the same way as a shareholder vote on a merger?
+
+00:09:51 [Speaker 2]
+They separate governance by domain.
+00:09:53 [Speaker 2]
+For company proposals like listing a new company or a major corporate action, it requires a 25% quorum and uses stakeholder weighted voting.
+
+00:10:02 [Speaker 1]
+Meaning the more skin you have in the game, the more your vote counts.
+
+00:10:04 [Speaker 2]
+Right.
+00:10:05 [Speaker 2]
+Your economic state gives you a louder voice in that specific company's decisions.
+00:10:09 [Speaker 2]
+For protocol proposals, things like software upgrades, the rules are different.
+
+00:10:13 [Speaker 1]
+Stricter, I'm guessing.
+
+00:10:15 [Speaker 2]
+Much stricter.
+00:10:16 [Speaker 2]
+They often require higher quorums from the validator set and longer voting periods.
+00:10:20 [Speaker 2]
+You wanna be very careful and deliberate when you're changing the fundamental code of the entire market.
+
+00:10:26 [Speaker 1]
+And this whole model depends on transparency, on being able to verify everything.
+00:10:30 [Speaker 1]
+That's where their tool, ShareScan, comes in.
+
+00:10:32 [Speaker 2]
+Think of ShareScan as, like, the world's most powerful real time financial auditor.
+00:10:38 [Speaker 2]
+It's the block explorer for the whole capital.
+
+00:10:40 [Speaker 1]
+I can see more than just trade history.
+
+00:10:42 [Speaker 2]
+Oh, yeah.
+00:10:43 [Speaker 2]
+You can monitor real time company analytics.
+00:10:45 [Speaker 2]
+You can see the shareholder distribution for any company on the platform who holds how much.
+00:10:50 [Speaker 2]
+You can see dividend payouts happen in real time, Governance votes, validator performance, it's all there.
+
+00:10:56 [Speaker 1]
+So instead of waiting for quarterly filings from some opaque source
+
+00:11:00 [Speaker 2]
+It's immediate.
+00:11:01 [Speaker 2]
+The entire financial ledger from the moment a company is vetted to the final dividend payment is public and searchable.
+00:11:07 [Speaker 2]
+That level of transparency is the ultimate confidence mechanism.
+00:11:11 [Speaker 2]
+So to criticize all this for you, Sharerut your DL is really designed to fix the three biggest failures of the old markets.
+00:11:18 [Speaker 2]
+It gets rid of the t plus two delay.
+
+00:11:20 [Speaker 1]
+Making settlement instant.
+
+00:11:21 [Speaker 2]
+Right.
+00:11:22 [Speaker 2]
+It slashes the operating costs, saving you maybe 10 to 50 times on every trade.
+
+00:11:27 [Speaker 1]
+And it enforces quality not with bureaucracy, but with economically aligned validators.
+
+00:11:32 [Speaker 2]
+Exactly.
+00:11:33 [Speaker 2]
+It's incentivized continuous scrutiny.
+
+00:11:35 [Speaker 1]
+It's a complete structural shift.
+00:11:37 [Speaker 1]
+The very concept of market hours becomes this quaint historical artifact.
+00:11:42 [Speaker 1]
+It's a continuous 2011 global reality.
+
+00:11:45 [Speaker 2]
+And if equity trading is truly global, instantly settled, and always on, what does that mean for the future of work for how countries regulate capital?
+
+00:11:54 [Speaker 1]
+And maybe more personally for you listening right now, if your capital is always liquid, always available, and the market never ever closes, what new strategies would you design for managing your wealth?
+00:12:04 [Speaker 1]
+How does a two four seven three sixty five market change your personal definition of risk and opportunity?
+00:12:10 [Speaker 1]
+That's the question to mull over until our next deep dive.

@@ -64,7 +64,7 @@
       "symbol": "SHODL/HODL",
       "quantity": 1000,
       "price": 100.0,
-      "trader_addr": "sharehodl1investor1",
+      "trader_addr": "Hodl46d0723646bcc9eb6bf1f382871c8b0fc32154ad",
       "time_in_force": "GTC"
     },
     {
@@ -73,7 +73,7 @@
       "symbol": "SHODL/HODL",
       "quantity": 500,
       "price": 105.0,
-      "trader_addr": "sharehodl1investor2",
+      "trader_addr": "HodlA1B2c3D4e5F6789012345678901234567890aBcD",
       "time_in_force": "GTC"
     },
     {
@@ -82,7 +82,7 @@
       "symbol": "TECH/HODL",
       "quantity": 2000,
       "price": 0,
-      "trader_addr": "sharehodl1investor1",
+      "trader_addr": "Hodl46d0723646bcc9eb6bf1f382871c8b0fc32154ad",
       "time_in_force": "IOC"
     },
     {
@@ -91,7 +91,7 @@
       "symbol": "GREEN/HODL",
       "quantity": 5000,
       "price": 25.0,
-      "trader_addr": "sharehodl1business",
+      "trader_addr": "Hodlff1234567890abcdef1234567890abcdef123456",
       "time_in_force": "GTC"
     }
   ],
@@ -100,7 +100,7 @@
       "type": "TEXT",
       "title": "ShareHODL Protocol Upgrade v1.1",
       "description": "Proposal to upgrade ShareHODL protocol to version 1.1 with enhanced DEX features and improved governance mechanisms",
-      "proposer": "sharehodl1validator",
+      "proposer": "Hodl0123456789abcdef0123456789abcdef01234567",
       "deposit": "10000000hodl",
       "voting_period": 604800000000000
     },
@@ -108,7 +108,7 @@
       "type": "PARAMETER_CHANGE",
       "title": "Increase Block Gas Limit",
       "description": "Proposal to increase the maximum gas limit per block from 30M to 50M to accommodate higher transaction throughput",
-      "proposer": "sharehodl1validator",
+      "proposer": "Hodl0123456789abcdef0123456789abcdef01234567",
       "deposit": "5000000hodl",
       "voting_period": 432000000000000
     },
@@ -116,7 +116,7 @@
       "type": "COMMUNITY_POOL_SPEND",
       "title": "Fund Security Audit",
       "description": "Proposal to allocate 100,000 HODL from community pool for comprehensive security audit by external firm",
-      "proposer": "sharehodl1business",
+      "proposer": "Hodlff1234567890abcdef1234567890abcdef123456",
       "deposit": "2000000hodl",
       "voting_period": 518400000000000
     }
@@ -153,7 +153,7 @@
           "action": "issue_shares",
           "parameters": {
             "symbol": "TEST",
-            "recipient": "sharehodl1founder",
+            "recipient": "Hodldeadbeefcafebabe1337133713371337deadbeef",
             "amount": 600000
           },
           "expected": {
@@ -247,9 +247,9 @@
           "parameters": {
             "proposal_id": 1,
             "votes": [
-              {"voter": "sharehodl1validator", "option": "YES"},
-              {"voter": "sharehodl1business", "option": "YES"},
-              {"voter": "sharehodl1investor1", "option": "NO"}
+              {"voter": "Hodl0123456789abcdef0123456789abcdef01234567", "option": "YES"},
+              {"voter": "Hodlff1234567890abcdef1234567890abcdef123456", "option": "YES"},
+              {"voter": "Hodl46d0723646bcc9eb6bf1f382871c8b0fc32154ad", "option": "NO"}
             ]
           },
           "expected": {

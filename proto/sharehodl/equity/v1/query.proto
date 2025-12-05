@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package sharehodl.equity.v1;
+
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos_proto/cosmos.proto";
+import "sharehodl/equity/v1/equity.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/equity/v1";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params returns the parameters of the module
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/params";
+  }
+
+  // Company returns company information by symbol
+  rpc Company(QueryCompanyRequest) returns (QueryCompanyResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/company/{symbol}";
+  }
+
+  // Companies returns all companies
+  rpc Companies(QueryCompaniesRequest) returns (QueryCompaniesResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/companies";
+  }
+
+  // Shareholdings returns shareholdings for an address
+  rpc Shareholdings(QueryShareholdingsRequest) returns (QueryShareholdingsResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/shareholdings/{address}";
+  }
+
+  // CompanyShareholders returns all shareholders of a company
+  rpc CompanyShareholders(QueryCompanyShareholdersRequest) returns (QueryCompanyShareholdersResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/company/{symbol}/shareholders";
+  }
+
+  // DividendPayments returns dividend payment history
+  rpc DividendPayments(QueryDividendPaymentsRequest) returns (QueryDividendPaymentsResponse) {
+    option (google.api.http).get = "/sharehodl/equity/v1/dividends/{symbol}";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryCompanyRequest is request type for the Query/Company RPC method
+message QueryCompanyRequest {
+  string symbol = 1;
+}
+
+// QueryCompanyResponse is response type for the Query/Company RPC method
+message QueryCompanyResponse {
+  Company company = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryCompaniesRequest is request type for the Query/Companies RPC method
+message QueryCompaniesRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+// QueryCompaniesResponse is response type for the Query/Companies RPC method
+message QueryCompaniesResponse {
+  repeated Company companies = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryShareholdingsRequest is request type for the Query/Shareholdings RPC method
+message QueryShareholdingsRequest {
+  string address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+// QueryShareholdingsResponse is response type for the Query/Shareholdings RPC method
+message QueryShareholdingsResponse {
+  repeated Shareholding shareholdings = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryCompanyShareholdersRequest is request type for the Query/CompanyShareholders RPC method
+message QueryCompanyShareholdersRequest {
+  string symbol = 1;
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+// QueryCompanyShareholdersResponse is response type for the Query/CompanyShareholders RPC method
+message QueryCompanyShareholdersResponse {
+  repeated Shareholding shareholdings = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryDividendPaymentsRequest is request type for the Query/DividendPayments RPC method
+message QueryDividendPaymentsRequest {
+  string symbol = 1;
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+// QueryDividendPaymentsResponse is response type for the Query/DividendPayments RPC method
+message QueryDividendPaymentsResponse {
+  repeated DividendPayment payments = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}

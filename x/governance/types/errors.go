@@ -89,6 +89,31 @@ var (
 	ErrInvalidModuleAction = errors.Register(DefaultCodespace, 803, "invalid module action")
 	ErrModuleCallFailed = errors.Register(DefaultCodespace, 804, "module call failed")
 
+	// Delegation errors
+	ErrDelegationNotFound = errors.Register(DefaultCodespace, 850, "delegation not found")
+	ErrInvalidDelegate = errors.Register(DefaultCodespace, 851, "invalid delegate address")
+	ErrDelegationNotRevocable = errors.Register(DefaultCodespace, 852, "delegation is not revocable")
+	ErrInvalidDelegation = errors.Register(DefaultCodespace, 853, "invalid delegation parameters")
+	ErrDelegationExpired = errors.Register(DefaultCodespace, 854, "delegation has expired")
+	ErrCircularDelegation = errors.Register(DefaultCodespace, 855, "circular delegation detected")
+	
+	// Emergency proposal errors
+	ErrInvalidEmergencyType = errors.Register(DefaultCodespace, 860, "invalid emergency type")
+	ErrInvalidSeverityLevel = errors.Register(DefaultCodespace, 861, "invalid severity level")
+	ErrEmergencyThresholdNotMet = errors.Register(DefaultCodespace, 862, "emergency threshold not met")
+	ErrEmergencyExecutionFailed = errors.Register(DefaultCodespace, 863, "emergency execution failed")
+	ErrValidatorNotActive = errors.Register(DefaultCodespace, 864, "validator is not active")
+	ErrEmergencyTimeLimit = errors.Register(DefaultCodespace, 865, "emergency execution time limit exceeded")
+	
+	// Company governance errors
+	ErrNotShareholder = errors.Register(DefaultCodespace, 870, "address is not a shareholder")
+	ErrInsufficientOwnership = errors.Register(DefaultCodespace, 871, "insufficient ownership percentage")
+	ErrShareClassNotFound = errors.Register(DefaultCodespace, 872, "share class not found")
+	ErrInvalidShareClass = errors.Register(DefaultCodespace, 873, "invalid share class")
+	ErrBoardApprovalRequired = errors.Register(DefaultCodespace, 874, "board approval required")
+	ErrCompanyProposalNotFound = errors.Register(DefaultCodespace, 875, "company proposal not found")
+	ErrInvalidCompanyProposalType = errors.Register(DefaultCodespace, 876, "invalid company proposal type")
+	
 	// State and storage errors
 	ErrInvalidState = errors.Register(DefaultCodespace, 900, "invalid module state")
 	ErrStorageCorruption = errors.Register(DefaultCodespace, 901, "storage corruption detected")

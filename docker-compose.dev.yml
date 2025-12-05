@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # ShareHODL blockchain node
+  sharehodl-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: sharehodl-local-node
+    ports:
+      - "26657:26657"  # RPC
+      - "26656:26656"  # P2P
+      - "1317:1317"    # REST API
+      - "9090:9090"    # gRPC
+      - "9091:9091"    # gRPC Web
+    volumes:
+      - ./data/node:/root/.sharehodl
+      - ./scripts:/scripts
+    environment:
+      - CHAIN_ID=sharehodl-local-1
+      - NODE_NAME=sharehodl-node
+    networks:
+      - sharehodl-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:26657/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Local faucet service
+  faucet:
+    build:
+      context: .
+      dockerfile: services/faucet/Dockerfile
+    container_name: sharehodl-faucet
+    ports:
+      - "8080:8080"
+    environment:
+      - CHAIN_ID=sharehodl-local-1
+      - NODE_URL=http://sharehodl-node:1317
+      - FAUCET_MNEMONIC=abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art
+      - DAILY_LIMIT=1000000000hodl,100000000shodl
+      - REQUEST_LIMIT=100000000hodl,10000000shodl
+    volumes:
+      - ./data/faucet:/data
+    networks:
+      - sharehodl-network
+    depends_on:
+      sharehodl-node:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # PostgreSQL for advanced indexing and analytics
+  postgres:
+    image: postgres:15-alpine
+    container_name: sharehodl-postgres
+    environment:
+      - POSTGRES_DB=sharehodl
+      - POSTGRES_USER=sharehodl
+      - POSTGRES_PASSWORD=sharehodl123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sharehodl-network
+    restart: unless-stopped
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: sharehodl-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sharehodl-network
+    restart: unless-stopped
+
+  # Indexer service for blockchain data
+  indexer:
+    build:
+      context: .
+      dockerfile: services/indexer/Dockerfile
+    container_name: sharehodl-indexer
+    environment:
+      - NODE_URL=http://sharehodl-node:26657
+      - DATABASE_URL=postgres://sharehodl:sharehodl123@postgres:5432/sharehodl
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./data/indexer:/data
+    networks:
+      - sharehodl-network
+    depends_on:
+      - sharehodl-node
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # API Gateway for unified access
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    container_name: sharehodl-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_URL=http://sharehodl-node:1317
+      - FAUCET_URL=http://faucet:8080
+      - DATABASE_URL=postgres://sharehodl:sharehodl123@postgres:5432/sharehodl
+      - REDIS_URL=redis://redis:6379
+    networks:
+      - sharehodl-network
+    depends_on:
+      - sharehodl-node
+      - faucet
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # Frontend development server (optional)
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: sharehodl-frontend-dev
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_CHAIN_ID=sharehodl-local-1
+      - NEXT_PUBLIC_RPC_URL=http://localhost:26657
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - sharehodl-network
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  sharehodl-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

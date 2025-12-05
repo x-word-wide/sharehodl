@@ -1,0 +1,244 @@
+{
+  "app_name": "sharehodl",
+  "app_version": "1.0.0", 
+  "genesis_time": "2024-12-04T00:00:00.000000000Z",
+  "chain_id": "sharehodl-1",
+  "initial_height": "1",
+  "app_hash": null,
+  "app_state": {
+    "auth": {
+      "params": {
+        "max_memo_characters": "256",
+        "tx_sig_limit": "7",
+        "tx_size_cost_per_byte": "10",
+        "sig_verify_cost_ed25519": "590",
+        "sig_verify_cost_secp256k1": "1000"
+      },
+      "accounts": []
+    },
+    "bank": {
+      "params": {
+        "send_enabled": [],
+        "default_send_enabled": true
+      },
+      "balances": [
+        {
+          "address": "sharehodl1genesis0000000000000000000000000",
+          "coins": [
+            {
+              "denom": "uhodl",
+              "amount": "1000000000000"
+            }
+          ]
+        }
+      ],
+      "supply": [
+        {
+          "denom": "uhodl", 
+          "amount": "1000000000000"
+        }
+      ],
+      "denom_metadata": [
+        {
+          "description": "ShareHODL stablecoin pegged to USD",
+          "denom_units": [
+            {
+              "denom": "uhodl",
+              "exponent": 0,
+              "aliases": ["microhodl"]
+            },
+            {
+              "denom": "hodl",
+              "exponent": 6,
+              "aliases": ["sharehodl"]
+            }
+          ],
+          "base": "uhodl",
+          "display": "hodl",
+          "name": "ShareHODL",
+          "symbol": "HODL"
+        }
+      ]
+    },
+    "staking": {
+      "params": {
+        "unbonding_time": "1814400s",
+        "max_validators": 100,
+        "max_entries": 7,
+        "historical_entries": 10000,
+        "bond_denom": "uhodl",
+        "min_commission_rate": "0.000000000000000000"
+      },
+      "last_total_power": "0",
+      "last_validator_powers": [],
+      "validators": [],
+      "delegations": [],
+      "unbonding_delegations": [],
+      "redelegations": [],
+      "exported": false
+    },
+    "slashing": {
+      "params": {
+        "signed_blocks_window": "100",
+        "min_signed_per_window": "0.500000000000000000",
+        "downtime_jail_duration": "600s",
+        "slash_fraction_double_sign": "0.050000000000000000",
+        "slash_fraction_downtime": "0.010000000000000000"
+      },
+      "signing_infos": [],
+      "missed_blocks": []
+    },
+    "distribution": {
+      "params": {
+        "community_tax": "0.020000000000000000",
+        "base_proposer_reward": "0.000000000000000000",
+        "bonus_proposer_reward": "0.000000000000000000",
+        "withdraw_addr_enabled": true
+      },
+      "fee_pool": {
+        "community_pool": []
+      },
+      "delegator_withdraw_infos": [],
+      "previous_proposer": "",
+      "outstanding_rewards": [],
+      "validator_accumulated_commissions": [],
+      "validator_historical_rewards": [],
+      "validator_current_rewards": [],
+      "delegator_starting_infos": [],
+      "validator_slash_events": []
+    },
+    "gov": {
+      "starting_proposal_id": "1",
+      "deposits": [],
+      "votes": [],
+      "proposals": [],
+      "deposit_params": {
+        "min_deposit": [
+          {
+            "denom": "uhodl",
+            "amount": "10000000"
+          }
+        ],
+        "max_deposit_period": "172800s"
+      },
+      "voting_params": {
+        "voting_period": "172800s"
+      },
+      "tally_params": {
+        "quorum": "0.334000000000000000",
+        "threshold": "0.500000000000000000",
+        "veto_threshold": "0.334000000000000000"
+      }
+    },
+    "mint": {
+      "minter": {
+        "inflation": "0.000000000000000000",
+        "annual_provisions": "0.000000000000000000"
+      },
+      "params": {
+        "mint_denom": "uhodl",
+        "inflation_rate_change": "0.000000000000000000",
+        "inflation_max": "0.000000000000000000", 
+        "inflation_min": "0.000000000000000000",
+        "goal_bonded": "0.670000000000000000",
+        "blocks_per_year": "15768000"
+      }
+    },
+    "hodl": {
+      "params": {
+        "peg_rate": "1.000000000000000000",
+        "stability_fee": "0.001000000000000000",
+        "max_supply": "10000000000000000",
+        "min_collateral_ratio": "1.500000000000000000"
+      },
+      "total_supply": "1000000000000",
+      "reserve_pool": "0"
+    },
+    "dex": {
+      "params": {
+        "trading_fee": "0.003000000000000000",
+        "max_slippage": "0.500000000000000000",
+        "order_timeout": "86400s"
+      },
+      "orders": [],
+      "markets": [
+        {
+          "base_denom": "uapple",
+          "quote_denom": "uhodl",
+          "tick_size": "0.000001",
+          "min_quantity": "1"
+        },
+        {
+          "base_denom": "utsla", 
+          "quote_denom": "uhodl",
+          "tick_size": "0.000001",
+          "min_quantity": "1"
+        },
+        {
+          "base_denom": "ugoogl",
+          "quote_denom": "uhodl", 
+          "tick_size": "0.000001",
+          "min_quantity": "1"
+        },
+        {
+          "base_denom": "umsft",
+          "quote_denom": "uhodl",
+          "tick_size": "0.000001", 
+          "min_quantity": "1"
+        }
+      ]
+    },
+    "equity": {
+      "params": {
+        "issuance_fee": "0.001000000000000000",
+        "transfer_fee": "0.000100000000000000",
+        "verification_deposit": "1000000000"
+      },
+      "companies": [],
+      "share_classes": [],
+      "shareholdings": []
+    },
+    "validator": {
+      "params": {
+        "min_stake_bronze": "10000000000",
+        "min_stake_silver": "100000000000", 
+        "min_stake_gold": "1000000000000",
+        "min_stake_platinum": "5000000000000",
+        "min_stake_diamond": "10000000000000",
+        "reward_multiplier_bronze": "1.000000000000000000",
+        "reward_multiplier_silver": "1.200000000000000000",
+        "reward_multiplier_gold": "1.500000000000000000", 
+        "reward_multiplier_platinum": "2.000000000000000000",
+        "reward_multiplier_diamond": "3.000000000000000000"
+      },
+      "validator_tiers": []
+    },
+    "crisis": {
+      "constant_fee": {
+        "denom": "uhodl",
+        "amount": "1000000000"
+      }
+    }
+  },
+  "consensus": {
+    "params": {
+      "block": {
+        "max_bytes": "22020096",
+        "max_gas": "100000000"
+      },
+      "evidence": {
+        "max_age_num_blocks": "100000",
+        "max_age_duration": "172800000000000",
+        "max_bytes": "1048576"
+      },
+      "validator": {
+        "pub_key_types": [
+          "ed25519"
+        ]
+      },
+      "version": {
+        "app": "1"
+      }
+    }
+  }
+}

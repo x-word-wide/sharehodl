@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -18,12 +20,29 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"sharehodl/app"
-	hodltypes "sharehodl/x/hodl/types"
-	equitytypes "sharehodl/x/equity/types"
-	dextypes "sharehodl/x/dex/types"
-	governancetypes "sharehodl/x/governance/types"
+	"github.com/sharehodl/sharehodl-blockchain/app"
+	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
+	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
+	dextypes "github.com/sharehodl/sharehodl-blockchain/x/dex/types"
+	governancetypes "github.com/sharehodl/sharehodl-blockchain/x/governance/types"
 )
+
+// generateHodlAddress creates a Hodl address for testing
+func generateHodlAddress(name string) string {
+	// Use name as seed for reproducible test addresses
+	hash := []byte(name + "sharehodl")
+	
+	// Pad or truncate to 20 bytes
+	if len(hash) > 20 {
+		hash = hash[:20]
+	} else {
+		for len(hash) < 20 {
+			hash = append(hash, 0x00)
+		}
+	}
+	
+	return "Hodl" + hex.EncodeToString(hash)
+}
 
 // E2ETestSuite defines the end-to-end test suite for ShareHODL blockchain
 type E2ETestSuite struct {
@@ -418,7 +437,7 @@ func (s *E2ETestSuite) createTestAccount(name, role, balance string) TestAccount
 	// For now, return a mock account
 	return TestAccount{
 		Name:     name,
-		Address:  fmt.Sprintf("sharehodl1%s", name), // Placeholder
+		Address:  generateHodlAddress(name), // Generate Hodl address
 		Role:     role,
 		Balance:  balance,
 	}

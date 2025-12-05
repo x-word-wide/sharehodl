@@ -118,7 +118,7 @@ func (k msgServer) CreateShareClass(goCtx context.Context, msg *types.SimpleMsgC
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Get company to verify creator is the founder
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -182,7 +182,7 @@ func (k msgServer) IssueShares(goCtx context.Context, msg *types.SimpleMsgIssueS
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Get company to verify creator is the founder
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -259,7 +259,7 @@ func (k msgServer) TransferShares(goCtx context.Context, msg *types.SimpleMsgTra
 	}
 
 	// Get company to check if it's active
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -295,7 +295,7 @@ func (k msgServer) UpdateCompany(goCtx context.Context, msg *types.SimpleMsgUpda
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Get company
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -690,7 +690,7 @@ func (k msgServer) CancelDividend(goCtx context.Context, msg *types.MsgCancelDiv
 	}
 
 	// Get company to verify creator is authorized
-	company, found := k.GetCompany(ctx, dividend.CompanyID)
+	company, found := k.getCompany(ctx, dividend.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -741,7 +741,7 @@ func (k msgServer) SetDividendPolicy(goCtx context.Context, msg *types.MsgSetDiv
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Get company to verify creator is authorized
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}
@@ -831,7 +831,7 @@ func (k msgServer) EnableDividendReinvestment(goCtx context.Context, msg *types.
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Get company to verify authorization
-	company, found := k.GetCompany(ctx, msg.CompanyID)
+	company, found := k.getCompany(ctx, msg.CompanyID)
 	if !found {
 		return nil, types.ErrCompanyNotFound
 	}

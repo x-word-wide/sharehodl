@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package sharehodl.validator.v1;
+
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos_proto/cosmos.proto";
+import "sharehodl/validator/v1/validator.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/validator/v1";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params returns the parameters of the module
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/params";
+  }
+
+  // ValidatorTier returns validator tier information
+  rpc ValidatorTier(QueryValidatorTierRequest) returns (QueryValidatorTierResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/tier/{validator_address}";
+  }
+
+  // ValidatorTiers returns all validator tier information
+  rpc ValidatorTiers(QueryValidatorTiersRequest) returns (QueryValidatorTiersResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/tiers";
+  }
+
+  // BusinessVerification returns business verification information
+  rpc BusinessVerification(QueryBusinessVerificationRequest) returns (QueryBusinessVerificationResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/verification/{business_id}";
+  }
+
+  // BusinessVerifications returns all business verifications
+  rpc BusinessVerifications(QueryBusinessVerificationsRequest) returns (QueryBusinessVerificationsResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/verifications";
+  }
+
+  // ValidatorRewards returns validator verification rewards
+  rpc ValidatorRewards(QueryValidatorRewardsRequest) returns (QueryValidatorRewardsResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/rewards/{validator_address}";
+  }
+
+  // ValidatorBusinessStakes returns validator business stakes
+  rpc ValidatorBusinessStakes(QueryValidatorBusinessStakesRequest) returns (QueryValidatorBusinessStakesResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/stakes/{validator_address}";
+  }
+
+  // TierThresholds returns the stake thresholds for validator tiers
+  rpc TierThresholds(QueryTierThresholdsRequest) returns (QueryTierThresholdsResponse) {
+    option (google.api.http).get = "/sharehodl/validator/v1/tier-thresholds";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryValidatorTierRequest is request type for the Query/ValidatorTier RPC method
+message QueryValidatorTierRequest {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryValidatorTierResponse is response type for the Query/ValidatorTier RPC method
+message QueryValidatorTierResponse {
+  ValidatorTierInfo tier_info = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryValidatorTiersRequest is request type for the Query/ValidatorTiers RPC method
+message QueryValidatorTiersRequest {
+  ValidatorTier tier = 1;
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+// QueryValidatorTiersResponse is response type for the Query/ValidatorTiers RPC method
+message QueryValidatorTiersResponse {
+  repeated ValidatorTierInfo tier_infos = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryBusinessVerificationRequest is request type for the Query/BusinessVerification RPC method
+message QueryBusinessVerificationRequest {
+  string business_id = 1;
+}
+
+// QueryBusinessVerificationResponse is response type for the Query/BusinessVerification RPC method
+message QueryBusinessVerificationResponse {
+  BusinessVerification verification = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryBusinessVerificationsRequest is request type for the Query/BusinessVerifications RPC method
+message QueryBusinessVerificationsRequest {
+  BusinessVerificationStatus status = 1;
+  ValidatorTier required_tier = 2;
+  cosmos.base.query.v1beta1.PageRequest pagination = 3;
+}
+
+// QueryBusinessVerificationsResponse is response type for the Query/BusinessVerifications RPC method
+message QueryBusinessVerificationsResponse {
+  repeated BusinessVerification verifications = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryValidatorRewardsRequest is request type for the Query/ValidatorRewards RPC method
+message QueryValidatorRewardsRequest {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryValidatorRewardsResponse is response type for the Query/ValidatorRewards RPC method
+message QueryValidatorRewardsResponse {
+  VerificationRewards rewards = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryValidatorBusinessStakesRequest is request type for the Query/ValidatorBusinessStakes RPC method
+message QueryValidatorBusinessStakesRequest {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  cosmos.base.query.v1beta1.PageRequest pagination = 2;
+}
+
+// QueryValidatorBusinessStakesResponse is response type for the Query/ValidatorBusinessStakes RPC method
+message QueryValidatorBusinessStakesResponse {
+  repeated ValidatorBusinessStake stakes = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryTierThresholdsRequest is request type for the Query/TierThresholds RPC method
+message QueryTierThresholdsRequest {}
+
+// QueryTierThresholdsResponse is response type for the Query/TierThresholds RPC method
+message QueryTierThresholdsResponse {
+  TierThresholds thresholds = 1 [(gogoproto.nullable) = false];
+}

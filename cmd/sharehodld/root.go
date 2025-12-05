@@ -8,7 +8,6 @@ import (
 	"cosmossdk.io/log"
 	confixcmd "cosmossdk.io/tools/confix/cmd"
 	cmtcfg "github.com/cometbft/cometbft/v2/config"
-	cmtcli "github.com/cometbft/cometbft/libs/cli"
 	dbm "github.com/cosmos/cosmos-db"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/config"
@@ -288,15 +287,12 @@ func initCometBFTConfig() *cmtcfg.Config {
 	// These fields should be configured for ShareHODL
 	cfg.P2P.MaxNumInboundPeers = 40
 	cfg.P2P.MaxNumOutboundPeers = 10
-	cfg.P2P.FlushThrottleTimeout = "100ms"
+	cfg.P2P.FlushThrottleTimeout = 100000000 // 100ms in nanoseconds
 	cfg.P2P.MaxPacketMsgPayloadSize = 1024
 
-	// Consensus params for fast finality
-	cfg.Consensus.TimeoutPropose = "2s"
-	cfg.Consensus.TimeoutPrevote = "1s"
-	cfg.Consensus.TimeoutPrecommit = "1s"
-	cfg.Consensus.TimeoutCommit = "2s"
-	cfg.Consensus.SkipTimeoutCommit = false
+	// Consensus params for fast finality (CometBFT v2)
+	cfg.Consensus.TimeoutPropose = 2000000000 // 2s in nanoseconds
+	cfg.Consensus.TimeoutCommit = 2000000000  // 2s in nanoseconds
 
 	return cfg
 }

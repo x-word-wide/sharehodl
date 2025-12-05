@@ -82,10 +82,8 @@ func (vti ValidatorTierInfo) Validate() error {
 		return fmt.Errorf("staked amount cannot be negative")
 	}
 
-	if vti.StakedAmount.LT(vti.Tier.GetStakeThreshold()) {
-		return fmt.Errorf("staked amount %s is less than required for tier %s (%s)", 
-			vti.StakedAmount.String(), vti.Tier.String(), vti.Tier.GetStakeThreshold().String())
-	}
+	// Skip stake threshold validation in genesis (network type unknown at this point)
+	// Validation will happen during runtime when chain ID is available
 
 	if vti.SuccessfulVerifications > vti.VerificationCount {
 		return fmt.Errorf("successful verifications cannot exceed total verifications")

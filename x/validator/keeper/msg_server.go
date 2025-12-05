@@ -31,9 +31,9 @@ func (k msgServer) RegisterValidatorTier(goCtx context.Context, msg *types.Simpl
 	}
 
 	// Check if validator exists in staking module
-	_, found := k.stakingKeeper.GetValidator(ctx, valAddr)
-	if !found {
-		return nil, fmt.Errorf("validator not found in staking module")
+	_, err = k.stakingKeeper.GetValidator(ctx, valAddr)
+	if err != nil {
+		return nil, fmt.Errorf("validator not found in staking module: %v", err)
 	}
 
 	// Check if validator already registered
@@ -43,7 +43,7 @@ func (k msgServer) RegisterValidatorTier(goCtx context.Context, msg *types.Simpl
 	}
 
 	// Validate stake amount meets tier requirement
-	actualTier := k.DetermineValidatorTier(msg.StakeAmount)
+	actualTier := k.DetermineValidatorTier(ctx, msg.StakeAmount)
 	if actualTier < msg.DesiredTier {
 		return nil, types.ErrInsufficientStakeForTier
 	}
@@ -152,7 +152,7 @@ func (k msgServer) SubmitBusinessVerification(goCtx context.Context, msg *types.
 		RegistrationCountry:  msg.RegistrationCountry,
 		DocumentHashes:       msg.DocumentHashes,
 		RequiredTier:         msg.RequiredTier,
-		StakeRequired:        msg.RequiredTier.GetStakeThreshold(),
+		StakeRequired:        msg.RequiredTier.GetStakeThreshold(ctx.ChainID() == "sharehodl-testnet-1" || ctx.ChainID() == "sharehodl-testnet-2"),
 		VerificationFee:      msg.VerificationFee,
 		Status:              types.VerificationPending,
 		AssignedValidators:  selectedValidators,

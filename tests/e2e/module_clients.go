@@ -2,6 +2,8 @@ package e2e
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -9,10 +11,10 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/tx"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 
-	hodltypes "sharehodl/x/hodl/types"
-	equitytypes "sharehodl/x/equity/types"
-	dextypes "sharehodl/x/dex/types"
-	governancetypes "sharehodl/x/governance/types"
+	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
+	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
+	dextypes "github.com/sharehodl/sharehodl-blockchain/x/dex/types"
+	governancetypes "github.com/sharehodl/sharehodl-blockchain/x/governance/types"
 )
 
 // HODLClient provides test client for HODL module
@@ -360,7 +362,10 @@ func (h *TestHelper) AssertTxSuccess(txResponse *sdk.TxResponse) {
 
 // GenerateRandomAddress generates a random test address
 func (h *TestHelper) GenerateRandomAddress() string {
-	return fmt.Sprintf("sharehodl1test%d", time.Now().UnixNano())
+	// Generate random Hodl address for testing
+	bytes := make([]byte, 20)
+	rand.Read(bytes)
+	return "Hodl" + hex.EncodeToString(bytes)
 }
 
 // CreateTestCoin creates a test coin with specified amount

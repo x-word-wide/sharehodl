@@ -2,7 +2,7 @@
 
 ## 🚀 Current Infrastructure Status
 
-**Last Updated**: December 5, 2025 12:45 UTC
+**Last Updated**: December 5, 2025 13:42 UTC
 
 ### ✅ Successfully Deployed
 
@@ -63,8 +63,8 @@
 
 ### All Domains Now HTTPS Enabled
 ```
-✅ https://sharehodl.com        → Main Portal (Port 3001)
-✅ https://scan.sharehodl.com   → Blockchain Explorer (Port 3003)
+✅ https://sharehodl.com        → Redirects to Explorer (301 → scan.sharehodl.com)
+✅ https://scan.sharehodl.com   → Blockchain Explorer (Port 3003) - HOME PAGE
 ✅ https://trade.sharehodl.com  → Trading Platform (Port 3002)
 ✅ https://gov.sharehodl.com    → Governance Portal (Port 3001)
 ✅ https://business.sharehodl.com → Business Portal (Port 3005)
@@ -86,6 +86,15 @@ business.sharehodl.com      A    54.198.239.167
 wallet.sharehodl.com        A    54.198.239.167
 api.sharehodl.com           A    54.198.239.167
 rpc.sharehodl.com           A    54.198.239.167
+```
+
+### Domain Redirect Configuration
+```
+sharehodl.com → 301 Redirect → https://scan.sharehodl.com
+- Main domain now redirects to Explorer as home page
+- Nginx configuration: return 301 https://scan.sharehodl.com$request_uri;
+- Preserves URL parameters and paths
+- All navigation menus updated with production URLs
 ```
 
 ## 🔧 Next Steps (Priority Order)
@@ -179,7 +188,7 @@ ssh -i ~/.ssh/sharehodl-key-1764931859.pem ubuntu@54.198.239.167
 
 ### Service Endpoints (When Complete)
 ```
-Main Portal:     https://sharehodl.com
+Home Page:       https://sharehodl.com (redirects to Explorer)
 Explorer:        https://scan.sharehodl.com  
 Trading:         https://trade.sharehodl.com
 Governance:      https://gov.sharehodl.com

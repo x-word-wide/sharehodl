@@ -27,9 +27,11 @@ var (
 
 	// Price errors
 	ErrInvalidPrice         = errors.Register(ModuleName, 20, "invalid price")
-	ErrPriceTooLow          = errors.Register(ModuleName, 21, "price too low")
-	ErrPriceTooHigh         = errors.Register(ModuleName, 22, "price too high")
-	ErrInvalidTickSize      = errors.Register(ModuleName, 23, "invalid tick size")
+	ErrInvalidOrderPrice    = errors.Register(ModuleName, 21, "invalid order price")
+	ErrPriceTooLow          = errors.Register(ModuleName, 22, "price too low")
+	ErrPriceTooHigh         = errors.Register(ModuleName, 23, "price too high")
+	ErrInvalidTickSize      = errors.Register(ModuleName, 24, "invalid tick size")
+	ErrInvalidSlippage      = errors.Register(ModuleName, 25, "invalid slippage tolerance")
 
 	// Balance errors
 	ErrInsufficientFunds    = errors.Register(ModuleName, 30, "insufficient funds")
@@ -56,4 +58,35 @@ var (
 	// Authorization errors
 	ErrUnauthorized        = errors.Register(ModuleName, 70, "unauthorized")
 	ErrPermissionDenied    = errors.Register(ModuleName, 71, "permission denied")
+
+	// Atomic swap errors
+	ErrAssetNotFound       = errors.Register(ModuleName, 80, "asset not found")
+	ErrSameAssetSwap       = errors.Register(ModuleName, 81, "cannot swap same asset")
+	ErrNoMarketPrice       = errors.Register(ModuleName, 82, "no market price available")
+	ErrInsufficientShares  = errors.Register(ModuleName, 83, "insufficient shares")
+	ErrNotImplemented      = errors.Register(ModuleName, 84, "feature not implemented")
+	ErrCrossEquitySwapNotImplemented = errors.Register(ModuleName, 85, "cross-equity swap not implemented")
+
+	// Trading strategy errors
+	ErrInvalidStrategyID     = errors.Register(ModuleName, 90, "invalid strategy ID")
+	ErrInvalidStrategyTriggers = errors.Register(ModuleName, 91, "invalid strategy triggers")
+	ErrTooManyTriggers      = errors.Register(ModuleName, 92, "too many triggers")
+
+	// Trading controls and safety errors
+	ErrOutsideTradingHours   = errors.Register(ModuleName, 100, "outside trading hours")
+	ErrInvalidParameter      = errors.Register(ModuleName, 101, "invalid parameter")
+	ErrOwnershipLimitExceeded = errors.Register(ModuleName, 102, "ownership limit exceeded")
+	ErrDailyAcquisitionLimitExceeded = errors.Register(ModuleName, 103, "daily acquisition limit exceeded")
+	ErrBoardApprovalRequired = errors.Register(ModuleName, 104, "board approval required")
+	ErrTransferApprovalRequired = errors.Register(ModuleName, 105, "transfer approval required")
+	ErrRestrictedInvestor    = errors.Register(ModuleName, 106, "restricted investor")
+	ErrRightOfFirstRefusalPending = errors.Register(ModuleName, 107, "right of first refusal pending")
+	ErrTakeoverDefenseTriggered = errors.Register(ModuleName, 108, "takeover defense triggered")
+	
+	// Event types for advanced trading
+	EventTypeCircuitBreakerTriggered = "circuit_breaker_triggered"
+	EventTypeOrderRejected          = "order_rejected"
+	EventTypeOrderPartiallyFilled   = "order_partially_filled"
+	EventTypeOrderExpired          = "order_expired"
+	EventTypeOrderCancelled        = "order_cancelled"
 )

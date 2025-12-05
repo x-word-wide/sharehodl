@@ -15,6 +15,17 @@ type GenesisState struct {
 	Positions       []CollateralPosition `json:"positions" yaml:"positions"`
 }
 
+// ProtoMessage implements proto.Message interface
+func (m *GenesisState) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *GenesisState) Reset() { *m = GenesisState{} }
+
+// String implements proto.Message interface
+func (m *GenesisState) String() string {
+	return "hodl_genesis"
+}
+
 // Params defines the parameters for the hodl module.
 type Params struct {
 	MintingEnabled   bool               `json:"minting_enabled" yaml:"minting_enabled"`
@@ -24,6 +35,12 @@ type Params struct {
 	MintFee         math.LegacyDec      `json:"mint_fee" yaml:"mint_fee"`
 	BurnFee         math.LegacyDec      `json:"burn_fee" yaml:"burn_fee"`
 }
+
+// ProtoMessage implements proto.Message interface
+func (m *Params) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *Params) Reset() { *m = Params{} }
 
 // MsgServer defines the Msg service.
 type MsgServer interface {
@@ -69,4 +86,20 @@ type QueryPositionRequest struct {
 
 type QueryPositionResponse struct {
 	Position CollateralPosition `json:"position" yaml:"position"`
+}
+
+// Supply represents the total supply of HODL tokens
+type Supply struct {
+	Amount math.Int `json:"amount" yaml:"amount"`
+}
+
+// ProtoMessage implements proto.Message interface
+func (m *Supply) ProtoMessage() {}
+
+// Reset implements proto.Message interface  
+func (m *Supply) Reset() { *m = Supply{} }
+
+// String implements proto.Message interface
+func (m *Supply) String() string {
+	return m.Amount.String()
 }

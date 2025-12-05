@@ -2,17 +2,17 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
-	"time"
-
-	cmtconfig "github.com/cometbft/cometbft/config"
-	cmtrand "github.com/cometbft/cometbft/libs/rand"
-	cmttime "github.com/cometbft/cometbft/types/time"
-	"github.com/cometbft/cometbft/types"
+	"cosmossdk.io/math"
+	cmtconfig "github.com/cometbft/cometbft/v2/config"
+	cmtrand "github.com/cometbft/cometbft/v2/libs/rand"
+	cmttime "github.com/cometbft/cometbft/v2/types/time"
+	"github.com/cometbft/cometbft/v2/types"
 	"github.com/cosmos/cosmos-sdk/client"
 	"github.com/cosmos/cosmos-sdk/client/flags"
 	"github.com/cosmos/cosmos-sdk/client/tx"
@@ -27,14 +27,8 @@ import (
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
 	"github.com/cosmos/cosmos-sdk/x/genutil"
-	genutiltypes "github.com/cosmos/cosmos-sdk/x/genutil/types"
-	govtypes "github.com/cosmos/cosmos-sdk/x/gov/types"
 	stakingtypes "github.com/cosmos/cosmos-sdk/x/staking/types"
-	"github.com/cosmos/go-bip39"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-
-	"github.com/sharehodl/sharehodl-blockchain/app"
 )
 
 const (
@@ -108,7 +102,7 @@ Example:
 				cmd,
 				config,
 				mbm,
-				genutiltypes.AppGenesis{},
+				banktypes.GenesisBalancesIterator{}, // balanceIterator
 				outputDir,
 				chainId,
 				minGasPrices,
@@ -267,12 +261,12 @@ func InitTestnet(
 
 		valTokens := sdk.TokensFromConsensusPower(100, sdk.DefaultPowerReduction)
 		createValMsg, err := stakingtypes.NewMsgCreateValidator(
-			sdk.ValAddress(addr),
+			sdk.ValAddress(addr).String(),
 			valPubKeys[i],
 			sdk.NewCoin(sdk.DefaultBondDenom, valTokens),
 			stakingtypes.NewDescription(nodeDirName, "", "", "", ""),
-			stakingtypes.NewCommissionRates(sdk.ZeroDec(), sdk.ZeroDec(), sdk.ZeroDec()),
-			sdk.OneInt(),
+			stakingtypes.NewCommissionRates(math.LegacyZeroDec(), math.LegacyZeroDec(), math.LegacyZeroDec()),
+			math.OneInt(),
 		)
 		if err != nil {
 			return err
@@ -292,7 +286,7 @@ func InitTestnet(
 			WithKeybase(kb).
 			WithTxConfig(clientCtx.TxConfig)
 
-		if err := tx.Sign(txFactory, nodeDirName, txBuilder, true); err != nil {
+		if err := tx.Sign(context.Background(), txFactory, nodeDirName, txBuilder, true); err != nil {
 			return err
 		}
 
@@ -305,10 +299,10 @@ func InitTestnet(
 			return err
 		}
 
-		customAppTemplate, customAppConfig := initAppConfig()
+		_, customAppConfig := initAppConfig()
 		srvconfig.WriteConfigFile(filepath.Join(nodeDir, "config/app.toml"), customAppConfig)
 
-		clientCtx := clientCtx.WithKeyringDir(nodeDir).WithKeyring(kb)
+		_ = clientCtx.WithKeyringDir(nodeDir).WithKeyring(kb)
 
 		sharehodlConfigFilePath := filepath.Join(nodeDir, "config/app.toml")
 		srvconfig.WriteConfigFile(sharehodlConfigFilePath, sharehodlConfig)
@@ -359,16 +353,8 @@ func initGenFiles(
 	bankGenState.Balances = genBalances
 	appGenState[banktypes.ModuleName] = clientCtx.Codec.MustMarshalJSON(&bankGenState)
 
-	var govGenState govtypes.GenesisState
-	if err := clientCtx.Codec.UnmarshalJSON(appGenState[govtypes.ModuleName], &govGenState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", govtypes.ModuleName, err)
-	}
-
-	govGenState.Params.VotingPeriod = &[]time.Duration{time.Hour * 24 * 2}[0] // 2 days
-	govGenState.Params.MaxDepositPeriod = &[]time.Duration{time.Hour * 24 * 2}[0] // 2 days  
-	govGenState.Params.MinDeposit = sdk.NewCoins(sdk.NewCoin(sdk.DefaultBondDenom, sdk.NewIntFromUint64(1))) 
-
-	appGenState[govtypes.ModuleName] = clientCtx.Codec.MustMarshalJSON(&govGenState)
+	// Configure governance parameters
+	// Note: Governance parameters are now configured in genesis.json
 
 	appGenStateJSON, err := json.MarshalIndent(appGenState, "", "  ")
 	if err != nil {
@@ -401,7 +387,7 @@ func collectGenFiles(
 	for i := 0; i < numValidators; i++ {
 		nodeDirName := fmt.Sprintf("%s%d", nodeDirPrefix, i)
 		nodeDir := filepath.Join(outputDir, nodeDirName, nodeDaemonHome)
-		gentxsDir := filepath.Join(outputDir, "gentxs")
+		_ = filepath.Join(outputDir, "gentxs") // gentxsDir not used in this context
 		nodeConfig.SetRoot(nodeDir)
 
 		nodeConfig.Moniker = nodeDirName

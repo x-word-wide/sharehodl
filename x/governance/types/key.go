@@ -50,6 +50,21 @@ var (
 	// Company and validator specific
 	CompanyProposalPrefix      = []byte{0x60}
 	ValidatorProposalPrefix    = []byte{0x61}
+	
+	// Emergency proposals
+	EmergencyProposalPrefix    = []byte{0x70}
+	EmergencyTypeIndexPrefix   = []byte{0x71}
+	EmergencySeverityPrefix    = []byte{0x72}
+	
+	// Delegation
+	DelegationPrefix           = []byte{0x80}
+	DelegateIndexPrefix        = []byte{0x81}
+	DelegatorIndexPrefix       = []byte{0x82}
+	CompanyDelegationPrefix    = []byte{0x83}
+	
+	// Statistics and analytics
+	GovernanceStatsPrefix      = []byte{0x90}
+	ParticipationStatsPrefix   = []byte{0x91}
 )
 
 // Key construction functions
@@ -275,4 +290,98 @@ func SplitDepositKey(key []byte) (uint64, []byte) {
 	proposalID := binary.BigEndian.Uint64(key[len(DepositPrefix):len(DepositPrefix)+8])
 	depositor := key[len(DepositPrefix)+8:]
 	return proposalID, depositor
+}
+
+// Emergency proposal key functions
+
+// EmergencyProposalKey returns the store key for emergency proposals
+func EmergencyProposalKey(proposalID uint64) []byte {
+	key := make([]byte, len(EmergencyProposalPrefix)+8)
+	copy(key, EmergencyProposalPrefix)
+	binary.BigEndian.PutUint64(key[len(EmergencyProposalPrefix):], proposalID)
+	return key
+}
+
+// EmergencyTypeIndexKey returns the index key for emergency proposals by type
+func EmergencyTypeIndexKey(emergencyType uint32, proposalID uint64) []byte {
+	key := make([]byte, len(EmergencyTypeIndexPrefix)+4+8)
+	copy(key, EmergencyTypeIndexPrefix)
+	binary.BigEndian.PutUint32(key[len(EmergencyTypeIndexPrefix):], emergencyType)
+	binary.BigEndian.PutUint64(key[len(EmergencyTypeIndexPrefix)+4:], proposalID)
+	return key
+}
+
+// EmergencySeverityKey returns the index key for emergency proposals by severity
+func EmergencySeverityKey(severity int, proposalID uint64) []byte {
+	key := make([]byte, len(EmergencySeverityPrefix)+4+8)
+	copy(key, EmergencySeverityPrefix)
+	binary.BigEndian.PutUint32(key[len(EmergencySeverityPrefix):], uint32(severity))
+	binary.BigEndian.PutUint64(key[len(EmergencySeverityPrefix)+4:], proposalID)
+	return key
+}
+
+// Delegation key functions
+
+// DelegationKey returns the store key for vote delegations
+func DelegationKey(delegator string, companyID uint64, proposalType uint32) []byte {
+	delegatorBytes := []byte(delegator)
+	key := make([]byte, len(DelegationPrefix)+len(delegatorBytes)+1+8+4)
+	copy(key, DelegationPrefix)
+	copy(key[len(DelegationPrefix):], delegatorBytes)
+	key[len(DelegationPrefix)+len(delegatorBytes)] = 0x00 // separator
+	binary.BigEndian.PutUint64(key[len(DelegationPrefix)+len(delegatorBytes)+1:], companyID)
+	binary.BigEndian.PutUint32(key[len(DelegationPrefix)+len(delegatorBytes)+1+8:], proposalType)
+	return key
+}
+
+// DelegateIndexKey returns the index key for delegations by delegate
+func DelegateIndexKey(delegate string, proposalType uint32, delegator string) []byte {
+	delegateBytes := []byte(delegate)
+	delegatorBytes := []byte(delegator)
+	key := make([]byte, len(DelegateIndexPrefix)+len(delegateBytes)+1+4+len(delegatorBytes)+1)
+	copy(key, DelegateIndexPrefix)
+	copy(key[len(DelegateIndexPrefix):], delegateBytes)
+	key[len(DelegateIndexPrefix)+len(delegateBytes)] = 0x00 // separator
+	binary.BigEndian.PutUint32(key[len(DelegateIndexPrefix)+len(delegateBytes)+1:], proposalType)
+	copy(key[len(DelegateIndexPrefix)+len(delegateBytes)+1+4:], delegatorBytes)
+	key[len(DelegateIndexPrefix)+len(delegateBytes)+1+4+len(delegatorBytes)] = 0x00 // separator
+	return key
+}
+
+// DelegatorIndexKey returns the index key for delegations by delegator
+func DelegatorIndexKey(delegator string, proposalType uint32) []byte {
+	delegatorBytes := []byte(delegator)
+	key := make([]byte, len(DelegatorIndexPrefix)+len(delegatorBytes)+1+4)
+	copy(key, DelegatorIndexPrefix)
+	copy(key[len(DelegatorIndexPrefix):], delegatorBytes)
+	key[len(DelegatorIndexPrefix)+len(delegatorBytes)] = 0x00 // separator
+	binary.BigEndian.PutUint32(key[len(DelegatorIndexPrefix)+len(delegatorBytes)+1:], proposalType)
+	return key
+}
+
+// CompanyDelegationKey returns the index key for company-specific delegations
+func CompanyDelegationKey(companyID uint64, proposalType uint32, delegator string) []byte {
+	delegatorBytes := []byte(delegator)
+	key := make([]byte, len(CompanyDelegationPrefix)+8+4+len(delegatorBytes)+1)
+	copy(key, CompanyDelegationPrefix)
+	binary.BigEndian.PutUint64(key[len(CompanyDelegationPrefix):], companyID)
+	binary.BigEndian.PutUint32(key[len(CompanyDelegationPrefix)+8:], proposalType)
+	copy(key[len(CompanyDelegationPrefix)+8+4:], delegatorBytes)
+	key[len(CompanyDelegationPrefix)+8+4+len(delegatorBytes)] = 0x00 // separator
+	return key
+}
+
+// Statistics key functions
+
+// GovernanceStatsKey returns the store key for governance statistics
+func GovernanceStatsKey() []byte {
+	return GovernanceStatsPrefix
+}
+
+// ParticipationStatsKey returns the store key for participation statistics
+func ParticipationStatsKey(participant []byte) []byte {
+	key := make([]byte, len(ParticipationStatsPrefix)+len(participant))
+	copy(key, ParticipationStatsPrefix)
+	copy(key[len(ParticipationStatsPrefix):], participant)
+	return key
 }

@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"cosmossdk.io/math"
@@ -230,15 +231,22 @@ type GovernanceParams struct {
 
 // CompanyGovernanceProposal represents a company-specific governance proposal
 type CompanyGovernanceProposal struct {
-	ProposalID      uint64               `json:"proposal_id"`
-	CompanyID       uint64               `json:"company_id"`
-	Type            string               `json:"type"` // "board_election", "dividend_policy", "merger", etc.
-	Title           string               `json:"title"`
-	Description     string               `json:"description"`
-	Proposer        string               `json:"proposer"`
-	ShareClassVoting map[string]math.LegacyDec `json:"share_class_voting"` // Voting weights by share class
-	RequiredApproval math.LegacyDec      `json:"required_approval"`      // Required approval percentage
-	CreatedAt       time.Time            `json:"created_at"`
+	ProposalID        uint64                    `json:"proposal_id"`
+	CompanyID         uint64                    `json:"company_id"`
+	CompanySymbol     string                    `json:"company_symbol"`
+	Type              CompanyProposalType       `json:"type"`
+	Title             string                    `json:"title"`
+	Description       string                    `json:"description"`
+	Proposer          string                    `json:"proposer"`
+	ShareClassVoting  map[string]math.LegacyDec `json:"share_class_voting"` // Voting weights by share class
+	RequiredApproval  math.LegacyDec            `json:"required_approval"`  // Required approval percentage
+	BoardApprovalReq  bool                      `json:"board_approval_req"` // Requires board approval
+	QuorumRequirement math.LegacyDec            `json:"quorum_requirement"`
+	VotingPeriod      time.Duration             `json:"voting_period"`
+	ExecutionDelay    time.Duration             `json:"execution_delay"`    // Delay before execution
+	ProposalData      map[string]interface{}    `json:"proposal_data"`     // Type-specific data
+	CreatedAt         time.Time                 `json:"created_at"`
+	UpdatedAt         time.Time                 `json:"updated_at"`
 }
 
 // ValidatorGovernanceProposal represents a validator-specific governance proposal
@@ -309,7 +317,7 @@ func (p Proposal) Validate() error {
 	}
 	
 	if p.Proposer == "" {
-		return ErrInvalidProposer
+		return fmt.Errorf("invalid proposer: cannot be empty")
 	}
 	
 	if p.MinDeposit.IsNegative() {
@@ -410,6 +418,99 @@ func NewDeposit(proposalID uint64, depositor string, amount math.Int, currency s
 		DepositedAt: time.Now(),
 	}
 }
+
+// CompanyProposalType represents different types of company governance proposals
+type CompanyProposalType int32
+
+const (
+	CompanyProposalTypeBoardElection    CompanyProposalType = 0
+	CompanyProposalTypeDividendPolicy   CompanyProposalType = 1
+	CompanyProposalTypeMergerAcquisition CompanyProposalType = 2
+	CompanyProposalTypeShareSplit       CompanyProposalType = 3
+	CompanyProposalTypeShareBuyback     CompanyProposalType = 4
+	CompanyProposalTypeBylaw           CompanyProposalType = 5
+	CompanyProposalTypeExecutiveComp   CompanyProposalType = 6
+	CompanyProposalTypeAuditorSelection CompanyProposalType = 7
+	CompanyProposalTypeCapitalStructure CompanyProposalType = 8
+	CompanyProposalTypeAssetSale       CompanyProposalType = 9
+)
+
+// String returns the string representation of CompanyProposalType
+func (cpt CompanyProposalType) String() string {
+	switch cpt {
+	case CompanyProposalTypeBoardElection:
+		return "board_election"
+	case CompanyProposalTypeDividendPolicy:
+		return "dividend_policy"
+	case CompanyProposalTypeMergerAcquisition:
+		return "merger_acquisition"
+	case CompanyProposalTypeShareSplit:
+		return "share_split"
+	case CompanyProposalTypeShareBuyback:
+		return "share_buyback"
+	case CompanyProposalTypeBylaw:
+		return "bylaw_change"
+	case CompanyProposalTypeExecutiveComp:
+		return "executive_compensation"
+	case CompanyProposalTypeAuditorSelection:
+		return "auditor_selection"
+	case CompanyProposalTypeCapitalStructure:
+		return "capital_structure"
+	case CompanyProposalTypeAssetSale:
+		return "asset_sale"
+	default:
+		return "unknown"
+	}
+}
+
+// VoteDelegation represents voting power delegation
+type VoteDelegation struct {
+	Delegator     string             `json:"delegator"`
+	Delegate      string             `json:"delegate"`
+	CompanyID     uint64             `json:"company_id"`     // Company-specific delegation
+	ProposalType  ProposalType       `json:"proposal_type"`  // Type-specific delegation
+	VotingPower   math.LegacyDec     `json:"voting_power"`   // Delegated voting power
+	ExpiryHeight  uint64             `json:"expiry_height"`  // Delegation expiry
+	Revocable     bool               `json:"revocable"`      // Can be revoked by delegator
+	CreatedAt     time.Time          `json:"created_at"`
+	LastUsed      time.Time          `json:"last_used,omitempty"`
+}
+
+// GovernanceStats tracks governance participation statistics
+type GovernanceStats struct {
+	TotalProposals       uint64             `json:"total_proposals"`
+	ActiveProposals      uint64             `json:"active_proposals"`
+	TotalVotes           uint64             `json:"total_votes"`
+	AverageParticipation math.LegacyDec     `json:"average_participation"`
+	TopValidatorsByVotes []string           `json:"top_validators_by_votes"`
+	ProposalSuccessRate  math.LegacyDec     `json:"proposal_success_rate"`
+	LastUpdated          time.Time          `json:"last_updated"`
+}
+
+// EmergencyProposal represents emergency proposals with expedited procedures
+type EmergencyProposal struct {
+	ProposalID      uint64         `json:"proposal_id"`
+	EmergencyType   EmergencyType  `json:"emergency_type"`
+	SeverityLevel   int            `json:"severity_level"`    // 1-5, 5 being most severe
+	Justification   string         `json:"justification"`
+	RequiredTier    string         `json:"required_tier"`     // Minimum validator tier to vote
+	FastTrack       bool           `json:"fast_track"`        // Use reduced voting period
+	ExecuteOnPass   bool           `json:"execute_on_pass"`   // Execute immediately on pass
+	TimeLimit       time.Duration  `json:"time_limit"`        // Maximum execution time
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
+// EmergencyType represents different types of emergencies
+type EmergencyType int32
+
+const (
+	EmergencyTypeSecurityBreach  EmergencyType = 0
+	EmergencyTypeMarketHalt      EmergencyType = 1
+	EmergencyTypeValidatorSlash  EmergencyType = 2
+	EmergencyTypeProtocolUpgrade EmergencyType = 3
+	EmergencyTypeCompanyDelisting EmergencyType = 4
+	EmergencyTypeSystemOutage    EmergencyType = 5
+)
 
 // DefaultGovernanceParams returns default governance parameters
 func DefaultGovernanceParams() GovernanceParams {

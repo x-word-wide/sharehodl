@@ -1,0 +1,285 @@
+syntax = "proto3";
+
+package sharehodl.dex.v1;
+
+import "amino/amino.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+import "sharehodl/dex/v1/dex.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/dex/v1";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+  
+  // PlaceOrder places a new trading order
+  rpc PlaceOrder(MsgPlaceOrder) returns (MsgPlaceOrderResponse);
+  
+  // CancelOrder cancels an existing order
+  rpc CancelOrder(MsgCancelOrder) returns (MsgCancelOrderResponse);
+  
+  // CreatePool creates a new liquidity pool
+  rpc CreatePool(MsgCreatePool) returns (MsgCreatePoolResponse);
+  
+  // AddLiquidity adds liquidity to an existing pool
+  rpc AddLiquidity(MsgAddLiquidity) returns (MsgAddLiquidityResponse);
+  
+  // RemoveLiquidity removes liquidity from a pool
+  rpc RemoveLiquidity(MsgRemoveLiquidity) returns (MsgRemoveLiquidityResponse);
+  
+  // SwapExactAmountIn performs a swap with exact input amount
+  rpc SwapExactAmountIn(MsgSwapExactAmountIn) returns (MsgSwapExactAmountInResponse);
+  
+  // Blockchain-native trading features
+  
+  // PlaceAtomicSwapOrder places an atomic cross-asset swap order
+  rpc PlaceAtomicSwapOrder(MsgPlaceAtomicSwapOrder) returns (MsgPlaceAtomicSwapOrderResponse);
+  
+  // PlaceFractionalOrder places a fractional share order
+  rpc PlaceFractionalOrder(MsgPlaceFractionalOrder) returns (MsgPlaceFractionalOrderResponse);
+  
+  // CreateTradingStrategy creates a programmable trading strategy
+  rpc CreateTradingStrategy(MsgCreateTradingStrategy) returns (MsgCreateTradingStrategyResponse);
+  
+  // ExecuteStrategy manually triggers strategy execution (admin only)
+  rpc ExecuteStrategy(MsgExecuteStrategy) returns (MsgExecuteStrategyResponse);
+}
+
+// MsgPlaceOrder defines a message to place a trading order
+message MsgPlaceOrder {
+  option (cosmos.msg.v1.signer) = "trader";
+  option (amino.name) = "sharehodl/dex/MsgPlaceOrder";
+
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  OrderType order_type = 2;
+  OrderSide side = 3;
+  string symbol = 4;
+  uint64 quantity = 5;
+  string price = 6 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  TimeInForce time_in_force = 7;
+}
+
+// MsgPlaceOrderResponse defines the response structure for executing a MsgPlaceOrder message
+message MsgPlaceOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  uint64 filled_quantity = 3;
+  string average_fill_price = 4 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  repeated string trade_ids = 5;
+}
+
+// MsgCancelOrder defines a message to cancel an order
+message MsgCancelOrder {
+  option (cosmos.msg.v1.signer) = "trader";
+  option (amino.name) = "sharehodl/dex/MsgCancelOrder";
+
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string order_id = 2;
+}
+
+// MsgCancelOrderResponse defines the response structure for executing a MsgCancelOrder message
+message MsgCancelOrderResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  uint64 cancelled_quantity = 3;
+}
+
+// MsgCreatePool defines a message to create a liquidity pool
+message MsgCreatePool {
+  option (cosmos.msg.v1.signer) = "creator";
+  option (amino.name) = "sharehodl/dex/MsgCreatePool";
+
+  string creator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string symbol_a = 2;
+  string symbol_b = 3;
+  cosmos.base.v1beta1.Coin initial_liquidity_a = 4 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin initial_liquidity_b = 5 [(gogoproto.nullable) = false];
+}
+
+// MsgCreatePoolResponse defines the response structure for executing a MsgCreatePool message
+message MsgCreatePoolResponse {
+  string pool_id = 1;
+  string shares_minted = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgAddLiquidity defines a message to add liquidity to a pool
+message MsgAddLiquidity {
+  option (cosmos.msg.v1.signer) = "provider";
+  option (amino.name) = "sharehodl/dex/MsgAddLiquidity";
+
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string pool_id = 2;
+  cosmos.base.v1beta1.Coin amount_a = 3 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin amount_b = 4 [(gogoproto.nullable) = false];
+  string min_shares = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgAddLiquidityResponse defines the response structure for executing a MsgAddLiquidity message
+message MsgAddLiquidityResponse {
+  string pool_id = 1;
+  string shares_minted = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  cosmos.base.v1beta1.Coin amount_a_used = 3 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin amount_b_used = 4 [(gogoproto.nullable) = false];
+}
+
+// MsgRemoveLiquidity defines a message to remove liquidity from a pool
+message MsgRemoveLiquidity {
+  option (cosmos.msg.v1.signer) = "provider";
+  option (amino.name) = "sharehodl/dex/MsgRemoveLiquidity";
+
+  string provider = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string pool_id = 2;
+  string shares = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  cosmos.base.v1beta1.Coin min_amount_a = 4 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin min_amount_b = 5 [(gogoproto.nullable) = false];
+}
+
+// MsgRemoveLiquidityResponse defines the response structure for executing a MsgRemoveLiquidity message
+message MsgRemoveLiquidityResponse {
+  string pool_id = 1;
+  string shares_burned = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  cosmos.base.v1beta1.Coin amount_a_received = 3 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin amount_b_received = 4 [(gogoproto.nullable) = false];
+}
+
+// MsgSwapExactAmountIn defines a message to swap with exact input amount
+message MsgSwapExactAmountIn {
+  option (cosmos.msg.v1.signer) = "trader";
+  option (amino.name) = "sharehodl/dex/MsgSwapExactAmountIn";
+
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string pool_id = 2;
+  cosmos.base.v1beta1.Coin token_in = 3 [(gogoproto.nullable) = false];
+  string token_out_denom = 4;
+  cosmos.base.v1beta1.Coin min_amount_out = 5 [(gogoproto.nullable) = false];
+}
+
+// MsgSwapExactAmountInResponse defines the response structure for executing a MsgSwapExactAmountIn message
+message MsgSwapExactAmountInResponse {
+  cosmos.base.v1beta1.Coin token_out_amount = 1 [(gogoproto.nullable) = false];
+  cosmos.base.v1beta1.Coin fee_amount = 2 [(gogoproto.nullable) = false];
+}
+
+// Blockchain-Native Trading Messages
+
+// MsgPlaceAtomicSwapOrder for instant cross-asset swaps
+message MsgPlaceAtomicSwapOrder {
+  option (cosmos.msg.v1.signer) = "trader";
+  option (amino.name) = "sharehodl/dex/MsgPlaceAtomicSwapOrder";
+
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string from_symbol = 2;        // Asset to sell (e.g. "AAPL")
+  string to_symbol = 3;          // Asset to buy (e.g. "HODL")
+  uint64 quantity = 4;           // Shares to swap
+  string max_slippage = 5 [      // Maximum price slippage tolerance
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  TimeInForce time_in_force = 6;
+}
+
+message MsgPlaceAtomicSwapOrderResponse {
+  string order_id = 1;
+  string estimated_exchange_rate = 2 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgPlaceFractionalOrder for sub-unit share trading
+message MsgPlaceFractionalOrder {
+  option (cosmos.msg.v1.signer) = "trader";
+  option (amino.name) = "sharehodl/dex/MsgPlaceFractionalOrder";
+
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string symbol = 2;
+  OrderSide side = 3;
+  string fractional_quantity = 4 [  // e.g. 0.5 shares
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  string price = 5 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  TimeInForce time_in_force = 6;
+}
+
+message MsgPlaceFractionalOrderResponse {
+  string order_id = 1;
+  string effective_price = 2 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgCreateTradingStrategy for programmable trading
+message MsgCreateTradingStrategy {
+  option (cosmos.msg.v1.signer) = "owner";
+  option (amino.name) = "sharehodl/dex/MsgCreateTradingStrategy";
+
+  string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string name = 2;
+  repeated TriggerCondition conditions = 3 [(gogoproto.nullable) = false];
+  repeated TradingAction actions = 4 [(gogoproto.nullable) = false];
+  string max_exposure = 5 [       // Maximum position size
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+message MsgCreateTradingStrategyResponse {
+  string strategy_id = 1;
+}
+
+// MsgExecuteStrategy for manual strategy trigger
+message MsgExecuteStrategy {
+  option (cosmos.msg.v1.signer) = "executor";
+  option (amino.name) = "sharehodl/dex/MsgExecuteStrategy";
+
+  string executor = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string strategy_id = 2;
+  bool force_execution = 3;      // Override condition checks
+}
+
+message MsgExecuteStrategyResponse {
+  repeated string executed_order_ids = 1;
+  uint64 orders_placed = 2;
+}

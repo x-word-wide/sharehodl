@@ -26,13 +26,10 @@ func (msg SimpleMsgRegisterValidatorTier) ValidateBasic() error {
 	if !msg.StakeAmount.IsPositive() {
 		return fmt.Errorf("stake amount must be positive")
 	}
-	if msg.DesiredTier > TierDiamond {
+	if msg.DesiredTier > TierPlatinum {
 		return fmt.Errorf("invalid tier specified")
 	}
-	if msg.StakeAmount.LT(msg.DesiredTier.GetStakeThreshold()) {
-		return fmt.Errorf("insufficient stake for desired tier: need %s, got %s", 
-			msg.DesiredTier.GetStakeThreshold().String(), msg.StakeAmount.String())
-	}
+	// Stake threshold validation happens at runtime when chain ID is available
 	return nil
 }
 

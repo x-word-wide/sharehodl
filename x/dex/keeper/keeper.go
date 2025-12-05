@@ -9,7 +9,6 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/sharehodl/sharehodl-blockchain/x/dex/types"
 )
@@ -19,8 +18,6 @@ type Keeper struct {
 	cdc        codec.BinaryCodec
 	storeKey   storetypes.StoreKey
 	memKey     storetypes.StoreKey
-	paramstore paramtypes.Subspace
-
 	bankKeeper    types.BankKeeper
 	accountKeeper types.AccountKeeper
 	equityKeeper  types.EquityKeeper
@@ -32,7 +29,6 @@ func NewKeeper(
 	cdc codec.BinaryCodec,
 	storeKey,
 	memKey storetypes.StoreKey,
-	ps paramtypes.Subspace,
 	bankKeeper types.BankKeeper,
 	accountKeeper types.AccountKeeper,
 	equityKeeper types.EquityKeeper,
@@ -42,7 +38,6 @@ func NewKeeper(
 		cdc:           cdc,
 		storeKey:      storeKey,
 		memKey:        memKey,
-		paramstore:    ps,
 		bankKeeper:    bankKeeper,
 		accountKeeper: accountKeeper,
 		equityKeeper:  equityKeeper,
@@ -478,5 +473,290 @@ func (k Keeper) GetMarketStats(ctx sdk.Context, baseSymbol, quoteSymbol string) 
 	return types.MarketStats{
 		MarketSymbol: baseSymbol + "/" + quoteSymbol,
 		// Would populate with real data in full implementation
+	}
+}
+
+// ===== BLOCKCHAIN-NATIVE ATOMIC SWAP IMPLEMENTATION =====
+
+// ExecuteAtomicSwap performs instant cross-asset swaps with zero counterparty risk
+func (k Keeper) ExecuteAtomicSwap(
+	ctx sdk.Context,
+	trader sdk.AccAddress,
+	fromSymbol, toSymbol string,
+	quantity math.Int,
+	maxSlippage math.LegacyDec,
+) (types.Order, error) {
+	// 1. Validate assets exist and are swappable
+	if err := k.ValidateSwapAssets(ctx, fromSymbol, toSymbol); err != nil {
+		return types.Order{}, err
+	}
+
+	// 2. Get real-time exchange rate
+	exchangeRate, err := k.GetAtomicSwapRate(ctx, fromSymbol, toSymbol)
+	if err != nil {
+		return types.Order{}, err
+	}
+
+	// 3. Calculate output amount and check slippage
+	outputAmount := exchangeRate.MulInt(quantity)
+	currentRate := k.GetCurrentMarketRate(ctx, fromSymbol, toSymbol)
+	slippage := exchangeRate.Sub(currentRate).Quo(currentRate).Abs()
+	
+	if slippage.GT(maxSlippage) {
+		return types.Order{}, types.ErrSlippageExceeded
+	}
+
+	// 4. Lock input tokens
+	if err := k.LockAssetForSwap(ctx, trader, fromSymbol, quantity); err != nil {
+		return types.Order{}, err
+	}
+
+	// 5. Execute atomic swap
+	orderID := k.GetNextOrderID(ctx)
+	
+	// Create atomic swap order
+	order := types.Order{
+		ID:           orderID,
+		MarketSymbol: fromSymbol + "/" + toSymbol,
+		BaseSymbol:   fromSymbol,
+		QuoteSymbol:  toSymbol,
+		User:         trader.String(),
+		Side:         types.OrderSideSell, // Selling fromSymbol
+		Type:         types.OrderTypeAtomicSwap,
+		Status:       types.OrderStatusFilled,
+		Quantity:     quantity,
+		Price:        exchangeRate,
+		FilledQuantity: quantity,
+		AveragePrice: exchangeRate,
+		TimeInForce:  types.TimeInForceGTC,
+		CreatedAt:    ctx.BlockTime(),
+		UpdatedAt:    ctx.BlockTime(),
+	}
+
+	// 6. Transfer assets atomically
+	if err := k.ExecuteSwapTransfer(ctx, trader, fromSymbol, toSymbol, math.LegacyNewDecFromInt(quantity), outputAmount); err != nil {
+		// Rollback locked tokens
+		k.UnlockAssetForSwap(ctx, trader, fromSymbol, quantity)
+		return types.Order{}, err
+	}
+
+	// 7. Store order and emit events
+	k.SetOrder(ctx, order)
+	
+	// Create trade record  
+	trade := types.Trade{
+		ID:           orderID,
+		MarketSymbol: fromSymbol + "/" + toSymbol,
+		Buyer:        trader.String(),
+		Seller:       "atomic_swap_pool",
+		BuyOrderID:   orderID,
+		SellOrderID:  orderID,
+		Quantity:     quantity,
+		Price:        exchangeRate,
+		Value:        outputAmount,
+		BuyerFee:     math.LegacyZeroDec(),
+		SellerFee:    math.LegacyZeroDec(),
+		BuyerIsMaker: false,
+		ExecutedAt:   ctx.BlockTime(),
+	}
+	k.SetTrade(ctx, trade)
+
+	// 8. Emit atomic swap event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"atomic_swap_executed",
+			sdk.NewAttribute("trader", trader.String()),
+			sdk.NewAttribute("from_symbol", fromSymbol),
+			sdk.NewAttribute("to_symbol", toSymbol),
+			sdk.NewAttribute("input_amount", quantity.String()),
+			sdk.NewAttribute("output_amount", outputAmount.String()),
+			sdk.NewAttribute("exchange_rate", exchangeRate.String()),
+			sdk.NewAttribute("slippage", slippage.String()),
+			sdk.NewAttribute("order_id", fmt.Sprintf("%d", order.ID)),
+		),
+	)
+
+	return order, nil
+}
+
+// ValidateSwapAssets ensures both assets can be swapped
+func (k Keeper) ValidateSwapAssets(ctx sdk.Context, fromSymbol, toSymbol string) error {
+	// Check if fromSymbol is a valid equity or HODL
+	if fromSymbol == "HODL" {
+		// Validate HODL exists
+		supply := k.hodlKeeper.GetTotalSupply(ctx)
+		if supply == nil {
+			return types.ErrAssetNotFound
+		}
+	} else {
+		// Check if company/equity exists
+		if !k.equityKeeper.IsSymbolTaken(ctx, fromSymbol) {
+			return types.ErrAssetNotFound
+		}
+	}
+
+	// Check if toSymbol is valid
+	if toSymbol == "HODL" {
+		supply := k.hodlKeeper.GetTotalSupply(ctx)
+		if supply == nil {
+			return types.ErrAssetNotFound
+		}
+	} else {
+		if !k.equityKeeper.IsSymbolTaken(ctx, toSymbol) {
+			return types.ErrAssetNotFound
+		}
+	}
+
+	// Ensure they're different assets
+	if fromSymbol == toSymbol {
+		return types.ErrSameAssetSwap
+	}
+
+	return nil
+}
+
+// GetAtomicSwapRate calculates real-time exchange rate for atomic swaps
+func (k Keeper) GetAtomicSwapRate(ctx sdk.Context, fromSymbol, toSymbol string) (math.LegacyDec, error) {
+	// Get market prices for both assets
+	fromPrice := k.GetAssetPrice(ctx, fromSymbol)
+	toPrice := k.GetAssetPrice(ctx, toSymbol)
+
+	if fromPrice.IsZero() || toPrice.IsZero() {
+		return math.LegacyZeroDec(), types.ErrNoMarketPrice
+	}
+
+	// Calculate exchange rate: fromPrice / toPrice
+	rate := fromPrice.Quo(toPrice)
+
+	// Apply atomic swap fee (0.1%)
+	fee := math.LegacyNewDecWithPrec(1, 3) // 0.001 = 0.1%
+	rate = rate.Mul(math.LegacyOneDec().Sub(fee))
+
+	return rate, nil
+}
+
+// GetCurrentMarketRate gets current market rate for slippage calculation
+func (k Keeper) GetCurrentMarketRate(ctx sdk.Context, fromSymbol, toSymbol string) math.LegacyDec {
+	// Use order book mid-price as reference
+	orderBook := k.GetOrderBook(ctx, fromSymbol, toSymbol)
+	// Check if order book has data
+	if len(orderBook.Bids) == 0 && len(orderBook.Asks) == 0 {
+		// Fallback to last trade price
+		return k.GetLastTradePrice(ctx, fromSymbol, toSymbol)
+	}
+
+	if len(orderBook.Bids) > 0 && len(orderBook.Asks) > 0 {
+		bestBid := orderBook.Bids[0].Price
+		bestAsk := orderBook.Asks[0].Price
+		return bestBid.Add(bestAsk).QuoInt64(2) // Mid price
+	}
+
+	return k.GetLastTradePrice(ctx, fromSymbol, toSymbol)
+}
+
+// GetAssetPrice gets current price for an asset in HODL terms
+func (k Keeper) GetAssetPrice(ctx sdk.Context, symbol string) math.LegacyDec {
+	if symbol == "HODL" {
+		return math.LegacyOneDec() // HODL = 1.0 (stable)
+	}
+
+	// For equity assets, get market price
+	market, found := k.GetMarket(ctx, symbol, "HODL")
+	if found && !market.LastPrice.IsZero() {
+		return market.LastPrice
+	}
+
+	// Fallback to last trade price
+	return k.GetLastTradePrice(ctx, symbol, "HODL")
+}
+
+// GetLastTradePrice gets the last trade price for an asset
+func (k Keeper) GetLastTradePrice(ctx sdk.Context, symbol, quoteSymbol string) math.LegacyDec {
+	// Simplified implementation - in a full implementation this would
+	// search through stored trades to find the most recent one
+	// For now, check market last price first
+	market, found := k.GetMarket(ctx, symbol, quoteSymbol)
+	if found && !market.LastPrice.IsZero() {
+		return market.LastPrice
+	}
+
+	// Default to $1 HODL if no trades exist
+	return math.LegacyOneDec()
+}
+
+// LockAssetForSwap temporarily locks asset during swap
+func (k Keeper) LockAssetForSwap(ctx sdk.Context, trader sdk.AccAddress, symbol string, amount math.Int) error {
+	if symbol == "HODL" {
+		// Lock HODL tokens
+		hodlCoins := sdk.NewCoins(sdk.NewCoin("hodl", amount))
+		return k.bankKeeper.SendCoinsFromAccountToModule(ctx, trader, types.ModuleName, hodlCoins)
+	} else {
+		// Lock equity shares - check if trader owns enough
+		shareholding, found := k.equityKeeper.GetShareholding(ctx, 0, symbol, trader.String()) // Simplified company ID
+		if !found {
+			return types.ErrInsufficientShares
+		}
+		// Note: shareholding type checking would be needed in full implementation
+		_ = shareholding // Mark as used for now
+
+		// In production, would track locked shares separately
+		// For now, transfer to module account
+		return types.ErrNotImplemented // TODO: Implement equity locking
+	}
+}
+
+// UnlockAssetForSwap unlocks asset if swap fails
+func (k Keeper) UnlockAssetForSwap(ctx sdk.Context, trader sdk.AccAddress, symbol string, amount math.Int) {
+	if symbol == "HODL" {
+		// Return HODL tokens
+		hodlCoins := sdk.NewCoins(sdk.NewCoin("hodl", amount))
+		k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, trader, hodlCoins)
+	}
+	// TODO: Handle equity unlocking
+}
+
+// ExecuteSwapTransfer performs the actual asset transfer
+func (k Keeper) ExecuteSwapTransfer(
+	ctx sdk.Context,
+	trader sdk.AccAddress,
+	fromSymbol, toSymbol string,
+	inputAmount, outputAmount math.LegacyDec,
+) error {
+	// Convert to Int for coin operations
+	inputInt := inputAmount.TruncateInt()
+	outputInt := outputAmount.TruncateInt()
+
+	if fromSymbol == "HODL" && toSymbol != "HODL" {
+		// HODL → Equity: Burn HODL, mint equity tokens
+		hodlCoins := sdk.NewCoins(sdk.NewCoin("hodl", inputInt))
+		if err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, hodlCoins); err != nil {
+			return err
+		}
+
+		// Mint equity tokens (simplified - in production would transfer actual shares)
+		equityCoins := sdk.NewCoins(sdk.NewCoin(toSymbol, outputInt))
+		if err := k.bankKeeper.MintCoins(ctx, types.ModuleName, equityCoins); err != nil {
+			return err
+		}
+		return k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, trader, equityCoins)
+
+	} else if fromSymbol != "HODL" && toSymbol == "HODL" {
+		// Equity → HODL: Burn equity tokens, mint HODL
+		equityCoins := sdk.NewCoins(sdk.NewCoin(fromSymbol, inputInt))
+		if err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, equityCoins); err != nil {
+			return err
+		}
+
+		// Mint HODL tokens
+		hodlCoins := sdk.NewCoins(sdk.NewCoin("hodl", outputInt))
+		if err := k.bankKeeper.MintCoins(ctx, types.ModuleName, hodlCoins); err != nil {
+			return err
+		}
+		return k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, trader, hodlCoins)
+
+	} else {
+		// Equity → Equity: Cross-equity swap via HODL
+		// TODO: Implement direct equity-to-equity swaps
+		return types.ErrCrossEquitySwapNotImplemented
 	}
 }

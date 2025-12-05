@@ -1,0 +1,158 @@
+syntax = "proto3";
+
+package sharehodl.dex.v1;
+
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos_proto/cosmos.proto";
+import "sharehodl/dex/v1/dex.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/dex/v1";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params returns the parameters of the module
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/params";
+  }
+
+  // OrderBook returns the order book for a trading pair
+  rpc OrderBook(QueryOrderBookRequest) returns (QueryOrderBookResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/orderbook/{symbol}";
+  }
+
+  // Order returns a specific order by ID
+  rpc Order(QueryOrderRequest) returns (QueryOrderResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/order/{order_id}";
+  }
+
+  // Orders returns orders for a specific trader
+  rpc Orders(QueryOrdersRequest) returns (QueryOrdersResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/orders/{trader}";
+  }
+
+  // TradeHistory returns trade history for a symbol
+  rpc TradeHistory(QueryTradeHistoryRequest) returns (QueryTradeHistoryResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/trades/{symbol}";
+  }
+
+  // Pools returns all liquidity pools
+  rpc Pools(QueryPoolsRequest) returns (QueryPoolsResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/pools";
+  }
+
+  // Pool returns a specific pool by ID
+  rpc Pool(QueryPoolRequest) returns (QueryPoolResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/pool/{pool_id}";
+  }
+
+  // MarketData returns market statistics for a symbol
+  rpc MarketData(QueryMarketDataRequest) returns (QueryMarketDataResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/market/{symbol}";
+  }
+
+  // AllMarketData returns market statistics for all symbols
+  rpc AllMarketData(QueryAllMarketDataRequest) returns (QueryAllMarketDataResponse) {
+    option (google.api.http).get = "/sharehodl/dex/v1/markets";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryOrderBookRequest is request type for the Query/OrderBook RPC method
+message QueryOrderBookRequest {
+  string symbol = 1;
+  uint32 limit = 2;
+}
+
+// QueryOrderBookResponse is response type for the Query/OrderBook RPC method
+message QueryOrderBookResponse {
+  OrderBook order_book = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryOrderRequest is request type for the Query/Order RPC method
+message QueryOrderRequest {
+  string order_id = 1;
+}
+
+// QueryOrderResponse is response type for the Query/Order RPC method
+message QueryOrderResponse {
+  Order order = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryOrdersRequest is request type for the Query/Orders RPC method
+message QueryOrdersRequest {
+  string trader = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string symbol = 2;
+  OrderStatus status = 3;
+  cosmos.base.query.v1beta1.PageRequest pagination = 4;
+}
+
+// QueryOrdersResponse is response type for the Query/Orders RPC method
+message QueryOrdersResponse {
+  repeated Order orders = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryTradeHistoryRequest is request type for the Query/TradeHistory RPC method
+message QueryTradeHistoryRequest {
+  string symbol = 1;
+  string trader = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 limit = 3;
+  cosmos.base.query.v1beta1.PageRequest pagination = 4;
+}
+
+// QueryTradeHistoryResponse is response type for the Query/TradeHistory RPC method
+message QueryTradeHistoryResponse {
+  repeated Trade trades = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryPoolsRequest is request type for the Query/Pools RPC method
+message QueryPoolsRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+// QueryPoolsResponse is response type for the Query/Pools RPC method
+message QueryPoolsResponse {
+  repeated LiquidityPool pools = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
+
+// QueryPoolRequest is request type for the Query/Pool RPC method
+message QueryPoolRequest {
+  string pool_id = 1;
+}
+
+// QueryPoolResponse is response type for the Query/Pool RPC method
+message QueryPoolResponse {
+  LiquidityPool pool = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryMarketDataRequest is request type for the Query/MarketData RPC method
+message QueryMarketDataRequest {
+  string symbol = 1;
+}
+
+// QueryMarketDataResponse is response type for the Query/MarketData RPC method
+message QueryMarketDataResponse {
+  MarketData market_data = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryAllMarketDataRequest is request type for the Query/AllMarketData RPC method
+message QueryAllMarketDataRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+// QueryAllMarketDataResponse is response type for the Query/AllMarketData RPC method
+message QueryAllMarketDataResponse {
+  repeated MarketData market_data = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}

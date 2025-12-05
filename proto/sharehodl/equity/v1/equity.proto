@@ -1,0 +1,112 @@
+syntax = "proto3";
+
+package sharehodl.equity.v1;
+
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/equity/v1";
+
+// Company represents a registered company on the platform
+message Company {
+  string symbol = 1;
+  string name = 2;
+  uint64 total_shares = 3;
+  string industry = 4;
+  string valuation_usd = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string creator = 6 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  bool verified = 7;
+  uint64 shares_issued = 8;
+  google.protobuf.Timestamp created_at = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  string market_cap_usd = 10 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Shareholding represents ownership of shares
+message Shareholding {
+  string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string symbol = 2;
+  uint64 shares = 3;
+  string purchase_price_usd = 4 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp acquired_at = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  bool is_founder_shares = 6;
+  uint64 vesting_period_months = 7;
+  bool is_vested = 8;
+}
+
+// DividendPayment represents a dividend distribution
+message DividendPayment {
+  string symbol = 1;
+  string distributor = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  cosmos.base.v1beta1.Coin total_amount = 3 [(gogoproto.nullable) = false];
+  string payment_denom = 4;
+  string per_share_amount = 5 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp payment_date = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  uint64 eligible_shares = 7;
+  repeated ShareholderDividend payouts = 8 [(gogoproto.nullable) = false];
+}
+
+// ShareholderDividend represents individual dividend payout
+message ShareholderDividend {
+  string recipient = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  uint64 shares_held = 2;
+  cosmos.base.v1beta1.Coin amount_received = 3 [(gogoproto.nullable) = false];
+  bool is_paid = 4;
+}
+
+// Params defines the parameters for the equity module
+message Params {
+  string min_company_valuation = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  uint64 max_symbol_length = 2;
+  uint64 min_symbol_length = 3;
+  bool verification_required = 4;
+  string share_transfer_fee_rate = 5 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  string dividend_distribution_fee_rate = 6 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  uint64 founder_vesting_period_months = 7;
+}
+
+// GenesisState defines the equity module's genesis state
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  repeated Company companies = 2 [(gogoproto.nullable) = false];
+  repeated Shareholding shareholdings = 3 [(gogoproto.nullable) = false];
+  repeated DividendPayment dividend_payments = 4 [(gogoproto.nullable) = false];
+}

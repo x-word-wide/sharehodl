@@ -1,0 +1,210 @@
+syntax = "proto3";
+
+package sharehodl.validator.v1;
+
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/validator/v1";
+
+// ValidatorTier represents different validator tiers
+enum ValidatorTier {
+  option (gogoproto.goproto_enum_prefix) = false;
+  
+  VALIDATOR_TIER_UNSPECIFIED = 0;
+  VALIDATOR_TIER_BRONZE = 1;
+  VALIDATOR_TIER_SILVER = 2;
+  VALIDATOR_TIER_GOLD = 3;
+  VALIDATOR_TIER_PLATINUM = 4;
+  VALIDATOR_TIER_DIAMOND = 5;
+}
+
+// BusinessVerificationStatus represents verification status
+enum BusinessVerificationStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  
+  VERIFICATION_STATUS_UNSPECIFIED = 0;
+  VERIFICATION_STATUS_PENDING = 1;
+  VERIFICATION_STATUS_IN_PROGRESS = 2;
+  VERIFICATION_STATUS_APPROVED = 3;
+  VERIFICATION_STATUS_REJECTED = 4;
+  VERIFICATION_STATUS_DISPUTED = 5;
+}
+
+// ValidatorTierInfo stores information about a validator's tier
+message ValidatorTierInfo {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  ValidatorTier tier = 2;
+  string staked_amount = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  uint64 verification_count = 4;
+  uint64 successful_verifications = 5;
+  string total_rewards = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp last_verification = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  string reputation_score = 8 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// BusinessVerification represents a business verification request
+message BusinessVerification {
+  string business_id = 1;
+  string company_name = 2;
+  string business_type = 3;
+  string registration_country = 4;
+  repeated string document_hashes = 5;
+  ValidatorTier required_tier = 6;
+  string stake_required = 7 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string verification_fee = 8 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  BusinessVerificationStatus status = 9;
+  repeated string assigned_validators = 10;
+  google.protobuf.Timestamp verification_deadline = 11 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Timestamp submitted_at = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Timestamp completed_at = 13 [
+    (gogoproto.stdtime) = true
+  ];
+  string verification_notes = 14;
+  string dispute_reason = 15;
+}
+
+// ValidatorBusinessStake represents a validator's equity stake in a verified business
+message ValidatorBusinessStake {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string business_id = 2;
+  string stake_amount = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string equity_percentage = 4 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp staked_at = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Duration vesting_period = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  bool is_vested = 7;
+}
+
+// VerificationRewards tracks rewards earned by validators
+message VerificationRewards {
+  string validator_address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string total_hodl_rewards = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string total_equity_rewards = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  uint64 verifications_completed = 4;
+  google.protobuf.Timestamp last_reward_claim = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+}
+
+// Params defines the parameters for the validator module
+message Params {
+  google.protobuf.Duration min_verification_delay = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  google.protobuf.Duration max_verification_delay = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  uint64 verification_timeout_days = 3;
+  uint64 min_validators_required = 4;
+  string reputation_decay_rate = 5 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  string base_verification_reward = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string equity_stake_percentage = 7 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// TierThresholds defines stake thresholds for validator tiers
+message TierThresholds {
+  string bronze_tier_threshold = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string silver_tier_threshold = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string gold_tier_threshold = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string platinum_tier_threshold = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string diamond_tier_threshold = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// GenesisState defines the validator module's genesis state
+message GenesisState {
+  Params params = 1 [(gogoproto.nullable) = false];
+  TierThresholds tier_thresholds = 2 [(gogoproto.nullable) = false];
+  repeated ValidatorTierInfo validator_tiers = 3 [(gogoproto.nullable) = false];
+  repeated BusinessVerification business_verifications = 4 [(gogoproto.nullable) = false];
+  repeated ValidatorBusinessStake validator_business_stakes = 5 [(gogoproto.nullable) = false];
+  repeated VerificationRewards verification_rewards = 6 [(gogoproto.nullable) = false];
+}

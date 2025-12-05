@@ -18,7 +18,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/runtime"
-	"github.com/cosmos/cosmos-sdk/client/grpc/cmtservice"
 	nodeservice "github.com/cosmos/cosmos-sdk/client/grpc/node"
 	"github.com/cosmos/cosmos-sdk/server/api"
 	"github.com/cosmos/cosmos-sdk/server/config"
@@ -32,7 +31,6 @@ import (
 	authkeeper "github.com/cosmos/cosmos-sdk/x/auth/keeper"
 	authtx "github.com/cosmos/cosmos-sdk/x/auth/tx"
 	authtypes "github.com/cosmos/cosmos-sdk/x/auth/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 	"github.com/cosmos/cosmos-sdk/x/bank"
 	bankkeeper "github.com/cosmos/cosmos-sdk/x/bank/keeper"
 	banktypes "github.com/cosmos/cosmos-sdk/x/bank/types"
@@ -135,6 +133,22 @@ func NewShareHODLApp(
 	std.RegisterLegacyAminoCodec(legacyAmino)
 	std.RegisterInterfaces(interfaceRegistry)
 
+	// basic manager - needs to be created early to register interfaces
+	basicManager := module.NewBasicManager(
+		auth.AppModuleBasic{},
+		genutil.NewAppModuleBasic(nil),
+		bank.AppModuleBasic{},
+		staking.AppModuleBasic{},
+		upgrade.AppModuleBasic{},
+		consensus.AppModuleBasic{},
+		hodlmodule.NewAppModuleBasic(appCodec),
+		validatormodule.NewAppModuleBasic(appCodec),
+		equitymodule.NewAppModuleBasic(appCodec),
+		dexmodule.NewAppModuleBasic(appCodec),
+	)
+	
+	basicManager.RegisterInterfaces(interfaceRegistry)
+
 	bApp := baseapp.NewBaseApp(Name, logger, db, txConfig.TxDecoder(), baseAppOptions...)
 	bApp.SetCommitMultiStoreTracer(traceStore)
 	bApp.SetVersion(version.Version)
@@ -212,21 +226,19 @@ func NewShareHODLApp(
 	)
 
 	// Initialize HODL keeper
-	app.HODLKeeper = hodlkeeper.NewKeeper(
+	app.HODLKeeper = *hodlkeeper.NewKeeper(
 		appCodec,
 		keys[hodltypes.StoreKey],
 		memKeys[hodltypes.MemStoreKey],
-		paramtypes.Subspace{}, // Will implement params later
 		app.BankKeeper,
 		app.AccountKeeper,
 	)
 
 	// Initialize Validator keeper
-	app.ValidatorKeeper = validatorkeeper.NewKeeper(
+	app.ValidatorKeeper = *validatorkeeper.NewKeeper(
 		appCodec,
 		keys[validatortypes.StoreKey],
 		memKeys[validatortypes.MemStoreKey],
-		paramtypes.Subspace{}, // Will implement params later
 		app.AccountKeeper,
 		app.BankKeeper,
 		app.StakingKeeper,
@@ -237,9 +249,9 @@ func NewShareHODLApp(
 		appCodec,
 		keys[equitytypes.StoreKey],
 		memKeys[equitytypes.MemStoreKey],
-		paramtypes.Subspace{}, // Will implement params later
 		app.BankKeeper,
 		app.AccountKeeper,
+		app.ValidatorKeeper,
 	)
 
 	// Initialize DEX keeper
@@ -247,7 +259,6 @@ func NewShareHODLApp(
 		appCodec,
 		keys[dextypes.StoreKey],
 		memKeys[dextypes.MemStoreKey],
-		paramtypes.Subspace{}, // Will implement params later
 		app.BankKeeper,
 		app.AccountKeeper,
 		app.EquityKeeper,
@@ -276,10 +287,18 @@ func NewShareHODLApp(
 	app.MM.SetOrderBeginBlockers(
 		upgradetypes.ModuleName,
 		stakingtypes.ModuleName,
+		hodltypes.ModuleName,
+		validatortypes.ModuleName,
+		equitytypes.ModuleName,
+		dextypes.ModuleName,
 	)
 
 	app.MM.SetOrderEndBlockers(
 		stakingtypes.ModuleName,
+		hodltypes.ModuleName,
+		validatortypes.ModuleName,
+		equitytypes.ModuleName,
+		dextypes.ModuleName,
 	)
 
 	genesisModuleOrder := []string{
@@ -324,15 +343,8 @@ func NewShareHODLApp(
 	app.configurator = module.NewConfigurator(app.appCodec, app.MsgServiceRouter(), app.GRPCQueryRouter())
 	app.MM.RegisterServices(app.configurator)
 
-	// basic manager
-	app.BasicManager = module.NewBasicManager(
-		auth.AppModuleBasic{},
-		genutil.NewAppModuleBasic(nil),
-		bank.AppModuleBasic{},
-		staking.AppModuleBasic{},
-		upgrade.AppModuleBasic{},
-		consensus.AppModuleBasic{},
-	)
+	// assign the basic manager that was created earlier
+	app.BasicManager = basicManager
 
 	if loadLatest {
 		if err := app.LoadLatestVersion(); err != nil {
@@ -411,6 +423,17 @@ func (app *ShareHODLApp) RegisterAPIRoutes(apiSvr *api.Server, apiConfig config.
 // RegisterNodeService implements the Application.RegisterNodeService method.
 func (app *ShareHODLApp) RegisterNodeService(clientCtx client.Context, cfg config.Config) {
 	nodeservice.RegisterNodeService(clientCtx, app.GRPCQueryRouter(), cfg)
+}
+
+// RegisterTendermintService implements the Application.RegisterTendermintService method.
+func (app *ShareHODLApp) RegisterTendermintService(clientCtx client.Context) {
+	// This method is required by the Application interface but may be deprecated
+	// For CometBFT v2, this might be handled differently
+}
+
+// RegisterTxService implements the Application.RegisterTxService method.
+func (app *ShareHODLApp) RegisterTxService(clientCtx client.Context) {
+	authtx.RegisterTxService(app.BaseApp.GRPCQueryRouter(), clientCtx, app.BaseApp.Simulate, app.interfaceRegistry)
 }
 
 // GetTxConfig implements the TestingApp interface.

@@ -1,0 +1,255 @@
+syntax = "proto3";
+
+package sharehodl.governance.v1;
+
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/any.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/governance/v1";
+
+// ProposalType defines the type of governance proposal
+enum ProposalType {
+  option (gogoproto.goproto_enum_prefix) = false;
+  
+  PROPOSAL_TYPE_UNSPECIFIED = 0;
+  PROPOSAL_TYPE_TEXT = 1;
+  PROPOSAL_TYPE_PARAMETER_CHANGE = 2;
+  PROPOSAL_TYPE_SOFTWARE_UPGRADE = 3;
+  PROPOSAL_TYPE_COMMUNITY_POOL_SPEND = 4;
+  PROPOSAL_TYPE_BUSINESS_VERIFICATION = 5;
+  PROPOSAL_TYPE_EQUITY_LISTING = 6;
+  PROPOSAL_TYPE_PROTOCOL_UPGRADE = 7;
+}
+
+// ProposalStatus defines the status of a proposal
+enum ProposalStatus {
+  option (gogoproto.goproto_enum_prefix) = false;
+  
+  PROPOSAL_STATUS_UNSPECIFIED = 0;
+  PROPOSAL_STATUS_DEPOSIT_PERIOD = 1;
+  PROPOSAL_STATUS_VOTING_PERIOD = 2;
+  PROPOSAL_STATUS_PASSED = 3;
+  PROPOSAL_STATUS_REJECTED = 4;
+  PROPOSAL_STATUS_FAILED = 5;
+  PROPOSAL_STATUS_CANCELLED = 6;
+}
+
+// VoteOption defines a vote option
+enum VoteOption {
+  option (gogoproto.goproto_enum_prefix) = false;
+  
+  VOTE_OPTION_UNSPECIFIED = 0;
+  VOTE_OPTION_YES = 1;
+  VOTE_OPTION_ABSTAIN = 2;
+  VOTE_OPTION_NO = 3;
+  VOTE_OPTION_NO_WITH_VETO = 4;
+}
+
+// Proposal represents a governance proposal
+message Proposal {
+  uint64 proposal_id = 1;
+  ProposalType proposal_type = 2;
+  string title = 3;
+  string description = 4;
+  string proposer = 5 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  ProposalStatus status = 6;
+  google.protobuf.Timestamp submit_time = 7 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Timestamp deposit_end_time = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Timestamp voting_start_time = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  google.protobuf.Timestamp voting_end_time = 10 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  repeated cosmos.base.v1beta1.Coin total_deposit = 11 [
+    (gogoproto.nullable) = false,
+    (gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins"
+  ];
+  google.protobuf.Duration voting_period = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  TallyResult final_tally_result = 13 [(gogoproto.nullable) = false];
+  google.protobuf.Any content = 14;
+  string execution_result = 15;
+}
+
+// TallyResult represents the tally of a proposal vote
+message TallyResult {
+  string yes = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string abstain = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string no = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string no_with_veto = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string total_voting_power = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Vote represents a governance vote
+message Vote {
+  uint64 proposal_id = 1;
+  string voter = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  VoteOption option = 3;
+  repeated WeightedVoteOption options = 4 [(gogoproto.nullable) = false];
+  google.protobuf.Timestamp vote_time = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  string voting_power = 6 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// WeightedVoteOption defines a vote option with weight
+message WeightedVoteOption {
+  VoteOption option = 1;
+  string weight = 2 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// Deposit represents a proposal deposit
+message Deposit {
+  uint64 proposal_id = 1;
+  string depositor = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  repeated cosmos.base.v1beta1.Coin amount = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins"
+  ];
+  google.protobuf.Timestamp deposit_time = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+}
+
+// BusinessVerificationProposal represents a proposal to verify a business
+message BusinessVerificationProposal {
+  string title = 1;
+  string description = 2;
+  string business_id = 3;
+  string company_name = 4;
+  string business_type = 5;
+  string registration_country = 6;
+  repeated string document_hashes = 7;
+  string verification_fee = 8 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// EquityListingProposal represents a proposal to list equity on the exchange
+message EquityListingProposal {
+  string title = 1;
+  string description = 2;
+  string company_symbol = 3;
+  string company_name = 4;
+  string listing_fee = 5 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string initial_price = 6 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  bool fast_track = 7;
+}
+
+// ProtocolUpgradeProposal represents a proposal for protocol upgrades
+message ProtocolUpgradeProposal {
+  string title = 1;
+  string description = 2;
+  string upgrade_name = 3;
+  google.protobuf.Timestamp upgrade_time = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+  int64 upgrade_height = 5;
+  string upgrade_info = 6;
+}
+
+// Params defines the parameters for the governance module
+message Params {
+  repeated cosmos.base.v1beta1.Coin min_deposit = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins"
+  ];
+  google.protobuf.Duration max_deposit_period = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  google.protobuf.Duration voting_period = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  string quorum = 4 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  string threshold = 5 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  string veto_threshold = 6 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  bool expedited_voting_enabled = 7;
+  google.protobuf.Duration expedited_voting_period = 8 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+  string expedited_threshold = 9 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// GenesisState defines the governance module's genesis state
+message GenesisState {
+  uint64 starting_proposal_id = 1;
+  repeated Proposal proposals = 2 [(gogoproto.nullable) = false];
+  repeated Vote votes = 3 [(gogoproto.nullable) = false];
+  repeated Deposit deposits = 4 [(gogoproto.nullable) = false];
+  Params params = 5 [(gogoproto.nullable) = false];
+}

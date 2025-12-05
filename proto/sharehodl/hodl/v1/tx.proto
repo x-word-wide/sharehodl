@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package sharehodl.hodl.v1;
+
+import "amino/amino.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/hodl/v1";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+  
+  // MintHODL mints HODL stablecoins against collateral
+  rpc MintHODL(MsgMintHODL) returns (MsgMintHODLResponse);
+  
+  // BurnHODL burns HODL stablecoins and releases collateral
+  rpc BurnHODL(MsgBurnHODL) returns (MsgBurnHODLResponse);
+}
+
+// MsgMintHODL defines a message to mint HODL tokens
+message MsgMintHODL {
+  option (cosmos.msg.v1.signer) = "minter";
+  option (amino.name) = "sharehodl/hodl/MsgMintHODL";
+
+  string minter = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string recipient = 2 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  cosmos.base.v1beta1.Coin amount = 3 [(gogoproto.nullable) = false];
+}
+
+// MsgMintHODLResponse defines the response structure for executing a MsgMintHODL message
+message MsgMintHODLResponse {
+  string hodl_minted = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string fee = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgBurnHODL defines a message to burn HODL tokens
+message MsgBurnHODL {
+  option (cosmos.msg.v1.signer) = "burner";
+  option (amino.name) = "sharehodl/hodl/MsgBurnHODL";
+
+  string burner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  cosmos.base.v1beta1.Coin amount = 2 [(gogoproto.nullable) = false];
+}
+
+// MsgBurnHODLResponse defines the response structure for executing a MsgBurnHODL message
+message MsgBurnHODLResponse {
+  repeated cosmos.base.v1beta1.Coin collateral_returned = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.castrepeated) = "github.com/cosmos/cosmos-sdk/types.Coins"
+  ];
+  string fee = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}

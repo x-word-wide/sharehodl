@@ -35,6 +35,9 @@ const (
 	OrderTypeLimit                   // Execute only at specified price or better
 	OrderTypeStop                    // Trigger market order when stop price reached
 	OrderTypeStopLimit              // Trigger limit order when stop price reached
+	OrderTypeAtomicSwap             // Blockchain-native cross-asset swap
+	OrderTypeFractional             // Sub-unit share trading
+	OrderTypeProgrammatic           // Smart contract triggered
 )
 
 func (ot OrderType) String() string {
@@ -47,6 +50,12 @@ func (ot OrderType) String() string {
 		return "stop"
 	case OrderTypeStopLimit:
 		return "stop_limit"
+	case OrderTypeAtomicSwap:
+		return "atomic_swap"
+	case OrderTypeFractional:
+		return "fractional"
+	case OrderTypeProgrammatic:
+		return "programmatic"
 	default:
 		return "unknown"
 	}

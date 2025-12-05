@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"context"
 	"fmt"
 
 	"cosmossdk.io/log"
@@ -8,7 +9,6 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
 )
@@ -18,8 +18,6 @@ type Keeper struct {
 	cdc        codec.BinaryCodec
 	storeKey   storetypes.StoreKey
 	memKey     storetypes.StoreKey
-	paramstore paramtypes.Subspace
-
 	bankKeeper    types.BankKeeper
 	accountKeeper types.AccountKeeper
 }
@@ -29,20 +27,13 @@ func NewKeeper(
 	cdc codec.BinaryCodec,
 	storeKey,
 	memKey storetypes.StoreKey,
-	ps paramtypes.Subspace,
 	bankKeeper types.BankKeeper,
 	accountKeeper types.AccountKeeper,
 ) *Keeper {
-	// set KeyTable if it has not already been set
-	if !ps.HasKeyTable() {
-		ps = ps.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return &Keeper{
 		cdc:           cdc,
 		storeKey:      storeKey,
 		memKey:        memKey,
-		paramstore:    ps,
 		bankKeeper:    bankKeeper,
 		accountKeeper: accountKeeper,
 	}
@@ -55,33 +46,48 @@ func (k Keeper) Logger(ctx sdk.Context) log.Logger {
 
 // GetParams get all parameters as types.Params
 func (k Keeper) GetParams(ctx sdk.Context) types.Params {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.ParamsKey)
+	if bz == nil {
+		return types.DefaultParams()
+	}
+	
 	var params types.Params
-	k.paramstore.GetParamSet(ctx, &params)
+	k.cdc.MustUnmarshal(bz, &params)
 	return params
 }
 
 // SetParams set the params
 func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
-	k.paramstore.SetParamSet(ctx, &params)
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&params)
+	store.Set(types.ParamsKey, bz)
 }
 
-// GetTotalSupply returns the total supply of HODL tokens
-func (k Keeper) GetTotalSupply(ctx sdk.Context) math.Int {
+// GetTotalSupply returns the total supply of HODL tokens (interface compatible)
+func (k Keeper) GetTotalSupply(ctx context.Context) interface{} {
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	return k.getTotalSupply(sdkCtx)
+}
+
+// getTotalSupply returns the total supply of HODL tokens  
+func (k Keeper) getTotalSupply(ctx sdk.Context) math.Int {
 	store := ctx.KVStore(k.storeKey)
 	bz := store.Get(types.MintedSupplyKey)
 	if bz == nil {
 		return math.ZeroInt()
 	}
 	
-	var supply math.Int
-	k.cdc.MustUnmarshal(bz, &supply)
-	return supply
+	var supplyProto types.Supply
+	k.cdc.MustUnmarshal(bz, &supplyProto)
+	return supplyProto.Amount
 }
 
 // SetTotalSupply sets the total supply of HODL tokens
 func (k Keeper) SetTotalSupply(ctx sdk.Context, supply math.Int) {
 	store := ctx.KVStore(k.storeKey)
-	bz := k.cdc.MustMarshal(&supply)
+	supplyProto := types.Supply{Amount: supply}
+	bz := k.cdc.MustMarshal(&supplyProto)
 	store.Set(types.MintedSupplyKey, bz)
 }
 
@@ -115,7 +121,7 @@ func (k Keeper) DeleteCollateralPosition(ctx sdk.Context, owner sdk.AccAddress) 
 // IterateCollateralPositions iterates over all collateral positions
 func (k Keeper) IterateCollateralPositions(ctx sdk.Context, cb func(position types.CollateralPosition) bool) {
 	store := ctx.KVStore(k.storeKey)
-	iterator := sdk.KVStorePrefixIterator(store, types.CollateralPositionPrefix)
+	iterator := storetypes.KVStorePrefixIterator(store, types.CollateralPositionPrefix)
 	defer iterator.Close()
 	
 	for ; iterator.Valid(); iterator.Next() {

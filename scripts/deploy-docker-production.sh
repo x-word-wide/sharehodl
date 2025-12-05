@@ -27,15 +27,15 @@ run_remote "cd $REMOTE_DIR && git fetch origin main && git reset --hard origin/m
 
 echo ""
 echo "Step 3: Stopping existing containers..."
-run_remote "cd $REMOTE_DIR && docker-compose -f docker-compose.production.yml down || true"
+run_remote "cd $REMOTE_DIR && docker compose -f docker-compose.production.yml down || true"
 
 echo ""
 echo "Step 4: Building new Docker images..."
-run_remote "cd $REMOTE_DIR && docker-compose -f docker-compose.production.yml build --no-cache"
+run_remote "cd $REMOTE_DIR && docker compose -f docker-compose.production.yml build --no-cache"
 
 echo ""
 echo "Step 5: Starting services..."
-run_remote "cd $REMOTE_DIR && docker-compose -f docker-compose.production.yml up -d"
+run_remote "cd $REMOTE_DIR && docker compose -f docker-compose.production.yml up -d"
 
 echo ""
 echo "Step 6: Waiting for services to start..."
@@ -43,7 +43,7 @@ sleep 30
 
 echo ""
 echo "Step 7: Checking container status..."
-run_remote "cd $REMOTE_DIR && docker-compose -f docker-compose.production.yml ps"
+run_remote "cd $REMOTE_DIR && docker compose -f docker-compose.production.yml ps"
 
 echo ""
 echo "Step 8: Testing endpoints..."

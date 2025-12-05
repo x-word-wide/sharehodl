@@ -217,7 +217,7 @@ func (k Keeper) DeclareDividend(
 	stockRatio math.LegacyDec,
 ) (uint64, error) {
 	// Get company to verify creator is authorized
-	company, found := k.GetCompany(ctx, companyID)
+	company, found := k.getCompany(ctx, companyID)
 	if !found {
 		return 0, types.ErrCompanyNotFound
 	}

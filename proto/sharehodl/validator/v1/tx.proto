@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package sharehodl.validator.v1;
+
+import "amino/amino.proto";
+import "cosmos/msg/v1/msg.proto";
+import "cosmos_proto/cosmos.proto";
+import "cosmos/base/v1beta1/coin.proto";
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "sharehodl/validator/v1/validator.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/validator/v1";
+
+// Msg defines the Msg service.
+service Msg {
+  option (cosmos.msg.v1.service) = true;
+  
+  // RegisterValidatorTier registers a validator for a specific tier
+  rpc RegisterValidatorTier(MsgRegisterValidatorTier) returns (MsgRegisterValidatorTierResponse);
+  
+  // SubmitBusinessVerification submits a business for verification
+  rpc SubmitBusinessVerification(MsgSubmitBusinessVerification) returns (MsgSubmitBusinessVerificationResponse);
+  
+  // CompleteVerification completes a business verification
+  rpc CompleteVerification(MsgCompleteVerification) returns (MsgCompleteVerificationResponse);
+  
+  // StakeInBusiness stakes in a verified business
+  rpc StakeInBusiness(MsgStakeInBusiness) returns (MsgStakeInBusinessResponse);
+  
+  // ClaimVerificationRewards claims verification rewards
+  rpc ClaimVerificationRewards(MsgClaimVerificationRewards) returns (MsgClaimVerificationRewardsResponse);
+}
+
+// MsgRegisterValidatorTier defines a message to register for a validator tier
+message MsgRegisterValidatorTier {
+  option (cosmos.msg.v1.signer) = "validator";
+  option (amino.name) = "sharehodl/validator/MsgRegisterValidatorTier";
+
+  string validator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  ValidatorTier tier = 2;
+  cosmos.base.v1beta1.Coin stake_amount = 3 [(gogoproto.nullable) = false];
+}
+
+// MsgRegisterValidatorTierResponse defines the response structure for executing a MsgRegisterValidatorTier message
+message MsgRegisterValidatorTierResponse {
+  ValidatorTier tier = 1;
+  string staked_amount = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgSubmitBusinessVerification defines a message to submit business verification
+message MsgSubmitBusinessVerification {
+  option (cosmos.msg.v1.signer) = "submitter";
+  option (amino.name) = "sharehodl/validator/MsgSubmitBusinessVerification";
+
+  string submitter = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string business_id = 2;
+  string company_name = 3;
+  string business_type = 4;
+  string registration_country = 5;
+  repeated string document_hashes = 6;
+  ValidatorTier required_tier = 7;
+  cosmos.base.v1beta1.Coin verification_fee = 8 [(gogoproto.nullable) = false];
+}
+
+// MsgSubmitBusinessVerificationResponse defines the response structure for executing a MsgSubmitBusinessVerification message
+message MsgSubmitBusinessVerificationResponse {
+  string business_id = 1;
+  string verification_id = 2;
+  repeated string assigned_validators = 3;
+  google.protobuf.Timestamp deadline = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdtime) = true
+  ];
+}
+
+// MsgCompleteVerification defines a message to complete business verification
+message MsgCompleteVerification {
+  option (cosmos.msg.v1.signer) = "validator";
+  option (amino.name) = "sharehodl/validator/MsgCompleteVerification";
+
+  string validator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string business_id = 2;
+  BusinessVerificationStatus status = 3;
+  string verification_notes = 4;
+}
+
+// MsgCompleteVerificationResponse defines the response structure for executing a MsgCompleteVerification message
+message MsgCompleteVerificationResponse {
+  string business_id = 1;
+  BusinessVerificationStatus status = 2;
+  string reward_earned = 3 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string equity_allocated = 4 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// MsgStakeInBusiness defines a message to stake in a verified business
+message MsgStakeInBusiness {
+  option (cosmos.msg.v1.signer) = "validator";
+  option (amino.name) = "sharehodl/validator/MsgStakeInBusiness";
+
+  string validator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+  string business_id = 2;
+  cosmos.base.v1beta1.Coin stake_amount = 3 [(gogoproto.nullable) = false];
+  google.protobuf.Duration vesting_period = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+}
+
+// MsgStakeInBusinessResponse defines the response structure for executing a MsgStakeInBusiness message
+message MsgStakeInBusinessResponse {
+  string stake_amount = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string equity_percentage = 2 [
+    (cosmos_proto.scalar) = "cosmos.Dec",
+    (gogoproto.customtype) = "cosmossdk.io/math.LegacyDec",
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration vesting_period = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.stdduration) = true
+  ];
+}
+
+// MsgClaimVerificationRewards defines a message to claim verification rewards
+message MsgClaimVerificationRewards {
+  option (cosmos.msg.v1.signer) = "validator";
+  option (amino.name) = "sharehodl/validator/MsgClaimVerificationRewards";
+
+  string validator = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// MsgClaimVerificationRewardsResponse defines the response structure for executing a MsgClaimVerificationRewards message
+message MsgClaimVerificationRewardsResponse {
+  string hodl_rewards_claimed = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+  string equity_rewards_claimed = 2 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}

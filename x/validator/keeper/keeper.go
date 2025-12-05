@@ -9,7 +9,6 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/sharehodl/sharehodl-blockchain/x/validator/types"
 )
@@ -19,8 +18,6 @@ type Keeper struct {
 	cdc        codec.BinaryCodec
 	storeKey   storetypes.StoreKey
 	memKey     storetypes.StoreKey
-	paramstore paramtypes.Subspace
-
 	accountKeeper types.AccountKeeper
 	bankKeeper    types.BankKeeper
 	stakingKeeper types.StakingKeeper
@@ -32,21 +29,14 @@ func NewKeeper(
 	cdc codec.BinaryCodec,
 	storeKey,
 	memKey storetypes.StoreKey,
-	ps paramtypes.Subspace,
 	accountKeeper types.AccountKeeper,
 	bankKeeper types.BankKeeper,
 	stakingKeeper types.StakingKeeper,
 ) *Keeper {
-	// set KeyTable if it has not already been set
-	if !ps.HasKeyTable() {
-		ps = ps.WithKeyTable(types.ParamKeyTable())
-	}
-
 	return &Keeper{
 		cdc:           cdc,
 		storeKey:      storeKey,
 		memKey:        memKey,
-		paramstore:    ps,
 		accountKeeper: accountKeeper,
 		bankKeeper:    bankKeeper,
 		stakingKeeper: stakingKeeper,
@@ -60,14 +50,22 @@ func (k Keeper) Logger(ctx sdk.Context) log.Logger {
 
 // GetParams get all parameters as types.Params
 func (k Keeper) GetParams(ctx sdk.Context) types.Params {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.ParamsKey)
+	if bz == nil {
+		return types.DefaultParams()
+	}
+	
 	var params types.Params
-	k.paramstore.GetParamSet(ctx, &params)
+	k.cdc.MustUnmarshal(bz, &params)
 	return params
 }
 
 // SetParams set the params
 func (k Keeper) SetParams(ctx sdk.Context, params types.Params) {
-	k.paramstore.SetParamSet(ctx, &params)
+	store := ctx.KVStore(k.storeKey)
+	bz := k.cdc.MustMarshal(&params)
+	store.Set(types.ParamsKey, bz)
 }
 
 // ValidatorTier operations
@@ -210,19 +208,11 @@ func (k Keeper) SetVerificationRewards(ctx sdk.Context, rewards types.Verificati
 // Helper functions
 
 // DetermineValidatorTier determines the tier based on staked amount
-func (k Keeper) DetermineValidatorTier(stakedAmount math.Int) types.ValidatorTier {
-	if stakedAmount.GTE(math.NewInt(types.DiamondTierThreshold)) {
-		return types.TierDiamond
-	} else if stakedAmount.GTE(math.NewInt(types.PlatinumTierThreshold)) {
-		return types.TierPlatinum
-	} else if stakedAmount.GTE(math.NewInt(types.GoldTierThreshold)) {
-		return types.TierGold
-	} else if stakedAmount.GTE(math.NewInt(types.SilverTierThreshold)) {
-		return types.TierSilver
-	} else if stakedAmount.GTE(math.NewInt(types.BronzeTierThreshold)) {
-		return types.TierBronze
-	}
-	return types.TierBronze // Default to bronze if below threshold
+func (k Keeper) DetermineValidatorTier(ctx sdk.Context, stakedAmount math.Int) types.ValidatorTier {
+	// Check if we're on testnet based on chain ID
+	isTestnet := ctx.ChainID() == "sharehodl-testnet-1" || ctx.ChainID() == "sharehodl-testnet-2"
+	
+	return types.GetTierFromStake(stakedAmount, isTestnet)
 }
 
 // SelectValidatorsForVerification selects appropriate validators for business verification
@@ -263,8 +253,6 @@ func (k Keeper) CalculateVerificationReward(ctx sdk.Context, tier types.Validato
 		tierMultiplier = math.LegacyNewDec(2) // 2x
 	case types.TierPlatinum:
 		tierMultiplier = math.LegacyNewDecWithPrec(25, 1) // 2.5x
-	case types.TierDiamond:
-		tierMultiplier = math.LegacyNewDec(3) // 3x
 	}
 	
 	// Business value bonus (small percentage)
@@ -294,4 +282,61 @@ func (k Keeper) UpdateValidatorReputation(ctx sdk.Context, valAddr sdk.ValAddres
 	
 	tierInfo.LastVerification = time.Now()
 	k.SetValidatorTierInfo(ctx, tierInfo)
+}
+
+// GetValidator returns validator information for equity keeper compatibility
+func (k Keeper) GetValidator(ctx sdk.Context, address string) (interface{}, bool) {
+	// Convert address string to validator address
+	valAddr, err := sdk.ValAddressFromBech32(address)
+	if err != nil {
+		return nil, false
+	}
+	
+	// Check if validator has tier info
+	tierInfo, exists := k.GetValidatorTierInfo(ctx, valAddr)
+	if !exists {
+		return nil, false
+	}
+	
+	// Return simplified validator info
+	validatorInfo := struct {
+		Address string
+		Active  bool
+		Tier    int
+	}{
+		Address: address,
+		Active:  true,
+		Tier:    int(tierInfo.Tier),
+	}
+	
+	return validatorInfo, true
+}
+
+// GetAllValidators returns all validator information for equity keeper compatibility
+func (k Keeper) GetAllValidators(ctx sdk.Context) []interface{} {
+	validators := []interface{}{}
+	
+	// Iterate through all validator tier info
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.ValidatorTierInfoPrefix)
+	defer iterator.Close()
+	
+	for ; iterator.Valid(); iterator.Next() {
+		var tierInfo types.ValidatorTierInfo
+		k.cdc.MustUnmarshal(iterator.Value(), &tierInfo)
+		
+		validatorInfo := struct {
+			Address string
+			Active  bool
+			Tier    int
+		}{
+			Address: tierInfo.ValidatorAddress,
+			Active:  true,
+			Tier:    int(tierInfo.Tier),
+		}
+		
+		validators = append(validators, validatorInfo)
+	}
+	
+	return validators
 }

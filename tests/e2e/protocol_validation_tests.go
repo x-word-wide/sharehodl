@@ -11,10 +11,10 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
 
-	hodltypes "sharehodl/x/hodl/types"
-	equitytypes "sharehodl/x/equity/types"
-	dextypes "sharehodl/x/dex/types"
-	governancetypes "sharehodl/x/governance/types"
+	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
+	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
+	dextypes "github.com/sharehodl/sharehodl-blockchain/x/dex/types"
+	governancetypes "github.com/sharehodl/sharehodl-blockchain/x/governance/types"
 )
 
 // ProtocolValidationSuite validates the complete ShareHODL protocol

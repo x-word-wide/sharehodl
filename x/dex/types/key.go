@@ -1,6 +1,7 @@
 package types
 
 import (
+	"time"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
@@ -44,11 +45,19 @@ var (
 	// MarketStatsPrefix stores market statistics
 	MarketStatsPrefix = []byte{0x07}
 	
+	// TradingStrategyPrefix stores programmable trading strategies
+	TradingStrategyPrefix = []byte{0x08}
+	
 	// OrderCounterKey stores the global order counter
-	OrderCounterKey = []byte{0x08}
+	OrderCounterKey = []byte{0x09}
 	
 	// TradeCounterKey stores the global trade counter  
-	TradeCounterKey = []byte{0x09}
+	TradeCounterKey = []byte{0x0A}
+	
+	// Trading controls keys
+	TradingControlsPrefix = []byte{0x10}
+	DailyVolumePrefix     = []byte{0x11}
+	DailyHaltCountPrefix  = []byte{0x12}
 )
 
 // GetMarketKey returns the store key for a market
@@ -102,4 +111,38 @@ func GetUserPositionKey(user, baseSymbol, quoteSymbol string) []byte {
 // GetMarketStatsKey returns the store key for market statistics
 func GetMarketStatsKey(baseSymbol, quoteSymbol string) []byte {
 	return append(MarketStatsPrefix, []byte(baseSymbol+"/"+quoteSymbol)...)
+}
+
+// GetTradingStrategyKey returns the store key for a trading strategy
+func GetTradingStrategyKey(strategyID string) []byte {
+	return append(TradingStrategyPrefix, []byte(strategyID)...)
+}
+
+// MarketKey returns the key for a market by symbol
+func MarketKey(marketSymbol string) []byte {
+	return append(MarketPrefix, []byte(marketSymbol)...)
+}
+
+// OrderBookKey returns the key for an order book
+func OrderBookKey(marketSymbol string) []byte {
+	return append(OrderBookPrefix, []byte(marketSymbol)...)
+}
+
+// TradingControlsKey returns the key for trading controls
+func TradingControlsKey(marketSymbol string) []byte {
+	return append(TradingControlsPrefix, []byte(marketSymbol)...)
+}
+
+// DailyVolumeKey returns the key for daily volume
+func DailyVolumeKey(marketSymbol string, date time.Time) []byte {
+	dateStr := date.Format("2006-01-02")
+	key := append(DailyVolumePrefix, []byte(marketSymbol)...)
+	return append(key, []byte(dateStr)...)
+}
+
+// DailyHaltCountKey returns the key for daily halt count
+func DailyHaltCountKey(marketSymbol string, date time.Time) []byte {
+	dateStr := date.Format("2006-01-02")
+	key := append(DailyHaltCountPrefix, []byte(marketSymbol)...)
+	return append(key, []byte(dateStr)...)
 }

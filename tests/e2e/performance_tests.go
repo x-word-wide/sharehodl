@@ -11,8 +11,8 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
 
-	hodltypes "sharehodl/x/hodl/types"
-	dextypes "sharehodl/x/dex/types"
+	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
+	dextypes "github.com/sharehodl/sharehodl-blockchain/x/dex/types"
 )
 
 // PerformanceTestSuite defines performance testing scenarios

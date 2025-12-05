@@ -6,6 +6,7 @@ import (
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 
 	"github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
 )
@@ -34,13 +35,13 @@ func (k msgServer) MintHODL(goCtx context.Context, msg *types.SimpleMsgMintHODL)
 	// Validate creator address
 	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
 	if err != nil {
-		return nil, errors.Wrapf(errors.ErrInvalidAddress, "invalid creator address: %v", err)
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidAddress, "invalid creator address: %v", err)
 	}
 
 	// Check if user has sufficient collateral
 	balance := k.bankKeeper.GetAllBalances(ctx, creatorAddr)
 	if !balance.IsAllGTE(msg.CollateralCoins) {
-		return nil, errors.Wrapf(errors.ErrInsufficientFunds, "insufficient balance for collateral")
+		return nil, errors.Wrapf(sdkerrors.ErrInsufficientFunds, "insufficient balance for collateral")
 	}
 
 	// Calculate required collateral value (simplified - in real implementation would use oracle prices)
@@ -83,7 +84,7 @@ func (k msgServer) MintHODL(goCtx context.Context, msg *types.SimpleMsgMintHODL)
 	k.SetCollateralPosition(ctx, position)
 
 	// Update total supply
-	totalSupply := k.GetTotalSupply(ctx)
+	totalSupply := k.getTotalSupply(ctx)
 	k.SetTotalSupply(ctx, totalSupply.Add(hodlToMint))
 
 	// Emit event
@@ -113,7 +114,7 @@ func (k msgServer) BurnHODL(goCtx context.Context, msg *types.SimpleMsgBurnHODL)
 	// Validate creator address
 	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
 	if err != nil {
-		return nil, errors.Wrapf(errors.ErrInvalidAddress, "invalid creator address: %v", err)
+		return nil, errors.Wrapf(sdkerrors.ErrInvalidAddress, "invalid creator address: %v", err)
 	}
 
 	// Check if user has sufficient HODL balance
@@ -130,10 +131,10 @@ func (k msgServer) BurnHODL(goCtx context.Context, msg *types.SimpleMsgBurnHODL)
 
 	// Calculate how much collateral to return (proportional to HODL burned)
 	if position.MintedHODL.LT(msg.HodlAmount) {
-		return nil, errors.Wrap(errors.ErrInvalidRequest, "cannot burn more HODL than minted")
+		return nil, errors.Wrap(sdkerrors.ErrInvalidRequest, "cannot burn more HODL than minted")
 	}
 
-	collateralRatio := sdk.NewDecFromInt(msg.HodlAmount).QuoInt(position.MintedHODL)
+	collateralRatio := math.LegacyNewDecFromInt(msg.HodlAmount).QuoInt(position.MintedHODL)
 	collateralToReturn := sdk.NewCoins()
 	
 	for _, coin := range position.Collateral {
@@ -173,7 +174,7 @@ func (k msgServer) BurnHODL(goCtx context.Context, msg *types.SimpleMsgBurnHODL)
 	}
 
 	// Update total supply
-	totalSupply := k.GetTotalSupply(ctx)
+	totalSupply := k.getTotalSupply(ctx)
 	k.SetTotalSupply(ctx, totalSupply.Sub(msg.HodlAmount))
 
 	// Emit event

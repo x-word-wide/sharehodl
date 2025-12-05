@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"cosmossdk.io/math"
-	sdk "github.com/cosmos/cosmos-sdk/types"
 )
 
 // ValidatorTier represents the different validator tiers
@@ -16,7 +15,6 @@ const (
 	TierSilver
 	TierGold
 	TierPlatinum
-	TierDiamond
 )
 
 // String returns the string representation of the tier
@@ -30,15 +28,29 @@ func (t ValidatorTier) String() string {
 		return "Gold"
 	case TierPlatinum:
 		return "Platinum"
-	case TierDiamond:
-		return "Diamond"
 	default:
 		return "Unknown"
 	}
 }
 
 // GetStakeThreshold returns the minimum stake required for each tier
-func (t ValidatorTier) GetStakeThreshold() math.Int {
+func (t ValidatorTier) GetStakeThreshold(isTestnet bool) math.Int {
+	if isTestnet {
+		switch t {
+		case TierBronze:
+			return math.NewInt(TestnetBronzeTierThreshold)
+		case TierSilver:
+			return math.NewInt(TestnetSilverTierThreshold)
+		case TierGold:
+			return math.NewInt(TestnetGoldTierThreshold)
+		case TierPlatinum:
+			return math.NewInt(TestnetPlatinumTierThreshold)
+		default:
+			return math.ZeroInt()
+		}
+	}
+	
+	// Mainnet thresholds
 	switch t {
 	case TierBronze:
 		return math.NewInt(BronzeTierThreshold)
@@ -48,11 +60,39 @@ func (t ValidatorTier) GetStakeThreshold() math.Int {
 		return math.NewInt(GoldTierThreshold)
 	case TierPlatinum:
 		return math.NewInt(PlatinumTierThreshold)
-	case TierDiamond:
-		return math.NewInt(DiamondTierThreshold)
 	default:
 		return math.ZeroInt()
 	}
+}
+
+// GetTierFromStake determines the appropriate tier based on staked amount
+func GetTierFromStake(stakeAmount math.Int, isTestnet bool) ValidatorTier {
+	stake := stakeAmount.Int64()
+	
+	if isTestnet {
+		if stake >= TestnetPlatinumTierThreshold {
+			return TierPlatinum
+		} else if stake >= TestnetGoldTierThreshold {
+			return TierGold
+		} else if stake >= TestnetSilverTierThreshold {
+			return TierSilver
+		} else if stake >= TestnetBronzeTierThreshold {
+			return TierBronze
+		}
+	} else {
+		// Mainnet thresholds
+		if stake >= PlatinumTierThreshold {
+			return TierPlatinum
+		} else if stake >= GoldTierThreshold {
+			return TierGold
+		} else if stake >= SilverTierThreshold {
+			return TierSilver
+		} else if stake >= BronzeTierThreshold {
+			return TierBronze
+		}
+	}
+	
+	return ValidatorTier(-1) // Invalid tier
 }
 
 // ValidatorTierInfo stores information about a validator's tier and capabilities
@@ -65,6 +105,17 @@ type ValidatorTierInfo struct {
 	TotalRewards       math.Int       `json:"total_rewards" yaml:"total_rewards"`
 	LastVerification   time.Time      `json:"last_verification" yaml:"last_verification"`
 	ReputationScore    math.LegacyDec `json:"reputation_score" yaml:"reputation_score"`
+}
+
+// ProtoMessage implements proto.Message interface
+func (m *ValidatorTierInfo) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *ValidatorTierInfo) Reset() { *m = ValidatorTierInfo{} }
+
+// String implements proto.Message interface
+func (m *ValidatorTierInfo) String() string {
+	return m.ValidatorAddress
 }
 
 // BusinessVerificationStatus represents the status of business verification
@@ -115,6 +166,17 @@ type BusinessVerification struct {
 	DisputeReason       string                      `json:"dispute_reason" yaml:"dispute_reason"`
 }
 
+// ProtoMessage implements proto.Message interface
+func (m *BusinessVerification) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *BusinessVerification) Reset() { *m = BusinessVerification{} }
+
+// String implements proto.Message interface
+func (m *BusinessVerification) String() string {
+	return m.BusinessID
+}
+
 // ValidatorBusinessStake represents a validator's equity stake in a verified business
 type ValidatorBusinessStake struct {
 	ValidatorAddress string        `json:"validator_address" yaml:"validator_address"`
@@ -126,6 +188,17 @@ type ValidatorBusinessStake struct {
 	IsVested         bool          `json:"is_vested" yaml:"is_vested"`
 }
 
+// ProtoMessage implements proto.Message interface
+func (m *ValidatorBusinessStake) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *ValidatorBusinessStake) Reset() { *m = ValidatorBusinessStake{} }
+
+// String implements proto.Message interface
+func (m *ValidatorBusinessStake) String() string {
+	return m.ValidatorAddress + ":" + m.BusinessID
+}
+
 // VerificationRewards tracks rewards earned by validators
 type VerificationRewards struct {
 	ValidatorAddress     string    `json:"validator_address" yaml:"validator_address"`
@@ -135,6 +208,17 @@ type VerificationRewards struct {
 	LastRewardClaim      time.Time `json:"last_reward_claim" yaml:"last_reward_claim"`
 }
 
+// ProtoMessage implements proto.Message interface
+func (m *VerificationRewards) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *VerificationRewards) Reset() { *m = VerificationRewards{} }
+
+// String implements proto.Message interface
+func (m *VerificationRewards) String() string {
+	return m.ValidatorAddress
+}
+
 // GenesisState defines the validator module's genesis state
 type GenesisState struct {
 	Params               Params                   `json:"params" yaml:"params"`
@@ -142,6 +226,17 @@ type GenesisState struct {
 	BusinessVerifications []BusinessVerification  `json:"business_verifications" yaml:"business_verifications"`
 	ValidatorBusinessStakes []ValidatorBusinessStake `json:"validator_business_stakes" yaml:"validator_business_stakes"`
 	VerificationRewards  []VerificationRewards    `json:"verification_rewards" yaml:"verification_rewards"`
+}
+
+// ProtoMessage implements proto.Message interface
+func (m *GenesisState) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *GenesisState) Reset() { *m = GenesisState{} }
+
+// String implements proto.Message interface
+func (m *GenesisState) String() string {
+	return "validator_genesis"
 }
 
 // Params defines the parameters for the validator module
@@ -154,6 +249,12 @@ type Params struct {
 	BaseVerificationReward  math.Int       `json:"base_verification_reward" yaml:"base_verification_reward"`
 	EquityStakePercentage   math.LegacyDec `json:"equity_stake_percentage" yaml:"equity_stake_percentage"`
 }
+
+// ProtoMessage implements proto.Message interface
+func (m *Params) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *Params) Reset() { *m = Params{} }
 
 // MsgServer defines the Msg service for validator operations
 type MsgServer interface {

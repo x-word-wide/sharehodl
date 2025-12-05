@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,26 +10,25 @@ import (
 	storetypes "cosmossdk.io/store/types"
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
-	paramtypes "github.com/cosmos/cosmos-sdk/x/params/types"
 
 	"github.com/sharehodl/sharehodl-blockchain/x/equity/types"
 )
 
 // Expected keepers for dependency injection
 type BankKeeper interface {
-	SendCoinsFromAccountToModule(ctx sdk.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error
-	SendCoinsFromModuleToAccount(ctx sdk.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error
-	MintCoins(ctx sdk.Context, moduleName string, amt sdk.Coins) error
-	BurnCoins(ctx sdk.Context, moduleName string, amt sdk.Coins) error
-	GetAllBalances(ctx sdk.Context, addr sdk.AccAddress) sdk.Coins
-	GetBalance(ctx sdk.Context, addr sdk.AccAddress, denom string) sdk.Coin
-	SendCoins(ctx sdk.Context, fromAddr sdk.AccAddress, toAddr sdk.AccAddress, amt sdk.Coins) error
+	SendCoinsFromAccountToModule(ctx context.Context, senderAddr sdk.AccAddress, recipientModule string, amt sdk.Coins) error
+	SendCoinsFromModuleToAccount(ctx context.Context, senderModule string, recipientAddr sdk.AccAddress, amt sdk.Coins) error
+	MintCoins(ctx context.Context, moduleName string, amt sdk.Coins) error
+	BurnCoins(ctx context.Context, moduleName string, amt sdk.Coins) error
+	GetAllBalances(ctx context.Context, addr sdk.AccAddress) sdk.Coins
+	GetBalance(ctx context.Context, addr sdk.AccAddress, denom string) sdk.Coin
+	SendCoins(ctx context.Context, fromAddr sdk.AccAddress, toAddr sdk.AccAddress, amt sdk.Coins) error
 }
 
 type AccountKeeper interface {
-	GetAccount(sdk.Context, sdk.AccAddress) sdk.AccountI
-	SetAccount(sdk.Context, sdk.AccountI)
-	NewAccount(sdk.Context, sdk.AccountI) sdk.AccountI
+	GetAccount(context.Context, sdk.AccAddress) sdk.AccountI
+	SetAccount(context.Context, sdk.AccountI)
+	NewAccount(context.Context, sdk.AccountI) sdk.AccountI
 	GetModuleAddress(string) sdk.AccAddress
 }
 
@@ -40,8 +40,8 @@ type ValidatorInfo struct {
 }
 
 type ValidatorKeeper interface {
-	GetValidator(ctx sdk.Context, address string) (ValidatorInfo, bool)
-	GetAllValidators(ctx sdk.Context) []ValidatorInfo
+	GetValidator(ctx sdk.Context, address string) (interface{}, bool)
+	GetAllValidators(ctx sdk.Context) []interface{}
 }
 
 // Keeper of the equity store
@@ -49,8 +49,6 @@ type Keeper struct {
 	cdc        codec.BinaryCodec
 	storeKey   storetypes.StoreKey
 	memKey     storetypes.StoreKey
-	paramstore paramtypes.Subspace
-
 	bankKeeper      BankKeeper
 	accountKeeper   AccountKeeper
 	validatorKeeper ValidatorKeeper
@@ -61,7 +59,6 @@ func NewKeeper(
 	cdc codec.BinaryCodec,
 	storeKey,
 	memKey storetypes.StoreKey,
-	ps paramtypes.Subspace,
 	bankKeeper BankKeeper,
 	accountKeeper AccountKeeper,
 	validatorKeeper ValidatorKeeper,
@@ -70,7 +67,6 @@ func NewKeeper(
 		cdc:             cdc,
 		storeKey:        storeKey,
 		memKey:          memKey,
-		paramstore:      ps,
 		bankKeeper:      bankKeeper,
 		accountKeeper:   accountKeeper,
 		validatorKeeper: validatorKeeper,
@@ -99,8 +95,14 @@ func (k Keeper) GetNextCompanyID(ctx sdk.Context) uint64 {
 	return counter
 }
 
-// GetCompany returns a company by ID
-func (k Keeper) GetCompany(ctx sdk.Context, companyID uint64) (types.Company, bool) {
+// GetCompany returns a company by ID (interface compatible)
+func (k Keeper) GetCompany(ctx context.Context, companyID uint64) (interface{}, bool) {
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	company, found := k.getCompany(sdkCtx, companyID)
+	return company, found
+}
+
+func (k Keeper) getCompany(ctx sdk.Context, companyID uint64) (types.Company, bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetCompanyKey(companyID)
 	bz := store.Get(key)
@@ -134,7 +136,12 @@ func (k Keeper) DeleteCompany(ctx sdk.Context, companyID uint64) {
 }
 
 // IsSymbolTaken checks if a company symbol is already taken
-func (k Keeper) IsSymbolTaken(ctx sdk.Context, symbol string) bool {
+func (k Keeper) IsSymbolTaken(ctx context.Context, symbol string) bool {
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	return k.isSymbolTaken(sdkCtx, symbol)
+}
+
+func (k Keeper) isSymbolTaken(ctx sdk.Context, symbol string) bool {
 	companies := k.GetAllCompanies(ctx)
 	for _, company := range companies {
 		if company.Symbol == symbol {
@@ -153,21 +160,6 @@ func (k Keeper) GetAllCompanies(ctx sdk.Context) []types.Company {
 
 // Share class management methods
 
-// GetShareClass returns a share class by company ID and class ID
-func (k Keeper) GetShareClass(ctx sdk.Context, companyID uint64, classID string) (types.ShareClass, bool) {
-	store := ctx.KVStore(k.storeKey)
-	key := types.GetShareClassKey(companyID, classID)
-	bz := store.Get(key)
-	if bz == nil {
-		return types.ShareClass{}, false
-	}
-	
-	var shareClass types.ShareClass
-	if err := json.Unmarshal(bz, &shareClass); err != nil {
-		return types.ShareClass{}, false
-	}
-	return shareClass, true
-}
 
 // SetShareClass stores a share class
 func (k Keeper) SetShareClass(ctx sdk.Context, shareClass types.ShareClass) {
@@ -196,21 +188,6 @@ func (k Keeper) GetCompanyShareClasses(ctx sdk.Context, companyID uint64) []type
 
 // Shareholding management methods
 
-// GetShareholding returns a shareholding
-func (k Keeper) GetShareholding(ctx sdk.Context, companyID uint64, classID, owner string) (types.Shareholding, bool) {
-	store := ctx.KVStore(k.storeKey)
-	key := types.GetShareholdingKey(companyID, classID, owner)
-	bz := store.Get(key)
-	if bz == nil {
-		return types.Shareholding{}, false
-	}
-	
-	var shareholding types.Shareholding
-	if err := json.Unmarshal(bz, &shareholding); err != nil {
-		return types.Shareholding{}, false
-	}
-	return shareholding, true
-}
 
 // SetShareholding stores a shareholding
 func (k Keeper) SetShareholding(ctx sdk.Context, shareholding types.Shareholding) {
@@ -257,7 +234,7 @@ func (k Keeper) IssueShares(
 	paymentDenom string,
 ) error {
 	// Get share class
-	shareClass, found := k.GetShareClass(ctx, companyID, classID)
+	shareClass, found := k.getShareClass(ctx, companyID, classID)
 	if !found {
 		return types.ErrShareClassNotFound
 	}
@@ -272,7 +249,7 @@ func (k Keeper) IssueShares(
 	totalPayment := pricePerShare.MulInt(shares)
 	
 	// Get or create shareholding
-	shareholding, exists := k.GetShareholding(ctx, companyID, classID, recipient)
+	shareholding, exists := k.getShareholding(ctx, companyID, classID, recipient)
 	if exists {
 		// Update existing shareholding
 		weightedCostBasis := shareholding.CostBasis.MulInt(shareholding.Shares).Add(totalPayment)
@@ -308,7 +285,7 @@ func (k Keeper) TransferShares(
 	shares math.Int,
 ) error {
 	// Get share class to check transferability
-	shareClass, found := k.GetShareClass(ctx, companyID, classID)
+	shareClass, found := k.getShareClass(ctx, companyID, classID)
 	if !found {
 		return types.ErrShareClassNotFound
 	}
@@ -318,7 +295,7 @@ func (k Keeper) TransferShares(
 	}
 	
 	// Get from shareholding
-	fromHolding, found := k.GetShareholding(ctx, companyID, classID, from)
+	fromHolding, found := k.getShareholding(ctx, companyID, classID, from)
 	if !found {
 		return types.ErrShareholdingNotFound
 	}
@@ -334,7 +311,7 @@ func (k Keeper) TransferShares(
 	fromHolding.VestedShares = fromHolding.VestedShares.Sub(shares)
 	
 	// Get or create to shareholding
-	toHolding, exists := k.GetShareholding(ctx, companyID, classID, to)
+	toHolding, exists := k.getShareholding(ctx, companyID, classID, to)
 	if exists {
 		// Update existing holding - weighted average cost basis
 		weightedCostBasis := toHolding.CostBasis.MulInt(toHolding.Shares).Add(fromHolding.CostBasis.MulInt(shares))
@@ -363,11 +340,55 @@ func (k Keeper) TransferShares(
 
 // GetTotalShares returns total outstanding shares for a share class
 func (k Keeper) GetTotalShares(ctx sdk.Context, companyID uint64, classID string) math.Int {
-	shareClass, found := k.GetShareClass(ctx, companyID, classID)
+	shareClass, found := k.getShareClass(ctx, companyID, classID)
 	if !found {
 		return math.ZeroInt()
 	}
 	return shareClass.OutstandingShares
+}
+
+// GetShareClass interface-compatible version
+func (k Keeper) GetShareClass(ctx context.Context, companyID uint64, classID string) (interface{}, bool) {
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	shareClass, found := k.getShareClass(sdkCtx, companyID, classID)
+	return shareClass, found
+}
+
+func (k Keeper) getShareClass(ctx sdk.Context, companyID uint64, classID string) (types.ShareClass, bool) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetShareClassKey(companyID, classID)
+	bz := store.Get(key)
+	if bz == nil {
+		return types.ShareClass{}, false
+	}
+	
+	var shareClass types.ShareClass
+	if err := json.Unmarshal(bz, &shareClass); err != nil {
+		return types.ShareClass{}, false
+	}
+	return shareClass, true
+}
+
+// GetShareholding interface-compatible version
+func (k Keeper) GetShareholding(ctx context.Context, companyID uint64, classID, owner string) (interface{}, bool) {
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	shareholding, found := k.getShareholding(sdkCtx, companyID, classID, owner)
+	return shareholding, found
+}
+
+func (k Keeper) getShareholding(ctx sdk.Context, companyID uint64, classID, owner string) (types.Shareholding, bool) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetShareholdingKey(companyID, classID, owner)
+	bz := store.Get(key)
+	if bz == nil {
+		return types.Shareholding{}, false
+	}
+	
+	var shareholding types.Shareholding
+	if err := json.Unmarshal(bz, &shareholding); err != nil {
+		return types.Shareholding{}, false
+	}
+	return shareholding, true
 }
 
 // CreateCompany creates a new company - business logic version
@@ -419,7 +440,7 @@ func (k Keeper) CreateShareClass(
 	creator string,
 ) error {
 	// Check if company exists
-	company, found := k.GetCompany(ctx, companyID)
+	company, found := k.getCompany(ctx, companyID)
 	if !found {
 		return types.ErrCompanyNotFound
 	}
@@ -430,7 +451,7 @@ func (k Keeper) CreateShareClass(
 	}
 	
 	// Check if share class already exists
-	if _, exists := k.GetShareClass(ctx, companyID, classID); exists {
+	if _, exists := k.getShareClass(ctx, companyID, classID); exists {
 		return types.ErrShareClassAlreadyExists
 	}
 	

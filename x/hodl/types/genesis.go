@@ -66,6 +66,17 @@ func NewCollateralPosition(owner string, collateral sdk.Coins, mintedHODL math.I
 	}
 }
 
+// ProtoMessage implements proto.Message interface
+func (m *CollateralPosition) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *CollateralPosition) Reset() { *m = CollateralPosition{} }
+
+// String implements proto.Message interface
+func (m *CollateralPosition) String() string {
+	return m.Owner
+}
+
 // Validate validates the collateral position
 func (cp CollateralPosition) Validate() error {
 	_, err := sdk.AccAddressFromBech32(cp.Owner)

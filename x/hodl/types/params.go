@@ -57,6 +57,11 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 
 // Validate validates the set of params
 func (p Params) Validate() error {
+	// Check if params are initialized (non-zero values)
+	if p.CollateralRatio.IsNil() || p.LiquidationRatio.IsNil() || p.StabilityFee.IsNil() || p.MintFee.IsNil() || p.BurnFee.IsNil() {
+		return fmt.Errorf("params are not properly initialized")
+	}
+	
 	if !p.CollateralRatio.IsPositive() {
 		return fmt.Errorf("collateral ratio must be positive: %s", p.CollateralRatio)
 	}

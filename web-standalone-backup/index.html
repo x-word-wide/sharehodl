@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShareHODL - Atomic Cross-Asset Swaps</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <img src="logo.svg" alt="ShareHODL" class="logo">
+                <span>ShareHODL</span>
+            </div>
+            <div class="nav-menu">
+                <a href="#swap" class="nav-link active">Swap</a>
+                <a href="#markets" class="nav-link">Markets</a>
+                <a href="#portfolio" class="nav-link">Portfolio</a>
+                <a href="#strategies" class="nav-link">Strategies</a>
+            </div>
+            <div class="nav-wallet">
+                <button class="btn-connect" id="connectWallet">Connect Wallet</button>
+                <div class="wallet-info" id="walletInfo" style="display: none;">
+                    <div class="wallet-address" id="walletAddress"></div>
+                    <div class="wallet-balance">
+                        <span id="hodlBalance">0</span> HODL
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Swap Section -->
+        <section id="swap" class="swap-section">
+            <div class="container">
+                <div class="swap-card">
+                    <div class="card-header">
+                        <h2>Atomic Swap</h2>
+                        <div class="swap-settings">
+                            <button class="btn-icon" id="settingsBtn">⚙️</button>
+                        </div>
+                    </div>
+                    
+                    <div class="swap-form">
+                        <!-- From Asset -->
+                        <div class="swap-input-group">
+                            <label>From</label>
+                            <div class="input-wrapper">
+                                <select class="asset-select" id="fromAsset">
+                                    <option value="HODL">HODL</option>
+                                    <option value="APPLE">APPLE</option>
+                                    <option value="TSLA">TSLA</option>
+                                    <option value="GOOGL">GOOGL</option>
+                                    <option value="MSFT">MSFT</option>
+                                </select>
+                                <input type="number" class="amount-input" id="fromAmount" placeholder="0.00">
+                                <button class="btn-max" id="maxBtn">MAX</button>
+                            </div>
+                            <div class="balance-info">
+                                Balance: <span id="fromBalance">0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- Swap Button -->
+                        <div class="swap-arrows">
+                            <button class="btn-swap-direction" id="swapDirection">↕️</button>
+                        </div>
+
+                        <!-- To Asset -->
+                        <div class="swap-input-group">
+                            <label>To</label>
+                            <div class="input-wrapper">
+                                <select class="asset-select" id="toAsset">
+                                    <option value="APPLE">APPLE</option>
+                                    <option value="HODL">HODL</option>
+                                    <option value="TSLA">TSLA</option>
+                                    <option value="GOOGL">GOOGL</option>
+                                    <option value="MSFT">MSFT</option>
+                                </select>
+                                <input type="number" class="amount-input" id="toAmount" placeholder="0.00" readonly>
+                            </div>
+                            <div class="balance-info">
+                                Balance: <span id="toBalance">0.00</span>
+                            </div>
+                        </div>
+
+                        <!-- Swap Details -->
+                        <div class="swap-details">
+                            <div class="detail-row">
+                                <span>Exchange Rate</span>
+                                <span id="exchangeRate">-</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Slippage Tolerance</span>
+                                <span><span id="slippageTolerance">3</span>%</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Estimated Fee</span>
+                                <span id="estimatedFee">0.00 HODL</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Price Impact</span>
+                                <span id="priceImpact" class="impact-low">< 0.01%</span>
+                            </div>
+                        </div>
+
+                        <!-- Swap Button -->
+                        <button class="btn-primary btn-swap" id="swapBtn" disabled>
+                            Connect Wallet to Swap
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Features -->
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">⚡</div>
+                        <h3>Instant Settlement</h3>
+                        <p>Execute trades in seconds, not T+2 days</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔒</div>
+                        <h3>Zero Counterparty Risk</h3>
+                        <p>Atomic swaps ensure trustless execution</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🌍</div>
+                        <h3>24/7 Trading</h3>
+                        <p>Trade anytime, anywhere, no market hours</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔢</div>
+                        <h3>Fractional Shares</h3>
+                        <p>Buy 0.001 shares for precise allocation</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Markets Section -->
+        <section id="markets" class="markets-section" style="display: none;">
+            <div class="container">
+                <h2>Live Markets</h2>
+                <div class="markets-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Market</th>
+                                <th>Last Price</th>
+                                <th>24h Change</th>
+                                <th>24h Volume</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="marketsTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Portfolio Section -->
+        <section id="portfolio" class="portfolio-section" style="display: none;">
+            <div class="container">
+                <h2>Your Portfolio</h2>
+                <div class="portfolio-summary">
+                    <div class="summary-card">
+                        <h4>Total Value</h4>
+                        <div class="value" id="totalValue">$0.00</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>24h Change</h4>
+                        <div class="value change-positive" id="dayChange">+0.00%</div>
+                    </div>
+                    <div class="summary-card">
+                        <h4>Total Trades</h4>
+                        <div class="value" id="totalTrades">0</div>
+                    </div>
+                </div>
+                
+                <div class="holdings-table">
+                    <h3>Holdings</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Balance</th>
+                                <th>Value (HODL)</th>
+                                <th>24h Change</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdingsTableBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="swap-history">
+                    <h3>Swap History</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Rate</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="swapHistoryBody">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Trading Strategies Section -->
+        <section id="strategies" class="strategies-section" style="display: none;">
+            <div class="container">
+                <div class="strategies-header">
+                    <h2>Automated Trading Strategies</h2>
+                    <button class="btn-primary" id="createStrategyBtn">Create Strategy</button>
+                </div>
+
+                <div class="strategies-grid" id="strategiesGrid">
+                    <!-- Strategy Cards -->
+                    <div class="strategy-card">
+                        <div class="strategy-header">
+                            <h3>Momentum Strategy</h3>
+                            <div class="strategy-status active">Active</div>
+                        </div>
+                        <div class="strategy-details">
+                            <div class="detail-row">
+                                <span>Trigger:</span>
+                                <span>APPLE > 5% in 24h</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Action:</span>
+                                <span>Buy 100 shares</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Max Exposure:</span>
+                                <span>50,000 HODL</span>
+                            </div>
+                            <div class="detail-row">
+                                <span>Executions:</span>
+                                <span>3</span>
+                            </div>
+                        </div>
+                        <div class="strategy-actions">
+                            <button class="btn-secondary">Edit</button>
+                            <button class="btn-danger">Pause</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Swap Settings</h3>
+                <button class="modal-close" id="closeSettings">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="setting-group">
+                    <label>Slippage Tolerance</label>
+                    <div class="slippage-options">
+                        <button class="slippage-btn" data-value="1">1%</button>
+                        <button class="slippage-btn active" data-value="3">3%</button>
+                        <button class="slippage-btn" data-value="5">5%</button>
+                        <input type="number" class="custom-slippage" id="customSlippage" placeholder="Custom">
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Transaction Deadline</label>
+                    <div class="deadline-input">
+                        <input type="number" id="deadline" value="30">
+                        <span>minutes</span>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Expert Mode</label>
+                    <label class="switch">
+                        <input type="checkbox" id="expertMode">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+        <div class="loading-text">Processing Swap...</div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

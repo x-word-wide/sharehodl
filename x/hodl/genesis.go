@@ -1,6 +1,7 @@
 package hodl
 
 import (
+	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/hodl/keeper"
 	"github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
@@ -24,7 +25,7 @@ func InitGenesis(ctx sdk.Context, k keeper.Keeper, genState types.GenesisState) 
 func ExportGenesis(ctx sdk.Context, k keeper.Keeper) *types.GenesisState {
 	genesis := types.DefaultGenesis()
 	genesis.Params = k.GetParams(ctx)
-	genesis.TotalSupply = k.GetTotalSupply(ctx)
+	genesis.TotalSupply = k.GetTotalSupply(ctx).(math.Int)
 	genesis.Positions = k.GetAllCollateralPositions(ctx)
 	
 	// Calculate total collateral from positions

@@ -1,0 +1,94 @@
+syntax = "proto3";
+
+package sharehodl.hodl.v1;
+
+import "cosmos/base/query/v1beta1/pagination.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "cosmos_proto/cosmos.proto";
+import "sharehodl/hodl/v1/hodl.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/api/sharehodl/hodl/v1";
+
+// Query defines the gRPC querier service.
+service Query {
+  // Params returns the parameters of the module
+  rpc Params(QueryParamsRequest) returns (QueryParamsResponse) {
+    option (google.api.http).get = "/sharehodl/hodl/v1/params";
+  }
+
+  // Supply returns the total supply of HODL tokens
+  rpc Supply(QuerySupplyRequest) returns (QuerySupplyResponse) {
+    option (google.api.http).get = "/sharehodl/hodl/v1/supply";
+  }
+
+  // Balance returns the HODL balance for a specific address
+  rpc Balance(QueryBalanceRequest) returns (QueryBalanceResponse) {
+    option (google.api.http).get = "/sharehodl/hodl/v1/balance/{address}";
+  }
+
+  // Position returns the collateral position for a specific address
+  rpc Position(QueryPositionRequest) returns (QueryPositionResponse) {
+    option (google.api.http).get = "/sharehodl/hodl/v1/position/{owner}";
+  }
+
+  // Positions returns all collateral positions
+  rpc Positions(QueryPositionsRequest) returns (QueryPositionsResponse) {
+    option (google.api.http).get = "/sharehodl/hodl/v1/positions";
+  }
+}
+
+// QueryParamsRequest is request type for the Query/Params RPC method
+message QueryParamsRequest {}
+
+// QueryParamsResponse is response type for the Query/Params RPC method
+message QueryParamsResponse {
+  Params params = 1 [(gogoproto.nullable) = false];
+}
+
+// QuerySupplyRequest is request type for the Query/Supply RPC method
+message QuerySupplyRequest {}
+
+// QuerySupplyResponse is response type for the Query/Supply RPC method
+message QuerySupplyResponse {
+  string total_supply = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// QueryBalanceRequest is request type for the Query/Balance RPC method
+message QueryBalanceRequest {
+  string address = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryBalanceResponse is response type for the Query/Balance RPC method
+message QueryBalanceResponse {
+  string balance = 1 [
+    (cosmos_proto.scalar) = "cosmos.Int",
+    (gogoproto.customtype) = "cosmossdk.io/math.Int",
+    (gogoproto.nullable) = false
+  ];
+}
+
+// QueryPositionRequest is request type for the Query/Position RPC method
+message QueryPositionRequest {
+  string owner = 1 [(cosmos_proto.scalar) = "cosmos.AddressString"];
+}
+
+// QueryPositionResponse is response type for the Query/Position RPC method
+message QueryPositionResponse {
+  CollateralPosition position = 1 [(gogoproto.nullable) = false];
+}
+
+// QueryPositionsRequest is request type for the Query/Positions RPC method
+message QueryPositionsRequest {
+  cosmos.base.query.v1beta1.PageRequest pagination = 1;
+}
+
+// QueryPositionsResponse is response type for the Query/Positions RPC method
+message QueryPositionsResponse {
+  repeated CollateralPosition positions = 1 [(gogoproto.nullable) = false];
+  cosmos.base.query.v1beta1.PageResponse pagination = 2;
+}
