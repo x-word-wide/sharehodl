@@ -1,6 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle, Button, Header } from "@repo/ui";
+import { Card, CardContent, CardHeader, CardTitle, Button } from "@repo/ui";
 import { Box, Users, Search, ShieldCheck } from "lucide-react";
 import Link from "next/link";
+import { WorkingHeader } from "../components/WorkingHeader";
 
 const MOCK_VALIDATORS = [
     { rank: 1, name: "Validator One", address: "sharevaloper1...", votingPower: "15.2%", uptime: "100%", commission: "5%" },
@@ -18,7 +19,7 @@ const MOCK_VALIDATORS = [
 export default function Validators() {
     return (
         <div className="min-h-screen bg-background">
-            <Header appName="Explorer" />
+            <WorkingHeader appName="Explorer" />
 
             <main className="container mx-auto px-4 py-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">

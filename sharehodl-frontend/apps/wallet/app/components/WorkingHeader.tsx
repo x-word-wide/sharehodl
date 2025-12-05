@@ -23,16 +23,16 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
     return (
         <>
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <div className="flex items-center gap-2 font-bold text-xl mr-8">
-                        <a href="https://gov.sharehodl.com" className="flex items-center gap-2 hover:text-primary transition-colors group">
+                <div className="container mx-auto flex h-16 items-center px-4">
+                    <div className="flex items-center gap-2 font-bold text-xl flex-1 md:flex-none md:mr-8">
+                        <a href="https://sharehodl.com" className="flex items-center gap-2 hover:text-primary transition-colors group">
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary group-hover:scale-105 transition-transform">
                                 <Box className="h-5 w-5" />
                             </div>
                             <span className="hidden sm:inline-block">ShareHODL</span>
                         </a>
-                        <span className="text-muted-foreground/30 font-thin">/</span>
-                        <span className="text-foreground font-medium">{appName}</span>
+                        <span className="text-muted-foreground/30 font-thin hidden sm:inline">/</span>
+                        <span className="text-foreground font-medium hidden sm:inline">{appName}</span>
                     </div>
 
                     {/* Desktop Navigation */}
@@ -79,7 +79,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
 
                     {/* Mobile Menu Button */}
                     <button
-                        className="md:hidden h-9 rounded-md px-3 hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors"
+                        className="md:hidden h-9 w-9 rounded-md hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center text-sm font-medium ring-offset-background transition-colors ml-2 flex-shrink-0"
                         onClick={toggleMobileMenu}
                         aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
                     >

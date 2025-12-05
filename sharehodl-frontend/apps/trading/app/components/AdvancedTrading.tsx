@@ -60,7 +60,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
       <div className="col-span-3 space-y-4">
         <div className="border rounded-lg p-4">
           <h3 className="font-semibold mb-4 flex items-center gap-2">
-            📊 Professional Order Entry
+            Professional Order Entry
           </h3>
           
           <div className="space-y-3">
@@ -186,7 +186,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
 
         {/* Market Status */}
         <div className="border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">🔄 Market Status</h4>
+          <h4 className="font-semibold mb-3">Market Status</h4>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span>Status:</span>
@@ -211,7 +211,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
       {/* Order Book */}
       <div className="col-span-3">
         <div className="border rounded-lg p-4 h-full">
-          <h3 className="font-semibold mb-4">📋 Order Book</h3>
+          <h3 className="font-semibold mb-4">Order Book</h3>
           
           <div className="space-y-1 text-xs">
             {/* Asks (Sell Orders) */}
@@ -245,10 +245,10 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
       {/* Price Chart Area */}
       <div className="col-span-4">
         <div className="border rounded-lg p-4 h-full">
-          <h3 className="font-semibold mb-4">📈 Real-Time Price Chart</h3>
+          <h3 className="font-semibold mb-4">Real-Time Price Chart</h3>
           <div className="h-64 bg-gray-50 rounded flex items-center justify-center">
             <div className="text-center text-gray-500">
-              <div className="text-4xl mb-2">📊</div>
+              <div className="text-4xl mb-2"></div>
               <div>Live trading chart</div>
               <div className="text-sm">TradingView integration ready</div>
             </div>
@@ -270,7 +270,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
       {/* Recent Trades & My Orders */}
       <div className="col-span-2 space-y-4">
         <div className="border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">⚡ Recent Trades</h4>
+          <h4 className="font-semibold mb-3">Recent Trades</h4>
           <div className="space-y-1 text-xs">
             <div className="grid grid-cols-3 gap-1 text-gray-500 font-medium">
               <div>Time</div>
@@ -292,7 +292,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
         </div>
 
         <div className="border rounded-lg p-4">
-          <h4 className="font-semibold mb-3">📋 My Orders</h4>
+          <h4 className="font-semibold mb-3">My Orders</h4>
           <div className="space-y-2 text-xs">
             {myOrders.map((order) => (
               <div key={order.id} className="border rounded p-2">
@@ -329,7 +329,7 @@ export default function AdvancedTrading({ symbol }: OrderFormProps) {
       {/* Trading Safeguards Alert */}
       <div className="col-span-12 mt-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="font-semibold text-blue-800 mb-2">🛡️ ShareHODL Trading Safeguards Active</h4>
+          <h4 className="font-semibold text-blue-800 mb-2">ShareHODL Trading Safeguards Active</h4>
           <div className="grid grid-cols-4 gap-4 text-sm text-blue-700">
             <div>
               <strong>Circuit Breakers:</strong> Automatic halt at 15% price movement

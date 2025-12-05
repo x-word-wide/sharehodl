@@ -37,7 +37,7 @@ export default function AdvancedFeatures() {
     <div className="space-y-6">
       {/* Hero Banner */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-lg">
-        <h2 className="text-2xl font-bold mb-2">🏛️ ShareHODL: Institutional-Grade Blockchain Infrastructure</h2>
+        <h2 className="text-2xl font-bold mb-2">ShareHODL: Institutional-Grade Blockchain Infrastructure</h2>
         <p className="text-blue-100">Professional equity trading with advanced governance, emergency protocols, and institutional safeguards</p>
       </div>
 
@@ -45,7 +45,7 @@ export default function AdvancedFeatures() {
         {/* Governance Features */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            🏛️ Advanced Governance
+            Advanced Governance
           </h3>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
@@ -80,7 +80,7 @@ export default function AdvancedFeatures() {
         {/* Trading Features */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            📊 Professional Trading
+            Professional Trading
           </h3>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
@@ -115,7 +115,7 @@ export default function AdvancedFeatures() {
         {/* Validator System */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            🛡️ Validator Network
+            Validator Network
           </h3>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
@@ -123,15 +123,15 @@ export default function AdvancedFeatures() {
               <span className="font-semibold">{validatorStats.totalValidators}</span>
             </div>
             <div className="flex justify-between">
-              <span>🥇 Gold Tier:</span>
+              <span>Gold Tier:</span>
               <span className="font-semibold text-yellow-600">{validatorStats.goldTier}</span>
             </div>
             <div className="flex justify-between">
-              <span>🥈 Silver Tier:</span>
+              <span>Silver Tier:</span>
               <span className="font-semibold text-gray-500">{validatorStats.silverTier}</span>
             </div>
             <div className="flex justify-between">
-              <span>🥉 Bronze Tier:</span>
+              <span>Bronze Tier:</span>
               <span className="font-semibold text-orange-600">{validatorStats.bronzeTier}</span>
             </div>
             <div className="flex justify-between">
@@ -150,7 +150,7 @@ export default function AdvancedFeatures() {
         {/* Company Ecosystem */}
         <div className="bg-white border rounded-lg p-6">
           <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-            🏢 Company Ecosystem
+            Company Ecosystem
           </h3>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between">
@@ -185,7 +185,7 @@ export default function AdvancedFeatures() {
 
       {/* Feature Comparison */}
       <div className="bg-white border rounded-lg p-6">
-        <h3 className="font-bold text-lg mb-4">🚀 ShareHODL vs Traditional Stock Markets</h3>
+        <h3 className="font-bold text-lg mb-4">ShareHODL vs Traditional Stock Markets</h3>
         
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -242,7 +242,7 @@ export default function AdvancedFeatures() {
       {/* Emergency Status */}
       <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
         <div className="flex items-center">
-          <span className="text-red-500 mr-2">🚨</span>
+          <span className="text-red-500 mr-2"></span>
           <div>
             <h4 className="font-semibold text-red-800">Emergency Governance Active</h4>
             <p className="text-red-600">Critical security proposal requires validator attention - 47 minutes remaining for Severity 5 emergency</p>

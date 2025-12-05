@@ -5,6 +5,14 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   transpilePackages: ["@repo/ui"],
+  devIndicators: {
+    appIsrStatus: false,
+    buildActivity: false,
+    buildActivityPosition: 'bottom-right',
+  },
+  experimental: {
+    clientRouterFilter: false,
+  },
 };
 
 export default nextConfig;

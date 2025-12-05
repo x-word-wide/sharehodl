@@ -3,11 +3,11 @@
 
 export function Navigation() {
     const navItems = [
-        { href: 'https://sharehodl.com', label: 'Governance', icon: '🏛️' },
-        { href: 'https://trade.sharehodl.com', label: 'Trading', icon: '📈' },
-        { href: 'https://scan.sharehodl.com', label: 'Explorer', icon: '🔍' },
-        { href: 'https://wallet.sharehodl.com', label: 'Wallet', icon: '💼' },
-        { href: 'https://business.sharehodl.com', label: 'Business', icon: '🏢' },
+        { href: 'https://sharehodl.com', label: 'Governance', icon: '' },
+        { href: 'https://trade.sharehodl.com', label: 'Trading', icon: '' },
+        { href: 'https://scan.sharehodl.com', label: 'Explorer', icon: '' },
+        { href: 'https://wallet.sharehodl.com', label: 'Wallet', icon: '' },
+        { href: 'https://business.sharehodl.com', label: 'Business', icon: '' },
     ];
 
     return (

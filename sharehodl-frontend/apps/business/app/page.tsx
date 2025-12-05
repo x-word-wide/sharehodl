@@ -34,7 +34,7 @@ export default function Home() {
       features: ["Streamlined process: 2-6 weeks vs 12-18 months", "Lower costs: $1K-25K vs $10M+ traditional", "24/7 global trading access", "Instant settlement (T+0)", "Fractional share trading"],
       timeline: "2-6 weeks",
       cost: "$1,000 - $25,000",
-      icon: "🏢"
+      icon: ""
     },
     {
       id: "validator",
@@ -43,7 +43,7 @@ export default function Home() {
       features: ["Earn validation rewards", "Governance voting rights", "Tier-based privileges", "Network reputation building", "Professional networking"],
       timeline: "1-2 weeks",
       cost: "50,000 - 500,000 HODL stake (Mainnet) / 1,000 - 30,000 HODL (Testnet)",
-      icon: "🛡️"
+      icon: ""
     },
     {
       id: "integration",
@@ -52,7 +52,7 @@ export default function Home() {
       features: ["API integration", "Custom smart contracts", "Automated dividend distribution", "Real-time analytics", "Compliance reporting"],
       timeline: "2-4 weeks",
       cost: "Custom pricing",
-      icon: "⚙️"
+      icon: ""
     },
     {
       id: "governance",
@@ -61,69 +61,70 @@ export default function Home() {
       features: ["Board elections", "Proposal voting", "Shareholder communications", "Proxy voting", "Compliance automation"],
       timeline: "1-2 weeks",
       cost: "$500 - $5,000/month",
-      icon: "🗳️"
+      icon: ""
     }
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 flex items-center justify-center gap-3">
-            <span className="text-3xl">🏢</span>
+        <div className="text-center mb-6 md:mb-8">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 flex items-center justify-center gap-3 px-4">
+            <span className="text-2xl sm:text-3xl"></span>
             ShareHODL Business Portal
           </h1>
-          <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-3xl mx-auto px-4">
             Revolutionary blockchain infrastructure for business listings, validator services, and enterprise integration. 
             Join the future of equity markets.
           </p>
         </div>
 
         {/* Quick Stats */}
-        <div className="grid gap-4 md:grid-cols-5 mb-8">
-          <div className="border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">{listedCompanies.length}</div>
-            <p className="text-sm text-muted-foreground">Listed Companies</p>
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-6 md:mb-8">
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-blue-600">{listedCompanies.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Listed Companies</p>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-orange-600">{pendingIPOs.length}</div>
-            <p className="text-sm text-muted-foreground">Pending IPOs</p>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-orange-600">{pendingIPOs.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Pending IPOs</p>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">{validators.length}</div>
-            <p className="text-sm text-muted-foreground">Active Validators</p>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-purple-600">{validators.length}</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Active Validators</p>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">$8.3T</div>
-            <p className="text-sm text-muted-foreground">Total Market Cap</p>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-green-600">$8.3T</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Total Market Cap</p>
           </div>
-          <div className="border rounded-lg p-4 text-center">
-            <div className="text-2xl font-bold text-red-600">99.97%</div>
-            <p className="text-sm text-muted-foreground">Platform Uptime</p>
+          <div className="border rounded-lg p-3 sm:p-4 text-center">
+            <div className="text-xl sm:text-2xl font-bold text-red-600">99.97%</div>
+            <p className="text-xs sm:text-sm text-muted-foreground">Platform Uptime</p>
           </div>
         </div>
 
         {/* Tab Navigation */}
         <div className="border-b border-gray-200 mb-6">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-2 sm:space-x-4 md:space-x-8 overflow-x-auto">
             {[
-              { id: "overview", label: "Platform Overview", icon: "📊" },
-              { id: "services", label: "Business Services", icon: "🛠️" },
-              { id: "ipo", label: "IPO Application", icon: "🏢" },
-              { id: "validator", label: "Validator Registration", icon: "🛡️" },
-              { id: "companies", label: "Listed Companies", icon: "📈" }
+              { id: "overview", label: "Overview", fullLabel: "Platform Overview", icon: "" },
+              { id: "services", label: "Services", fullLabel: "Business Services", icon: "" },
+              { id: "ipo", label: "IPO", fullLabel: "IPO Application", icon: "" },
+              { id: "validator", label: "Validator", fullLabel: "Validator Registration", icon: "" },
+              { id: "companies", label: "Companies", fullLabel: "Listed Companies", icon: "" }
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                className={`py-2 px-1 sm:px-2 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
                   activeTab === tab.id
                     ? "border-blue-500 text-blue-600"
                     : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
                 }`}
               >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
+                <span className="mr-1 sm:mr-2">{tab.icon}</span>
+                <span className="sm:hidden">{tab.label}</span>
+                <span className="hidden sm:inline">{tab.fullLabel}</span>
               </button>
             ))}
           </nav>
@@ -138,7 +139,7 @@ export default function Home() {
               <div className="grid md:grid-cols-3 gap-6">
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2">
-                    ⚡ Instant Settlement
+                    Instant Settlement
                   </h3>
                   <p className="text-blue-100 text-sm">
                     T+0 settlement in 6 seconds vs traditional T+2 (48-72 hours)
@@ -146,7 +147,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2">
-                    🌍 24/7 Global Trading
+                    24/7 Global Trading
                   </h3>
                   <p className="text-blue-100 text-sm">
                     Never-closing markets with 99.9% uptime vs 13% traditional market hours
@@ -154,7 +155,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2">
-                    💰 Ultra-Low Costs
+                    Ultra-Low Costs
                   </h3>
                   <p className="text-blue-100 text-sm">
                     $0.005 trading fees vs $5-15+ traditional broker fees
@@ -167,27 +168,27 @@ export default function Home() {
             <div className="grid md:grid-cols-2 gap-6">
               <div className="border rounded-lg p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  🚀 For Companies Going Public
+                  For Companies Going Public
                 </h3>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">✅ <span>Reduced IPO timeline: 2-6 weeks vs 12-18 months</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Lower costs: $1K-25K vs $10M+ traditional</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Global investor access 24/7</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Fractional shares for broader accessibility</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Automated compliance and governance</span></li>
+                  <li className="flex items-center gap-2"><span>Reduced IPO timeline: 2-6 weeks vs 12-18 months</span></li>
+                  <li className="flex items-center gap-2"><span>Lower costs: $1K-25K vs $10M+ traditional</span></li>
+                  <li className="flex items-center gap-2"><span>Global investor access 24/7</span></li>
+                  <li className="flex items-center gap-2"><span>Fractional shares for broader accessibility</span></li>
+                  <li className="flex items-center gap-2"><span>Automated compliance and governance</span></li>
                 </ul>
               </div>
 
               <div className="border rounded-lg p-6">
                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                  🛡️ For Business Validators
+                  For Business Validators
                 </h3>
                 <ul className="space-y-2 text-sm">
-                  <li className="flex items-center gap-2">✅ <span>Earn rewards for business verification</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Governance voting rights by tier</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Build reputation and network</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Dual-role validation system</span></li>
-                  <li className="flex items-center gap-2">✅ <span>Professional business networking</span></li>
+                  <li className="flex items-center gap-2"><span>Earn rewards for business verification</span></li>
+                  <li className="flex items-center gap-2"><span>Governance voting rights by tier</span></li>
+                  <li className="flex items-center gap-2"><span>Build reputation and network</span></li>
+                  <li className="flex items-center gap-2"><span>Dual-role validation system</span></li>
+                  <li className="flex items-center gap-2"><span>Professional business networking</span></li>
                 </ul>
               </div>
             </div>
@@ -282,7 +283,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto">
             <div className="border rounded-lg p-6">
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                🏢 IPO Application Portal
+                IPO Application Portal
               </h2>
               
               <form className="space-y-6">
@@ -370,7 +371,7 @@ export default function Home() {
           <div className="space-y-6">
             <div className="border rounded-lg p-6">
               <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                🛡️ Business Validator Registration
+                Business Validator Registration
               </h2>
               
               <div className="grid md:grid-cols-4 gap-4 mb-6">
@@ -382,7 +383,7 @@ export default function Home() {
                 ].map((tier) => (
                   <div key={tier.tier} className="border rounded-lg p-4 text-center">
                     <div className="text-2xl mb-2">
-                      {tier.tier === "Bronze" ? "🥉" : tier.tier === "Silver" ? "🥈" : tier.tier === "Gold" ? "🥇" : "💎"}
+                      {tier.tier}
                     </div>
                     <h3 className="font-bold mb-2">{tier.tier} Tier</h3>
                     <div className="text-sm space-y-1">
@@ -533,6 +534,40 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* Footer */}
+        <div className="text-center text-muted-foreground mt-12 pt-8 border-t">
+          <p className="mb-2 font-semibold">
+            ShareHODL Business Portal
+          </p>
+          <p className="text-sm mb-4">
+            Professional blockchain infrastructure for business listings and enterprise integration.
+          </p>
+          <div className="flex justify-center items-center gap-6 pt-4 border-t">
+            <a 
+              href="https://x.com/share_hodl" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+              </svg>
+              <span className="text-sm">@share_hodl</span>
+            </a>
+            <a 
+              href="https://github.com/x-word-wide/sharehodl" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd"/>
+              </svg>
+              <span className="text-sm">GitHub</span>
+            </a>
+          </div>
+        </div>
       </main>
     </div>
   );
