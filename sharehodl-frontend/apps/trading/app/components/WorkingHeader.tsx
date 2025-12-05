@@ -11,11 +11,11 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
     const NAV_ITEMS = [
-        { name: "Explorer", href: "http://localhost:3001", icon: LayoutDashboard, description: "Browse blocks and transactions" },
-        { name: "Trading", href: "http://localhost:3002", icon: ArrowRightLeft, description: "Trade ShareHODL tokens" },
-        { name: "Governance", href: "http://localhost:3003", icon: Vote, description: "Participate in governance" },
-        { name: "Wallet", href: "http://localhost:3004", icon: Wallet, description: "Manage your assets" },
-        { name: "Business", href: "http://localhost:3005", icon: Building2, description: "Business solutions" },
+        { name: "Explorer", href: "https://scan.sharehodl.com", icon: LayoutDashboard, description: "Browse blocks and transactions" },
+        { name: "Trading", href: "https://trade.sharehodl.com", icon: ArrowRightLeft, description: "Trade ShareHODL tokens" },
+        { name: "Governance", href: "https://gov.sharehodl.com", icon: Vote, description: "Participate in governance" },
+        { name: "Wallet", href: "https://wallet.sharehodl.com", icon: Wallet, description: "Manage your assets" },
+        { name: "Business", href: "https://business.sharehodl.com", icon: Building2, description: "Business solutions" },
     ];
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -25,7 +25,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
                 <div className="container mx-auto flex h-16 items-center justify-between px-4">
                     <div className="flex items-center gap-2 font-bold text-xl mr-8">
-                        <a href="http://localhost:3001" className="flex items-center gap-2 hover:text-primary transition-colors group">
+                        <a href="https://gov.sharehodl.com" className="flex items-center gap-2 hover:text-primary transition-colors group">
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary group-hover:scale-105 transition-transform">
                                 <Box className="h-5 w-5" />
                             </div>
