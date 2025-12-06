@@ -18,7 +18,10 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
         { name: "Business", href: "https://business.sharehodl.com", icon: Building2, description: "Business solutions" },
     ];
 
-    const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+    const toggleMobileMenu = () => {
+        console.log('Menu clicked!', !isMobileMenuOpen);
+        setIsMobileMenuOpen(!isMobileMenuOpen);
+    };
 
     return (
         <>
@@ -85,22 +88,18 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                 </div>
             </header>
 
-            {/* Mobile Menu Overlay */}
-            {isMobileMenuOpen && (
-                <div 
-                    className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm md:hidden"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                />
-            )}
-
             {/* Mobile Menu */}
-            <div className={cn(
-                "fixed top-16 left-0 right-0 z-[60] bg-background border-b shadow-lg transform transition-transform duration-300 ease-in-out md:hidden",
-                isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
-            )}>
-                <div className="container mx-auto px-4 py-6">
-                    <nav className="space-y-4">
-                        <div className="grid gap-2">
+            {isMobileMenuOpen && (
+                <>
+                    {/* Overlay */}
+                    <div 
+                        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    />
+                    
+                    {/* Menu Content */}
+                    <div className="fixed top-16 left-0 right-0 bg-white dark:bg-gray-900 border-b shadow-lg z-50 md:hidden">
+                        <div className="px-4 py-6 space-y-4">
                             {NAV_ITEMS.map((item) => {
                                 const isActive = item.name === appName;
                                 return (
@@ -108,36 +107,25 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                                         key={item.name}
                                         href={item.href}
                                         onClick={() => setIsMobileMenuOpen(false)}
-                                        className={cn(
-                                            "flex items-center gap-3 p-3 rounded-lg transition-all duration-200 border",
-                                            isActive
-                                                ? "bg-primary/10 text-primary border-primary/20 shadow-sm"
-                                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent hover:border-border"
-                                        )}
+                                        className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${
+                                            isActive 
+                                                ? "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800" 
+                                                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent hover:border-gray-200 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-800"
+                                        }`}
                                     >
-                                        <item.icon className={cn(
-                                            "h-5 w-5", 
-                                            isActive ? "text-primary" : "text-muted-foreground"
-                                        )} />
+                                        <item.icon className="h-5 w-5" />
                                         <div className="flex-1">
-                                            <div className={cn("font-medium", isActive ? "text-primary" : "text-foreground")}>
-                                                {item.name}
-                                            </div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {item.description}
-                                            </div>
+                                            <div className="font-medium">{item.name}</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{item.description}</div>
                                         </div>
-                                        {isActive && (
-                                            <div className="h-2 w-2 bg-primary rounded-full" />
-                                        )}
+                                        {isActive && <div className="h-2 w-2 bg-blue-600 rounded-full" />}
                                     </a>
                                 );
                             })}
                         </div>
-                        
-                    </nav>
-                </div>
-            </div>
+                    </div>
+                </>
+            )}
         </>
     );
 };
