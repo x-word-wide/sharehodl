@@ -29,7 +29,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary group-hover:scale-105 transition-transform">
                                 <Box className="h-5 w-5" />
                             </div>
-                            <span className="hidden sm:inline-block">ShareHODL</span>
+                            <span className="inline-block">ShareHODL</span>
                         </a>
                         <span className="text-muted-foreground/30 font-thin hidden sm:inline">/</span>
                         <span className="text-foreground font-medium hidden sm:inline">{appName}</span>
@@ -95,7 +95,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
 
             {/* Mobile Menu */}
             <div className={cn(
-                "fixed top-0 left-0 right-0 z-[60] bg-background border-b shadow-lg transform transition-transform duration-300 ease-in-out md:hidden mt-16",
+                "fixed top-16 left-0 right-0 z-[60] bg-background border-b shadow-lg transform transition-transform duration-300 ease-in-out md:hidden",
                 isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
             )}>
                 <div className="container mx-auto px-4 py-6">
@@ -135,12 +135,6 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                             })}
                         </div>
                         
-                        <div className="pt-4 border-t space-y-3">
-                            <button className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors">
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Documentation
-                            </button>
-                        </div>
                     </nav>
                 </div>
             </div>
