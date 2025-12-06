@@ -72,9 +72,6 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                             Docs
                             <ExternalLink className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
-                        <button className="h-9 rounded-full px-6 shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all hover:scale-105 bg-gradient-to-r from-primary to-primary/90 bg-primary text-primary-foreground hover:bg-primary/90 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors">
-                            Connect Wallet
-                        </button>
                     </div>
 
                     {/* Mobile Menu Button */}
@@ -142,9 +139,6 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                             <button className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors">
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 Documentation
-                            </button>
-                            <button className="w-full rounded-lg bg-gradient-to-r from-primary to-primary/90 shadow-lg hover:shadow-primary/20 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors">
-                                Connect Wallet
                             </button>
                         </div>
                     </nav>
