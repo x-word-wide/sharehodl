@@ -23,8 +23,8 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
     return (
         <>
             <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
-                <div className="container mx-auto flex h-16 items-center px-4">
-                    <div className="flex items-center gap-2 font-bold text-xl flex-1 md:flex-none md:mr-8">
+                <div className="container mx-auto flex h-16 items-center justify-between px-4">
+                    <div className="flex items-center gap-2 font-bold text-xl">
                         <a href="https://sharehodl.com" className="flex items-center gap-2 hover:text-primary transition-colors group">
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 text-primary group-hover:scale-105 transition-transform">
                                 <Box className="h-5 w-5" />
@@ -36,7 +36,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                     </div>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+                    <nav className="hidden md:flex items-center gap-1 absolute left-1/2 transform -translate-x-1/2">
                         <div className="flex items-center p-1 rounded-full bg-muted/30 border border-border/40 backdrop-blur-sm shadow-sm">
                             {NAV_ITEMS.map((item) => {
                                 const isActive = item.name === appName;
@@ -67,7 +67,7 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
                     </nav>
 
                     {/* Desktop Actions */}
-                    <div className="hidden md:flex items-center gap-4 ml-auto">
+                    <div className="hidden md:flex items-center gap-4">
                         <button className="h-9 rounded-md px-3 hover:bg-accent hover:text-accent-foreground text-muted-foreground hover:text-foreground group inline-flex items-center justify-center whitespace-nowrap text-sm font-medium ring-offset-background transition-colors">
                             Docs
                             <ExternalLink className="ml-1 h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -76,11 +76,11 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
 
                     {/* Mobile Menu Button */}
                     <button
-                        className="md:hidden h-9 w-9 rounded-md hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center text-sm font-medium ring-offset-background transition-colors ml-2 flex-shrink-0"
+                        className="md:hidden h-10 w-10 rounded-md hover:bg-accent hover:text-accent-foreground inline-flex items-center justify-center text-sm font-medium ring-offset-background transition-colors focus:outline-none focus:ring-2 focus:ring-primary"
                         onClick={toggleMobileMenu}
                         aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
                     >
-                        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                        {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
                     </button>
                 </div>
             </header>
@@ -88,14 +88,14 @@ export const WorkingHeader = ({ appName }: { appName: string }) => {
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
                 <div 
-                    className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm md:hidden"
+                    className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm md:hidden"
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
             )}
 
             {/* Mobile Menu */}
             <div className={cn(
-                "fixed top-16 left-0 right-0 z-50 bg-background border-b shadow-lg transform transition-transform duration-300 ease-in-out md:hidden",
+                "fixed top-0 left-0 right-0 z-[60] bg-background border-b shadow-lg transform transition-transform duration-300 ease-in-out md:hidden mt-16",
                 isMobileMenuOpen ? "translate-y-0" : "-translate-y-full"
             )}>
                 <div className="container mx-auto px-4 py-6">
