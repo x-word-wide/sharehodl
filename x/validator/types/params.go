@@ -2,7 +2,7 @@ package types
 
 import (
 	"fmt"
-	"time"
+
 	"gopkg.in/yaml.v2"
 
 	"cosmossdk.io/math"
@@ -13,25 +13,25 @@ var _ paramtypes.ParamSet = (*Params)(nil)
 
 // Parameter store keys
 var (
-	KeyMinVerificationDelay    = []byte("MinVerificationDelay")
-	KeyMaxVerificationDelay    = []byte("MaxVerificationDelay")
-	KeyVerificationTimeoutDays = []byte("VerificationTimeoutDays")
-	KeyMinValidatorsRequired   = []byte("MinValidatorsRequired")
-	KeyReputationDecayRate     = []byte("ReputationDecayRate")
-	KeyBaseVerificationReward  = []byte("BaseVerificationReward")
-	KeyEquityStakePercentage   = []byte("EquityStakePercentage")
+	KeyMinVerificationDelaySeconds = []byte("MinVerificationDelaySeconds")
+	KeyMaxVerificationDelaySeconds = []byte("MaxVerificationDelaySeconds")
+	KeyVerificationTimeoutDays     = []byte("VerificationTimeoutDays")
+	KeyMinValidatorsRequired       = []byte("MinValidatorsRequired")
+	KeyReputationDecayRate         = []byte("ReputationDecayRate")
+	KeyBaseVerificationReward      = []byte("BaseVerificationReward")
+	KeyEquityStakePercentage       = []byte("EquityStakePercentage")
 )
 
 // DefaultParams returns default parameters
 func DefaultParams() Params {
 	return Params{
-		MinVerificationDelay:    24 * time.Hour,        // 1 day minimum
-		MaxVerificationDelay:    30 * 24 * time.Hour,   // 30 days maximum
-		VerificationTimeoutDays: 14,                    // 14 days timeout
-		MinValidatorsRequired:   3,                     // Minimum 3 validators
-		ReputationDecayRate:     math.LegacyNewDecWithPrec(1, 2), // 1% monthly decay
-		BaseVerificationReward:  math.NewInt(1000),     // 1000 HODL base reward
-		EquityStakePercentage:   math.LegacyNewDecWithPrec(5, 2), // 5% equity stake
+		MinVerificationDelaySeconds: 86400,      // 1 day minimum (24 * 60 * 60)
+		MaxVerificationDelaySeconds: 2592000,    // 30 days maximum (30 * 24 * 60 * 60)
+		VerificationTimeoutDays:     14,         // 14 days timeout
+		MinValidatorsRequired:       3,          // Minimum 3 validators
+		ReputationDecayRate:         math.LegacyNewDecWithPrec(1, 2), // 1% monthly decay
+		BaseVerificationReward:      math.NewInt(1000),     // 1000 HODL base reward
+		EquityStakePercentage:       math.LegacyNewDecWithPrec(5, 2), // 5% equity stake
 	}
 }
 
@@ -49,8 +49,8 @@ func (p Params) String() string {
 // ParamSetPairs returns param set pairs
 func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 	return paramtypes.ParamSetPairs{
-		paramtypes.NewParamSetPair(KeyMinVerificationDelay, &p.MinVerificationDelay, validateDuration),
-		paramtypes.NewParamSetPair(KeyMaxVerificationDelay, &p.MaxVerificationDelay, validateDuration),
+		paramtypes.NewParamSetPair(KeyMinVerificationDelaySeconds, &p.MinVerificationDelaySeconds, validateInt64),
+		paramtypes.NewParamSetPair(KeyMaxVerificationDelaySeconds, &p.MaxVerificationDelaySeconds, validateInt64),
 		paramtypes.NewParamSetPair(KeyVerificationTimeoutDays, &p.VerificationTimeoutDays, validateUint64),
 		paramtypes.NewParamSetPair(KeyMinValidatorsRequired, &p.MinValidatorsRequired, validateUint64),
 		paramtypes.NewParamSetPair(KeyReputationDecayRate, &p.ReputationDecayRate, validateDec),
@@ -61,7 +61,13 @@ func (p *Params) ParamSetPairs() paramtypes.ParamSetPairs {
 
 // Validate validates the set of params
 func (p Params) Validate() error {
-	if p.MinVerificationDelay >= p.MaxVerificationDelay {
+	if p.MinVerificationDelaySeconds <= 0 {
+		return fmt.Errorf("min verification delay must be positive")
+	}
+	if p.MaxVerificationDelaySeconds <= 0 {
+		return fmt.Errorf("max verification delay must be positive")
+	}
+	if p.MinVerificationDelaySeconds >= p.MaxVerificationDelaySeconds {
 		return fmt.Errorf("min verification delay must be less than max verification delay")
 	}
 	if p.VerificationTimeoutDays == 0 {
@@ -83,10 +89,13 @@ func (p Params) Validate() error {
 }
 
 // Validation functions
-func validateDuration(i interface{}) error {
-	_, ok := i.(time.Duration)
+func validateInt64(i interface{}) error {
+	v, ok := i.(int64)
 	if !ok {
 		return fmt.Errorf("invalid parameter type: %T", i)
+	}
+	if v <= 0 {
+		return fmt.Errorf("parameter must be positive")
 	}
 	return nil
 }

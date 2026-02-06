@@ -240,14 +240,24 @@ func (m *GenesisState) String() string {
 }
 
 // Params defines the parameters for the validator module
+// Duration fields use int64 seconds for proper JSON serialization
 type Params struct {
-	MinVerificationDelay    time.Duration  `json:"min_verification_delay" yaml:"min_verification_delay"`
-	MaxVerificationDelay    time.Duration  `json:"max_verification_delay" yaml:"max_verification_delay"`
-	VerificationTimeoutDays uint64         `json:"verification_timeout_days" yaml:"verification_timeout_days"`
-	MinValidatorsRequired   uint64         `json:"min_validators_required" yaml:"min_validators_required"`
-	ReputationDecayRate     math.LegacyDec `json:"reputation_decay_rate" yaml:"reputation_decay_rate"`
-	BaseVerificationReward  math.Int       `json:"base_verification_reward" yaml:"base_verification_reward"`
-	EquityStakePercentage   math.LegacyDec `json:"equity_stake_percentage" yaml:"equity_stake_percentage"`
+	MinVerificationDelaySeconds int64          `json:"min_verification_delay_seconds" yaml:"min_verification_delay_seconds"`
+	MaxVerificationDelaySeconds int64          `json:"max_verification_delay_seconds" yaml:"max_verification_delay_seconds"`
+	VerificationTimeoutDays     uint64         `json:"verification_timeout_days" yaml:"verification_timeout_days"`
+	MinValidatorsRequired       uint64         `json:"min_validators_required" yaml:"min_validators_required"`
+	ReputationDecayRate         math.LegacyDec `json:"reputation_decay_rate" yaml:"reputation_decay_rate"`
+	BaseVerificationReward      math.Int       `json:"base_verification_reward" yaml:"base_verification_reward"`
+	EquityStakePercentage       math.LegacyDec `json:"equity_stake_percentage" yaml:"equity_stake_percentage"`
+}
+
+// Helper methods to get durations
+func (p Params) MinVerificationDelay() time.Duration {
+	return time.Duration(p.MinVerificationDelaySeconds) * time.Second
+}
+
+func (p Params) MaxVerificationDelay() time.Duration {
+	return time.Duration(p.MaxVerificationDelaySeconds) * time.Second
 }
 
 // ProtoMessage implements proto.Message interface

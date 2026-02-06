@@ -13,30 +13,30 @@ import (
 func (suite *KeeperTestSuite) TestGetSetParams() {
 	// Test default params
 	params := suite.keeper.GetParams(suite.ctx)
-	suite.Require().Equal(180*24*time.Hour, params.MinInactivityPeriod)
-	suite.Require().Equal(30*24*time.Hour, params.MinGracePeriod)
-	suite.Require().Equal(30*24*time.Hour, params.MinClaimWindow)
-	suite.Require().Equal(365*24*time.Hour, params.MaxClaimWindow)
+	suite.Require().Equal(180*24*time.Hour, params.MinInactivityPeriod())
+	suite.Require().Equal(30*24*time.Hour, params.MinGracePeriod())
+	suite.Require().Equal(30*24*time.Hour, params.MinClaimWindow())
+	suite.Require().Equal(365*24*time.Hour, params.MaxClaimWindow())
 
 	// Test setting custom params
 	customParams := types.Params{
-		MinInactivityPeriod:       2 * 365 * 24 * time.Hour, // 2 years
-		MinGracePeriod:            45 * 24 * time.Hour,      // 45 days
-		MinClaimWindow:            30 * 24 * time.Hour,      // 30 days
-		MaxClaimWindow:            120 * 24 * time.Hour,     // 120 days
-		UltraLongInactivityPeriod: 50 * 365 * 24 * time.Hour,
-		DefaultCharityAddress:     "cosmos1charity",
-		MaxBeneficiaries:          10,
+		MinInactivityPeriodSeconds:       2 * 365 * 24 * 60 * 60, // 2 years in seconds
+		MinGracePeriodSeconds:            45 * 24 * 60 * 60,      // 45 days in seconds
+		MinClaimWindowSeconds:            30 * 24 * 60 * 60,      // 30 days in seconds
+		MaxClaimWindowSeconds:            120 * 24 * 60 * 60,     // 120 days in seconds
+		UltraLongInactivityPeriodSeconds: 50 * 365 * 24 * 60 * 60, // 50 years in seconds
+		DefaultCharityAddress:            "cosmos1charity",
+		MaxBeneficiaries:                 10,
 	}
 
 	suite.keeper.SetParams(suite.ctx, customParams)
 
 	// Verify params were set
 	retrievedParams := suite.keeper.GetParams(suite.ctx)
-	suite.Require().Equal(customParams.MinInactivityPeriod, retrievedParams.MinInactivityPeriod)
-	suite.Require().Equal(customParams.MinGracePeriod, retrievedParams.MinGracePeriod)
-	suite.Require().Equal(customParams.MinClaimWindow, retrievedParams.MinClaimWindow)
-	suite.Require().Equal(customParams.MaxClaimWindow, retrievedParams.MaxClaimWindow)
+	suite.Require().Equal(customParams.MinInactivityPeriod(), retrievedParams.MinInactivityPeriod())
+	suite.Require().Equal(customParams.MinGracePeriod(), retrievedParams.MinGracePeriod())
+	suite.Require().Equal(customParams.MinClaimWindow(), retrievedParams.MinClaimWindow())
+	suite.Require().Equal(customParams.MaxClaimWindow(), retrievedParams.MaxClaimWindow())
 }
 
 // TestCreateInheritancePlan tests creating an inheritance plan

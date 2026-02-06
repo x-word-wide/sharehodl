@@ -145,13 +145,13 @@ func (k Keeper) CreatePlan(ctx sdk.Context, plan types.InheritancePlan) error {
 
 	// Validate against params
 	params := k.GetParams(ctx)
-	if plan.InactivityPeriod < params.MinInactivityPeriod {
+	if plan.InactivityPeriod < params.MinInactivityPeriod() {
 		return types.ErrInvalidInactivity
 	}
-	if plan.GracePeriod < params.MinGracePeriod {
+	if plan.GracePeriod < params.MinGracePeriod() {
 		return types.ErrInvalidGracePeriod
 	}
-	if plan.ClaimWindow < params.MinClaimWindow || plan.ClaimWindow > params.MaxClaimWindow {
+	if plan.ClaimWindow < params.MinClaimWindow() || plan.ClaimWindow > params.MaxClaimWindow() {
 		return types.ErrInvalidClaimWindow
 	}
 	if uint32(len(plan.Beneficiaries)) > params.MaxBeneficiaries {

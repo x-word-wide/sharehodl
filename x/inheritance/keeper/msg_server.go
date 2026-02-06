@@ -119,13 +119,13 @@ func (ms msgServer) UpdatePlan(goCtx context.Context, msg *types.MsgUpdatePlan) 
 
 	// Validate against params
 	params := ms.GetParams(ctx)
-	if plan.InactivityPeriod < params.MinInactivityPeriod {
+	if plan.InactivityPeriod < params.MinInactivityPeriod() {
 		return nil, types.ErrInvalidInactivity
 	}
-	if plan.GracePeriod < params.MinGracePeriod {
+	if plan.GracePeriod < params.MinGracePeriod() {
 		return nil, types.ErrInvalidGracePeriod
 	}
-	if plan.ClaimWindow < params.MinClaimWindow || plan.ClaimWindow > params.MaxClaimWindow {
+	if plan.ClaimWindow < params.MinClaimWindow() || plan.ClaimWindow > params.MaxClaimWindow() {
 		return nil, types.ErrInvalidClaimWindow
 	}
 

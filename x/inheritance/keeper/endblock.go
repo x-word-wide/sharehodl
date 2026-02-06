@@ -164,7 +164,7 @@ func (k Keeper) ProcessUltraLongInactivity(ctx sdk.Context) {
 		}
 
 		// Check if ultra-long inactivity period has passed
-		if timeSinceActivity >= params.UltraLongInactivityPeriod {
+		if timeSinceActivity >= params.UltraLongInactivityPeriod() {
 			// Transfer remaining assets to charity
 			err := k.TransferToCharity(ctx, plan)
 			if err != nil {
