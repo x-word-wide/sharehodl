@@ -28,8 +28,9 @@ const getConfig = () => {
   };
 };
 
-const RPC_URL = getConfig().rpcUrl;
-const REST_URL = getConfig().restUrl;
+// Lazy getters to ensure config is evaluated at runtime (after SSR hydration)
+const getRpcUrl = () => getConfig().rpcUrl;
+const getRestUrl = () => getConfig().restUrl;
 
 export interface Block {
   height: string;
@@ -71,7 +72,7 @@ export function useBlockchain() {
   // Fetch network status
   const fetchNetworkStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${RPC_URL}/status`);
+      const response = await fetch(`${getRpcUrl()}/status`);
       const data = await response.json();
 
       if (data.result) {
@@ -98,7 +99,7 @@ export function useBlockchain() {
   const fetchBlocks = useCallback(async (count: number = 10) => {
     try {
       // First get the latest block height
-      const statusResponse = await fetch(`${RPC_URL}/status`);
+      const statusResponse = await fetch(`${getRpcUrl()}/status`);
       const statusData = await statusResponse.json();
       const latestHeight = parseInt(statusData.result?.sync_info?.latest_block_height || '0');
 
@@ -111,7 +112,7 @@ export function useBlockchain() {
 
       for (let height = latestHeight; height >= startHeight; height--) {
         try {
-          const blockResponse = await fetch(`${RPC_URL}/block?height=${height}`);
+          const blockResponse = await fetch(`${getRpcUrl()}/block?height=${height}`);
           const blockData = await blockResponse.json();
 
           if (blockData.result?.block) {
@@ -143,7 +144,7 @@ export function useBlockchain() {
     try {
       // Search for recent transactions
       const response = await fetch(
-        `${REST_URL}/cosmos/tx/v1beta1/txs?events=tx.height>0&pagination.limit=${count}&order_by=ORDER_BY_DESC`
+        `${getRestUrl()}/cosmos/tx/v1beta1/txs?events=tx.height>0&pagination.limit=${count}&order_by=ORDER_BY_DESC`
       );
       const data = await response.json();
 
@@ -191,7 +192,7 @@ export function useBlockchain() {
   // Fetch a specific block by height
   const fetchBlock = useCallback(async (height: string): Promise<Block | null> => {
     try {
-      const response = await fetch(`${RPC_URL}/block?height=${height}`);
+      const response = await fetch(`${getRpcUrl()}/block?height=${height}`);
       const data = await response.json();
 
       if (data.result?.block) {
@@ -214,7 +215,7 @@ export function useBlockchain() {
   // Fetch a specific transaction by hash
   const fetchTransaction = useCallback(async (hash: string): Promise<Transaction | null> => {
     try {
-      const response = await fetch(`${REST_URL}/cosmos/tx/v1beta1/txs/${hash}`);
+      const response = await fetch(`${getRestUrl()}/cosmos/tx/v1beta1/txs/${hash}`);
       const data = await response.json();
 
       if (data.tx_response) {
@@ -277,7 +278,7 @@ export function useBlockchain() {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const wsUrl = RPC_URL.replace('http', 'ws') + '/websocket';
+      const wsUrl = getRpcUrl().replace('http', 'ws') + '/websocket';
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
