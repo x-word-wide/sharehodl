@@ -40,6 +40,7 @@ const BIOMETRIC_ENABLED_KEY = 'sh_biometric_enabled';
 
 type Theme = 'dark' | 'light' | 'system';
 type ModalType = 'none' | 'view-phrase' | 'change-pin' | 'wallets' | 'add-wallet' | 'rename-wallet' | 'setup-biometric';
+type AddWalletMode = 'choose' | 'create' | 'import';
 
 const PIN_LENGTH = 6;
 
@@ -54,6 +55,7 @@ export function SettingsScreen() {
     wallets,
     activeWalletId,
     addWallet,
+    importNewWallet,
     clearBiometricToken
   } = useWalletStore();
   const tg = window.Telegram?.WebApp;
@@ -72,6 +74,8 @@ export function SettingsScreen() {
   const [shake, setShake] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
   const [walletMnemonic, setWalletMnemonic] = useState('');
+  const [addWalletMode, setAddWalletMode] = useState<AddWalletMode>('choose');
+  const [importMnemonic, setImportMnemonic] = useState('');
   const [usePinFallback, setUsePinFallback] = useState(false);
   const [biometricAttempted, setBiometricAttempted] = useState(false);
 
@@ -230,6 +234,8 @@ export function SettingsScreen() {
     setShake(false);
     setNewWalletName('');
     setWalletMnemonic('');
+    setAddWalletMode('choose');
+    setImportMnemonic('');
     setUsePinFallback(false);
     setBiometricAttempted(false);
   };
@@ -265,12 +271,16 @@ export function SettingsScreen() {
       } else if (activeModal === 'change-pin') {
         await handleChangePinStep(updatedPin);
       } else if (activeModal === 'add-wallet') {
-        await handleAddWalletPinSubmit(updatedPin);
+        if (addWalletMode === 'create') {
+          await handleAddWalletPinSubmit(updatedPin);
+        } else if (addWalletMode === 'import') {
+          await handleImportWalletPinSubmit(updatedPin);
+        }
       } else if (activeModal === 'setup-biometric') {
         await handleBiometricSetupPin(updatedPin);
       }
     }
-  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, tg]);
+  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, addWalletMode, tg]);
 
   // View Recovery Phrase
   const handleViewPhraseSubmit = async (enteredPin: string) => {
@@ -419,6 +429,26 @@ export function SettingsScreen() {
         setPin('');
       }, 500);
       setError(err instanceof Error ? err.message : 'Failed to create wallet');
+    }
+    setIsLoading(false);
+  };
+
+  // Import existing wallet
+  const handleImportWalletPinSubmit = async (enteredPin: string) => {
+    setIsLoading(true);
+    try {
+      await importNewWallet(newWalletName || `Imported Wallet ${wallets.length + 1}`, importMnemonic, enteredPin);
+      tg?.HapticFeedback?.notificationOccurred('success');
+      setSuccess('Wallet imported successfully!');
+      setTimeout(() => closeModal(), 1500);
+    } catch (err) {
+      tg?.HapticFeedback?.notificationOccurred('error');
+      setShake(true);
+      setTimeout(() => {
+        setShake(false);
+        setPin('');
+      }, 500);
+      setError(err instanceof Error ? err.message : 'Failed to import wallet');
     }
     setIsLoading(false);
   };
@@ -980,6 +1010,7 @@ export function SettingsScreen() {
               <X size={24} />
             </button>
 
+            {/* Success state for created wallet */}
             {walletMnemonic ? (
               <>
                 <div className="modal-icon success">
@@ -1010,43 +1041,216 @@ export function SettingsScreen() {
                   I've saved my phrase
                 </button>
               </>
-            ) : pin.length < PIN_LENGTH ? (
+            ) : success ? (
+              /* Success state for imported wallet */
+              <>
+                <div className="modal-icon success">
+                  <CheckCircle size={32} />
+                </div>
+                <h2 className="modal-title">{success}</h2>
+              </>
+            ) : addWalletMode === 'choose' ? (
+              /* Choose between Create and Import */
               <>
                 <div className="modal-icon">
-                  <Plus size={32} />
+                  <Wallet size={32} />
                 </div>
-                <h2 className="modal-title">New Wallet</h2>
+                <h2 className="modal-title">Add Wallet</h2>
+                <p className="modal-subtitle">Choose how you want to add a wallet</p>
 
-                <div className="input-group">
-                  <label>Wallet Name</label>
-                  <input
-                    type="text"
-                    value={newWalletName}
-                    onChange={(e) => setNewWalletName(e.target.value)}
-                    placeholder={`Wallet ${wallets.length + 1}`}
-                    className="text-input"
-                  />
+                <div className="wallet-options">
+                  <button
+                    className="wallet-option"
+                    onClick={() => {
+                      tg?.HapticFeedback?.impactOccurred('light');
+                      setAddWalletMode('create');
+                    }}
+                  >
+                    <div className="wallet-option-icon create">
+                      <Plus size={24} />
+                    </div>
+                    <div className="wallet-option-content">
+                      <span className="wallet-option-title">Create New Wallet</span>
+                      <span className="wallet-option-desc">Generate a new recovery phrase</span>
+                    </div>
+                    <ChevronRight size={20} className="wallet-option-chevron" />
+                  </button>
+
+                  <button
+                    className="wallet-option"
+                    onClick={() => {
+                      tg?.HapticFeedback?.impactOccurred('light');
+                      setAddWalletMode('import');
+                    }}
+                  >
+                    <div className="wallet-option-icon import">
+                      <Key size={24} />
+                    </div>
+                    <div className="wallet-option-content">
+                      <span className="wallet-option-title">Import Existing Wallet</span>
+                      <span className="wallet-option-desc">Use your recovery phrase</span>
+                    </div>
+                    <ChevronRight size={20} className="wallet-option-chevron" />
+                  </button>
                 </div>
-
-                <p className="modal-subtitle">Enter PIN to create wallet</p>
-
-                {renderPinDots(pin.length)}
-
-                {error && (
-                  <div className="modal-error">
-                    <AlertCircle size={16} />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                {renderNumpad(handlePinKey)}
               </>
-            ) : (
-              <div className="loading-state">
-                <div className="spinner" />
-                <p>Creating wallet...</p>
-              </div>
-            )}
+            ) : addWalletMode === 'create' ? (
+              /* Create new wallet flow */
+              pin.length < PIN_LENGTH && !isLoading ? (
+                <>
+                  <div className="modal-icon">
+                    <Plus size={32} />
+                  </div>
+                  <h2 className="modal-title">New Wallet</h2>
+
+                  <div className="input-group">
+                    <label>Wallet Name</label>
+                    <input
+                      type="text"
+                      value={newWalletName}
+                      onChange={(e) => setNewWalletName(e.target.value)}
+                      placeholder={`Wallet ${wallets.length + 1}`}
+                      className="text-input"
+                    />
+                  </div>
+
+                  <p className="modal-subtitle">Enter PIN to create wallet</p>
+
+                  {renderPinDots(pin.length)}
+
+                  {error && (
+                    <div className="modal-error">
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {renderNumpad(handlePinKey)}
+
+                  <button
+                    className="back-button"
+                    onClick={() => {
+                      setAddWalletMode('choose');
+                      setPin('');
+                      setError('');
+                    }}
+                  >
+                    ← Back
+                  </button>
+                </>
+              ) : (
+                <div className="loading-state">
+                  <div className="spinner" />
+                  <p>Creating wallet...</p>
+                </div>
+              )
+            ) : addWalletMode === 'import' ? (
+              /* Import wallet flow */
+              !importMnemonic.trim() || importMnemonic.trim().split(/\s+/).length < 12 ? (
+                <>
+                  <div className="modal-icon">
+                    <Key size={32} />
+                  </div>
+                  <h2 className="modal-title">Import Wallet</h2>
+                  <p className="modal-subtitle">Enter your 12 or 24 word recovery phrase</p>
+
+                  <div className="input-group">
+                    <label>Wallet Name</label>
+                    <input
+                      type="text"
+                      value={newWalletName}
+                      onChange={(e) => setNewWalletName(e.target.value)}
+                      placeholder={`Imported Wallet ${wallets.length + 1}`}
+                      className="text-input"
+                    />
+                  </div>
+
+                  <div className="input-group">
+                    <label>Recovery Phrase</label>
+                    <textarea
+                      value={importMnemonic}
+                      onChange={(e) => setImportMnemonic(e.target.value.toLowerCase())}
+                      placeholder="Enter your recovery phrase, separated by spaces..."
+                      className="text-input mnemonic-input"
+                      rows={4}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                    />
+                  </div>
+
+                  {error && (
+                    <div className="modal-error">
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    className="modal-button primary"
+                    onClick={() => {
+                      const words = importMnemonic.trim().split(/\s+/);
+                      if (words.length !== 12 && words.length !== 24) {
+                        setError('Recovery phrase must be 12 or 24 words');
+                        return;
+                      }
+                      setError('');
+                      // Phrase is valid length, will proceed to PIN entry
+                    }}
+                    disabled={importMnemonic.trim().split(/\s+/).length < 12}
+                  >
+                    Continue
+                  </button>
+
+                  <button
+                    className="back-button"
+                    onClick={() => {
+                      setAddWalletMode('choose');
+                      setImportMnemonic('');
+                      setError('');
+                    }}
+                  >
+                    ← Back
+                  </button>
+                </>
+              ) : pin.length < PIN_LENGTH && !isLoading ? (
+                <>
+                  <div className="modal-icon">
+                    <Lock size={32} />
+                  </div>
+                  <h2 className="modal-title">Enter PIN</h2>
+                  <p className="modal-subtitle">Verify your identity to import wallet</p>
+
+                  {renderPinDots(pin.length)}
+
+                  {error && (
+                    <div className="modal-error">
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  {renderNumpad(handlePinKey)}
+
+                  <button
+                    className="back-button"
+                    onClick={() => {
+                      setPin('');
+                      setError('');
+                      // Go back to mnemonic entry by clearing the phrase partially
+                      setImportMnemonic('');
+                    }}
+                  >
+                    ← Back
+                  </button>
+                </>
+              ) : (
+                <div className="loading-state">
+                  <div className="spinner" />
+                  <p>Importing wallet...</p>
+                </div>
+              )
+            ) : null}
           </div>
         </div>
       )}
@@ -1643,6 +1847,100 @@ export function SettingsScreen() {
           font-size: 15px;
           font-weight: 500;
           cursor: pointer;
+        }
+
+        /* Wallet Options (Create/Import choice) */
+        .wallet-options {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 8px;
+        }
+
+        .wallet-option {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px;
+          background: var(--input-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 14px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+          width: 100%;
+        }
+
+        .wallet-option:active {
+          transform: scale(0.98);
+          background: var(--surface-bg);
+        }
+
+        .wallet-option-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .wallet-option-icon.create {
+          background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.1) 100%);
+          color: #10B981;
+        }
+
+        .wallet-option-icon.import {
+          background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(59, 130, 246, 0.1) 100%);
+          color: #3B82F6;
+        }
+
+        .wallet-option-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .wallet-option-title {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .wallet-option-desc {
+          font-size: 13px;
+          color: var(--text-secondary);
+        }
+
+        .wallet-option-chevron {
+          color: var(--text-muted);
+        }
+
+        /* Mnemonic Input */
+        .mnemonic-input {
+          resize: none;
+          font-family: monospace;
+          line-height: 1.5;
+        }
+
+        /* Back Button */
+        .back-button {
+          display: block;
+          width: 100%;
+          margin-top: 16px;
+          padding: 12px;
+          background: transparent;
+          border: none;
+          color: var(--text-secondary);
+          font-size: 14px;
+          cursor: pointer;
+          transition: color 0.2s ease;
+        }
+
+        .back-button:hover {
+          color: var(--text-primary);
         }
 
         /* Input */
