@@ -455,7 +455,7 @@ export function SettingsScreen() {
 
       if (biometricManager && biometricManager.updateBiometricToken) {
         // Also try to store in Telegram's secure storage as backup
-        biometricManager.updateBiometricToken(enteredPin, (success: boolean) => {
+        biometricManager.updateBiometricToken(enteredPin, () => {
           // We don't rely on this succeeding - localStorage is our primary storage
           setBiometricToken(enteredPin).then(() => {
             setBiometricEnabled(true);
