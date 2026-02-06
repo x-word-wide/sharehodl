@@ -90,6 +90,8 @@ export function SettingsScreen() {
   // Biometric for add wallet flow
   const [addWalletBiometricAttempted, setAddWalletBiometricAttempted] = useState(false);
   const [addWalletUsePinFallback, setAddWalletUsePinFallback] = useState(false);
+  // Track if user has confirmed mnemonic input (clicked Continue)
+  const [importMnemonicConfirmed, setImportMnemonicConfirmed] = useState(false);
 
   // Load wallets on mount
   useEffect(() => {
@@ -257,6 +259,7 @@ export function SettingsScreen() {
     // Add wallet biometric state
     setAddWalletBiometricAttempted(false);
     setAddWalletUsePinFallback(false);
+    setImportMnemonicConfirmed(false);
   };
 
   const closeModal = () => {
@@ -448,10 +451,10 @@ export function SettingsScreen() {
   useEffect(() => {
     if (activeModal === 'add-wallet' && biometricEnabled && !addWalletBiometricAttempted && !addWalletUsePinFallback) {
       // For create mode, trigger when user has entered wallet name (moved past choose)
-      // For import mode, trigger when mnemonic is valid (12+ words)
+      // For import mode, only trigger when user has confirmed the mnemonic (clicked Continue)
       const shouldTrigger =
         (addWalletMode === 'create' && !walletMnemonic && !success) ||
-        (addWalletMode === 'import' && importMnemonic.trim().split(/\s+/).length >= 12 && !success);
+        (addWalletMode === 'import' && importMnemonicConfirmed && !success);
 
       if (shouldTrigger && pin.length === 0 && !isLoading) {
         const timer = setTimeout(() => {
@@ -460,7 +463,7 @@ export function SettingsScreen() {
         return () => clearTimeout(timer);
       }
     }
-  }, [activeModal, biometricEnabled, addWalletBiometricAttempted, addWalletUsePinFallback, addWalletMode, walletMnemonic, importMnemonic, pin.length, isLoading, success, handleAddWalletBiometricAuth]);
+  }, [activeModal, biometricEnabled, addWalletBiometricAttempted, addWalletUsePinFallback, addWalletMode, walletMnemonic, importMnemonicConfirmed, pin.length, isLoading, success, handleAddWalletBiometricAuth]);
 
   // Change PIN steps
   const handleChangePinStep = async (enteredPin: string) => {
@@ -1385,7 +1388,8 @@ export function SettingsScreen() {
               )
             ) : addWalletMode === 'import' ? (
               /* Import wallet flow */
-              !importMnemonic.trim() || importMnemonic.trim().split(/\s+/).length < 12 ? (
+              !importMnemonicConfirmed ? (
+                /* Step 1: Enter mnemonic */
                 <>
                   <div className="modal-icon">
                     <Key size={32} />
@@ -1405,7 +1409,7 @@ export function SettingsScreen() {
                   </div>
 
                   <div className="input-group">
-                    <label>Recovery Phrase</label>
+                    <label>Recovery Phrase ({importMnemonic.trim() ? importMnemonic.trim().split(/\s+/).length : 0} words)</label>
                     <textarea
                       value={importMnemonic}
                       onChange={(e) => setImportMnemonic(e.target.value.toLowerCase())}
@@ -1434,7 +1438,8 @@ export function SettingsScreen() {
                         return;
                       }
                       setError('');
-                      // Phrase is valid length, will proceed to PIN entry
+                      // Move to verification step
+                      setImportMnemonicConfirmed(true);
                     }}
                     disabled={importMnemonic.trim().split(/\s+/).length < 12}
                   >
@@ -1446,6 +1451,7 @@ export function SettingsScreen() {
                     onClick={() => {
                       setAddWalletMode('choose');
                       setImportMnemonic('');
+                      setImportMnemonicConfirmed(false);
                       setError('');
                     }}
                   >
@@ -1498,7 +1504,7 @@ export function SettingsScreen() {
                   <button
                     className="back-button"
                     onClick={() => {
-                      setImportMnemonic('');
+                      setImportMnemonicConfirmed(false);
                       setAddWalletUsePinFallback(false);
                       setAddWalletBiometricAttempted(false);
                       setError('');
@@ -1547,7 +1553,7 @@ export function SettingsScreen() {
                     onClick={() => {
                       setPin('');
                       setError('');
-                      setImportMnemonic('');
+                      setImportMnemonicConfirmed(false);
                       setAddWalletUsePinFallback(false);
                       setAddWalletBiometricAttempted(false);
                     }}
