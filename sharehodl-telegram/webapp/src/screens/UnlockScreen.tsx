@@ -144,18 +144,25 @@ export function UnlockScreen() {
         async (success: boolean, token?: string) => {
           if (success && token) {
             try {
-              // Get the encrypted PIN and decrypt it with the biometric token
-              const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
-              if (encryptedPin) {
-                const decryptedPin = await decryptData(encryptedPin, token);
-                await unlockWallet(decryptedPin);
-                tg?.HapticFeedback?.notificationOccurred('success');
-              } else {
-                throw new Error('Biometric not configured');
-              }
+              // The token returned from Telegram IS the PIN itself
+              // (it was stored via updateBiometricToken(pin) during setup)
+              await unlockWallet(token);
+              tg?.HapticFeedback?.notificationOccurred('success');
             } catch {
-              tg?.HapticFeedback?.notificationOccurred('error');
-              tg?.showAlert(`${biometricType} failed. Please use PIN.`);
+              // If direct token fails, try decrypting from local storage as fallback
+              try {
+                const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
+                if (encryptedPin) {
+                  const decryptedPin = await decryptData(encryptedPin, token);
+                  await unlockWallet(decryptedPin);
+                  tg?.HapticFeedback?.notificationOccurred('success');
+                } else {
+                  throw new Error('Biometric not configured');
+                }
+              } catch {
+                tg?.HapticFeedback?.notificationOccurred('error');
+                tg?.showAlert(`${biometricType} failed. Please use PIN.`);
+              }
             }
           } else {
             tg?.HapticFeedback?.notificationOccurred('error');
@@ -164,19 +171,8 @@ export function UnlockScreen() {
         }
       );
     } else {
-      // Fallback for testing without Telegram - try to use stored token
-      try {
-        const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
-        if (encryptedPin) {
-          // In a real scenario, we'd need the biometric token from the OS
-          // For testing, show an alert
-          tg?.showAlert(`${biometricType} is only available in the Telegram app.`);
-        } else {
-          tg?.showAlert(`${biometricType} is not set up. Please enable it in Settings.`);
-        }
-      } catch {
-        tg?.showAlert(`${biometricType} authentication failed.`);
-      }
+      // Fallback for testing without Telegram
+      tg?.showAlert(`${biometricType} is only available in the Telegram app.`);
       setBiometricLoading(false);
     }
   }, [biometricEnabled, biometricType, tg, clearError, unlockWallet]);
