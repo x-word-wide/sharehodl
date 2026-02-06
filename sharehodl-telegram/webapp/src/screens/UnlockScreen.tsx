@@ -7,8 +7,11 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useWalletStore } from '../services/walletStore';
+import { decryptData } from '../utils/crypto';
 
 const PIN_LENGTH = 6;
+const BIOMETRIC_ENABLED_KEY = 'sh_biometric_enabled';
+const BIOMETRIC_TOKEN_KEY = 'sh_biometric_token';
 
 export function UnlockScreen() {
   const {
@@ -26,6 +29,28 @@ export function UnlockScreen() {
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(false);
   const [lockoutTimer, setLockoutTimer] = useState(0);
+
+  // Biometric state
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricType, setBiometricType] = useState<string>('Biometric');
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  // Check biometric availability and status on mount
+  useEffect(() => {
+    const enabled = localStorage.getItem(BIOMETRIC_ENABLED_KEY) === 'true';
+    setBiometricEnabled(enabled);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const biometricManager = (tg as any)?.BiometricManager;
+    if (biometricManager) {
+      biometricManager.init(() => {
+        if (biometricManager.biometricType) {
+          const type = biometricManager.biometricType;
+          setBiometricType(type === 'face' ? 'Face ID' : type === 'finger' ? 'Touch ID' : 'Biometric');
+        }
+      });
+    }
+  }, [tg]);
 
   // Update lockout timer countdown
   useEffect(() => {
@@ -99,10 +124,62 @@ export function UnlockScreen() {
     );
   };
 
-  const handleBiometric = () => {
+  const handleBiometric = useCallback(async () => {
+    if (!biometricEnabled) {
+      tg?.HapticFeedback?.impactOccurred('medium');
+      tg?.showAlert(`${biometricType} is not enabled. Enable it in Settings.`);
+      return;
+    }
+
     tg?.HapticFeedback?.impactOccurred('medium');
-    tg?.showAlert('Biometric authentication coming soon!');
-  };
+    setBiometricLoading(true);
+    clearError();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const biometricManager = (tg as any)?.BiometricManager;
+
+    if (biometricManager) {
+      biometricManager.authenticate(
+        { reason: 'Unlock your wallet' },
+        async (success: boolean, token?: string) => {
+          if (success && token) {
+            try {
+              // Get the encrypted PIN and decrypt it with the biometric token
+              const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
+              if (encryptedPin) {
+                const decryptedPin = await decryptData(encryptedPin, token);
+                await unlockWallet(decryptedPin);
+                tg?.HapticFeedback?.notificationOccurred('success');
+              } else {
+                throw new Error('Biometric not configured');
+              }
+            } catch {
+              tg?.HapticFeedback?.notificationOccurred('error');
+              tg?.showAlert(`${biometricType} failed. Please use PIN.`);
+            }
+          } else {
+            tg?.HapticFeedback?.notificationOccurred('error');
+          }
+          setBiometricLoading(false);
+        }
+      );
+    } else {
+      // Fallback for testing without Telegram - try to use stored token
+      try {
+        const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
+        if (encryptedPin) {
+          // In a real scenario, we'd need the biometric token from the OS
+          // For testing, show an alert
+          tg?.showAlert(`${biometricType} is only available in the Telegram app.`);
+        } else {
+          tg?.showAlert(`${biometricType} is not set up. Please enable it in Settings.`);
+        }
+      } catch {
+        tg?.showAlert(`${biometricType} authentication failed.`);
+      }
+      setBiometricLoading(false);
+    }
+  }, [biometricEnabled, biometricType, tg, clearError, unlockWallet]);
 
   const isLocked = securityState.isLocked && lockoutTimer > 0;
 
@@ -183,9 +260,9 @@ export function UnlockScreen() {
               {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'bio', '0', 'delete'].map((key) => (
                 <button
                   key={key}
-                  className={`numpad-key ${key === 'bio' || key === 'delete' ? 'action' : ''}`}
+                  className={`numpad-key ${key === 'bio' || key === 'delete' ? 'action' : ''} ${key === 'bio' && biometricEnabled ? 'bio-enabled' : ''} ${key === 'bio' && biometricLoading ? 'bio-loading' : ''}`}
                   onClick={() => key === 'bio' ? handleBiometric() : handleKeyPress(key)}
-                  disabled={isLoading || isLocked}
+                  disabled={isLoading || isLocked || (key === 'bio' && biometricLoading)}
                 >
                   {key === 'delete' ? (
                     <svg className="delete-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -194,9 +271,13 @@ export function UnlockScreen() {
                       <line x1="12" y1="9" x2="18" y2="15" />
                     </svg>
                   ) : key === 'bio' ? (
-                    <svg className="bio-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
-                    </svg>
+                    biometricLoading ? (
+                      <div className="bio-spinner" />
+                    ) : (
+                      <svg className="bio-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
+                      </svg>
+                    )
                   ) : (
                     <span className="key-number">{key}</span>
                   )}
@@ -432,6 +513,31 @@ export function UnlockScreen() {
           width: 24px;
           height: 24px;
           color: #8b949e;
+        }
+
+        .numpad-key.bio-enabled .bio-icon {
+          color: #3B82F6;
+        }
+
+        .numpad-key.bio-enabled {
+          background: rgba(30, 64, 175, 0.1);
+        }
+
+        .numpad-key.bio-loading {
+          opacity: 0.7;
+        }
+
+        .bio-spinner {
+          width: 24px;
+          height: 24px;
+          border: 2px solid #30363d;
+          border-top-color: #3B82F6;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
