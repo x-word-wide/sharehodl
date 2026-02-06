@@ -100,6 +100,14 @@ export function SettingsScreen() {
   // Ref for scrolling to continue button when pasting mnemonic
   const importContinueRef = useRef<HTMLButtonElement>(null);
 
+  // SECURITY: Ref to ensure biometric callback always has current mnemonic value
+  const importMnemonicRef = useRef(importMnemonic);
+  importMnemonicRef.current = importMnemonic;
+
+  // Ref for wallet name to avoid stale closure in biometric callback
+  const newWalletNameRef = useRef(newWalletName);
+  newWalletNameRef.current = newWalletName;
+
   // Load wallets on mount
   useEffect(() => {
     const loadedWallets = getWallets();
@@ -475,15 +483,24 @@ export function SettingsScreen() {
             }
 
             // PIN verified, proceed with add/import
+            // SECURITY: Use refs to get current values, avoiding stale closure issues
             if (addWalletMode === 'create') {
-              await handleAddWalletPinSubmit(token);
+              const mnemonic = await addWallet(newWalletNameRef.current || `Wallet ${wallets.length + 1}`, token);
+              setWalletMnemonic(mnemonic);
             } else if (addWalletMode === 'import') {
-              await handleImportWalletPinSubmit(token);
+              await importNewWallet(
+                newWalletNameRef.current || `Imported Wallet ${wallets.length + 1}`,
+                importMnemonicRef.current,
+                token
+              );
+              setSuccess('Wallet imported successfully!');
+              setTimeout(() => closeModal(), 1500);
             }
             tg?.HapticFeedback?.notificationOccurred('success');
-          } catch {
+          } catch (err) {
             tg?.HapticFeedback?.notificationOccurred('error');
-            setError('Invalid credentials. Please use PIN.');
+            const errorMsg = err instanceof Error ? err.message : 'Invalid credentials';
+            setError(errorMsg.includes('mnemonic') ? errorMsg : 'Invalid credentials. Please use PIN.');
             setAddWalletUsePinFallback(true);
           }
         } else if (success && (!token || token.length === 0)) {
@@ -498,7 +515,7 @@ export function SettingsScreen() {
         setIsLoading(false);
       }
     );
-  }, [tg, verifyPin, biometricType, addWalletMode]);
+  }, [tg, verifyPin, biometricType, addWalletMode, wallets.length, importNewWallet, addWallet, closeModal]);
 
   // Trigger biometric for add wallet when reaching PIN step
   useEffect(() => {
