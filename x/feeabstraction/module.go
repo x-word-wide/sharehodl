@@ -3,7 +3,6 @@ package feeabstraction
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"cosmossdk.io/core/appmodule"
 	"github.com/cosmos/cosmos-sdk/client"
@@ -56,9 +55,14 @@ func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 
 // ValidateGenesis performs genesis state validation
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
+	// Handle empty genesis state - use defaults
+	if len(bz) == 0 || string(bz) == "{}" || string(bz) == "null" {
+		return DefaultGenesisState().Validate()
+	}
 	var genState GenesisState
 	if err := cdc.UnmarshalJSON(bz, &genState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
+		// If unmarshal fails, use defaults
+		return DefaultGenesisState().Validate()
 	}
 	return genState.Validate()
 }

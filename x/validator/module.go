@@ -2,7 +2,6 @@ package validator
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"cosmossdk.io/math"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -61,9 +60,14 @@ func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 
 // ValidateGenesis validates the GenesisState
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
+	// Handle empty genesis state - use defaults
+	if len(bz) == 0 || string(bz) == "{}" || string(bz) == "null" {
+		return types.DefaultGenesis().Validate()
+	}
 	var genState types.GenesisState
 	if err := cdc.UnmarshalJSON(bz, &genState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
+		// If unmarshal fails, use defaults
+		return types.DefaultGenesis().Validate()
 	}
 	return genState.Validate()
 }

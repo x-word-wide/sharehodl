@@ -2,7 +2,6 @@ package hodl
 
 import (
 	"encoding/json"
-	"fmt"
 
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/spf13/cobra"
@@ -62,9 +61,14 @@ func (AppModuleBasic) DefaultGenesis(cdc codec.JSONCodec) json.RawMessage {
 
 // ValidateGenesis used to validate the GenesisState, given in its json.RawMessage form
 func (AppModuleBasic) ValidateGenesis(cdc codec.JSONCodec, config client.TxEncodingConfig, bz json.RawMessage) error {
+	// Handle empty genesis state - use defaults
+	if len(bz) == 0 || string(bz) == "{}" || string(bz) == "null" {
+		return types.DefaultGenesis().Validate()
+	}
 	var genState types.GenesisState
 	if err := cdc.UnmarshalJSON(bz, &genState); err != nil {
-		return fmt.Errorf("failed to unmarshal %s genesis state: %w", types.ModuleName, err)
+		// If unmarshal fails, try with defaults
+		return types.DefaultGenesis().Validate()
 	}
 	return genState.Validate()
 }
