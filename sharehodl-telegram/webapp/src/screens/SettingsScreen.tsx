@@ -484,18 +484,14 @@ export function SettingsScreen() {
 
             // PIN verified, proceed with add/import
             // SECURITY: Use refs to get current values, avoiding stale closure issues
-            // DEBUG: Log mnemonic ref value
-            console.log('[DEBUG] Biometric import - mnemonic ref value:', importMnemonicRef.current ? `${importMnemonicRef.current.split(' ').length} words` : 'EMPTY');
-
             if (addWalletMode === 'create') {
               const mnemonic = await addWallet(newWalletNameRef.current || `Wallet ${wallets.length + 1}`, token);
               setWalletMnemonic(mnemonic);
             } else if (addWalletMode === 'import') {
               const mnemonicToImport = importMnemonicRef.current;
-              console.log('[DEBUG] Importing mnemonic:', mnemonicToImport ? `${mnemonicToImport.split(' ').length} words` : 'EMPTY');
 
               if (!mnemonicToImport || mnemonicToImport.trim() === '') {
-                throw new Error('Mnemonic is empty - ref not updated properly');
+                throw new Error('Mnemonic is empty');
               }
 
               await importNewWallet(
@@ -1547,7 +1543,6 @@ export function SettingsScreen() {
                       setError('');
                       // SECURITY: Explicitly update ref before triggering biometric
                       importMnemonicRef.current = importMnemonic;
-                      console.log('[DEBUG] Continue clicked, setting ref to:', importMnemonic.split(' ').length, 'words');
                       // Move to verification step
                       setImportMnemonicConfirmed(true);
                     }}
