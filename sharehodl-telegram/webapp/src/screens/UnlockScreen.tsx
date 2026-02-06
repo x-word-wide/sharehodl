@@ -7,11 +7,9 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useWalletStore } from '../services/walletStore';
-import { decryptData } from '../utils/crypto';
 
 const PIN_LENGTH = 6;
 const BIOMETRIC_ENABLED_KEY = 'sh_biometric_enabled';
-const BIOMETRIC_TOKEN_KEY = 'sh_biometric_token';
 
 export function UnlockScreen() {
   const {
@@ -151,61 +149,34 @@ export function UnlockScreen() {
     }, 30000);
 
     try {
-      // Directly call authenticate without init (init is already called on mount)
+      // SECURITY: Only use the token from Telegram's secure biometric storage
+      // Never fall back to localStorage as it can be compromised by XSS
       biometricManager.authenticate(
         { reason: 'Unlock your wallet' },
         async (success: boolean, token?: string) => {
           clearTimeout(timeout);
 
           if (success) {
-            // Try multiple methods to get the PIN
-            let pinToUse: string | null = null;
-
-            // Method 1: Use token from Telegram if available
+            // The token from Telegram's secure storage IS the PIN
             if (token && token.length > 0) {
-              pinToUse = token;
-            }
-
-            // Method 2: Try localStorage backup (base64 encoded PIN)
-            if (!pinToUse) {
-              const encodedPin = localStorage.getItem('sh_bio_pin');
-              if (encodedPin) {
-                try {
-                  pinToUse = atob(encodedPin);
-                } catch {
-                  // Invalid base64
-                }
-              }
-            }
-
-            // Method 3: Try decrypting from encrypted storage
-            if (!pinToUse && token) {
               try {
-                const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
-                if (encryptedPin) {
-                  pinToUse = await decryptData(encryptedPin, token);
-                }
-              } catch {
-                // Decryption failed
-              }
-            }
-
-            if (pinToUse) {
-              try {
-                await unlockWallet(pinToUse);
+                await unlockWallet(token);
                 tg?.HapticFeedback?.notificationOccurred('success');
               } catch {
                 tg?.HapticFeedback?.notificationOccurred('error');
                 tg?.showAlert(`${biometricType} failed. Please use PIN.`);
               }
             } else {
+              // Token not returned - biometric storage may not be set up correctly
               tg?.HapticFeedback?.notificationOccurred('error');
               tg?.showAlert(`${biometricType} not configured. Please re-enable in Settings.`);
-              // Reset biometric
+              // Reset biometric state
               localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
+              localStorage.removeItem('sh_bio_pin'); // Clean up any old insecure storage
               setBiometricEnabled(false);
             }
           } else {
+            // User cancelled or biometric failed
             tg?.HapticFeedback?.notificationOccurred('error');
           }
           setBiometricLoading(false);

@@ -436,6 +436,8 @@ export function SettingsScreen() {
   };
 
   // Handle biometric setup PIN submission
+  // SECURITY: PIN is stored ONLY in Telegram's secure biometric storage
+  // Never store PIN in localStorage as it can be accessed by XSS attacks
   const handleBiometricSetupPin = async (enteredPin: string) => {
     setIsLoading(true);
     try {
@@ -448,32 +450,30 @@ export function SettingsScreen() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const biometricManager = (tg as any)?.BiometricManager;
 
-      // Store PIN in localStorage (base64 encoded) - biometric is used for identity verification
-      // This is safe because biometric auth is required to access it
-      const encodedPin = btoa(enteredPin);
-      localStorage.setItem('sh_bio_pin', encodedPin);
-
       if (biometricManager && biometricManager.updateBiometricToken) {
-        // Also try to store in Telegram's secure storage as backup
-        biometricManager.updateBiometricToken(enteredPin, () => {
-          // We don't rely on this succeeding - localStorage is our primary storage
-          setBiometricToken(enteredPin).then(() => {
+        // Store PIN ONLY in Telegram's secure biometric storage
+        // This is protected by the device's secure enclave
+        biometricManager.updateBiometricToken(enteredPin, (tokenSaved: boolean) => {
+          if (tokenSaved) {
             setBiometricEnabled(true);
             localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
+            // Remove any old insecure storage
+            localStorage.removeItem('sh_bio_pin');
             tg?.HapticFeedback?.notificationOccurred('success');
             setSuccess(`${biometricType} enabled successfully!`);
             setTimeout(() => closeModal(), 1500);
-          });
+          } else {
+            tg?.HapticFeedback?.notificationOccurred('error');
+            setError(`Failed to set up ${biometricType}. Your device may not support secure storage.`);
+            setPin('');
+          }
           setIsLoading(false);
         });
       } else {
-        // Fallback for testing
-        await setBiometricToken(enteredPin);
-        setBiometricEnabled(true);
-        localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'true');
-        tg?.HapticFeedback?.notificationOccurred('success');
-        setSuccess(`${biometricType} enabled successfully!`);
-        setTimeout(() => closeModal(), 1500);
+        // No biometric manager available - cannot securely store PIN
+        tg?.HapticFeedback?.notificationOccurred('error');
+        setError(`${biometricType} is not available on this device.`);
+        setPin('');
         setIsLoading(false);
       }
     } catch (err) {
