@@ -185,9 +185,9 @@ SERVER_CREDENTIALS.md
 *-credentials.md
 .server-credentials*
 
-# Protobuf generated files
-*.pb.go
-*.pb.gw.go
+# Protobuf generated files - KEEP THESE for deployment
+# *.pb.go
+# *.pb.gw.go
 
 # Cosmos SDK specific
 simd
