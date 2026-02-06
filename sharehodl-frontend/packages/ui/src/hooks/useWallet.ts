@@ -2,11 +2,26 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
-// Default URLs - can be overridden via window.__SHAREHODL_CONFIG__
+// Auto-detect environment based on hostname
 const getConfig = () => {
+  // Allow explicit override via window config
   if (typeof window !== 'undefined' && (window as any).__SHAREHODL_CONFIG__) {
     return (window as any).__SHAREHODL_CONFIG__;
   }
+
+  // Auto-detect production environment
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // Production: use sharehodl.com endpoints
+    if (hostname.includes('sharehodl.com') || hostname.includes('sharehodl')) {
+      return {
+        rpcUrl: 'https://rpc.sharehodl.com',
+        restUrl: 'https://api.sharehodl.com',
+      };
+    }
+  }
+
+  // Development: use localhost
   return {
     rpcUrl: 'http://localhost:26657',
     restUrl: 'http://localhost:1317',
