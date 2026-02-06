@@ -55,7 +55,6 @@ export function SettingsScreen() {
     wallets,
     activeWalletId,
     addWallet,
-    setBiometricToken,
     clearBiometricToken
   } = useWalletStore();
   const tg = window.Telegram?.WebApp;
