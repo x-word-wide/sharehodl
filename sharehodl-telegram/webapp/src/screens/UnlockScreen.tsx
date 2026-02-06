@@ -303,6 +303,7 @@ export function UnlockScreen() {
           flex-direction: column;
           position: relative;
           overflow: hidden;
+          background-color: var(--tg-theme-bg-color);
         }
 
         .pin-bg {
@@ -357,13 +358,13 @@ export function UnlockScreen() {
         .pin-title {
           font-size: 24px;
           font-weight: 700;
-          color: white;
+          color: var(--text-primary);
           margin: 0 0 8px;
         }
 
         .pin-subtitle {
           font-size: 15px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0 0 40px;
         }
 
@@ -395,7 +396,7 @@ export function UnlockScreen() {
 
         .timer-label {
           font-size: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0;
         }
 
@@ -419,7 +420,7 @@ export function UnlockScreen() {
           width: 16px;
           height: 16px;
           border-radius: 50%;
-          background: #30363d;
+          background: var(--pin-dot-bg);
           transition: all 0.15s ease;
         }
 
@@ -457,7 +458,7 @@ export function UnlockScreen() {
         .reset-link {
           background: none;
           border: none;
-          color: #1E40AF;
+          color: #3B82F6;
           font-size: 14px;
           cursor: pointer;
           padding: 0;
@@ -478,8 +479,8 @@ export function UnlockScreen() {
           height: 72px;
           border-radius: 50%;
           border: none;
-          background: rgba(48, 54, 61, 0.5);
-          color: white;
+          background: var(--numpad-bg);
+          color: var(--text-primary);
           font-size: 28px;
           font-weight: 500;
           cursor: pointer;
@@ -506,7 +507,7 @@ export function UnlockScreen() {
         }
 
         .numpad-key.action:active {
-          background: rgba(48, 54, 61, 0.3);
+          background: var(--input-bg);
         }
 
         .key-number {
@@ -520,7 +521,7 @@ export function UnlockScreen() {
         .bio-icon {
           width: 24px;
           height: 24px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .numpad-key.bio-enabled .bio-icon {
@@ -538,7 +539,7 @@ export function UnlockScreen() {
         .bio-spinner {
           width: 24px;
           height: 24px;
-          border: 2px solid #30363d;
+          border: 2px solid var(--pin-dot-bg);
           border-top-color: #3B82F6;
           border-radius: 50%;
           animation: spin 1s linear infinite;

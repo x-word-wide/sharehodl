@@ -1084,6 +1084,7 @@ export function SettingsScreen() {
         .settings-screen {
           min-height: 100vh;
           padding-bottom: 100px;
+          background-color: var(--tg-theme-bg-color);
         }
 
         .settings-header {
@@ -1093,7 +1094,7 @@ export function SettingsScreen() {
         .settings-title {
           font-size: 24px;
           font-weight: 700;
-          color: white;
+          color: var(--text-primary);
           margin: 0;
         }
 
@@ -1107,17 +1108,17 @@ export function SettingsScreen() {
         .settings-group-title {
           font-size: 13px;
           font-weight: 600;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0 0 8px 4px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
 
         .settings-group-content {
-          background: rgba(22, 27, 34, 0.6);
+          background: var(--surface-bg);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
-          border: 1px solid rgba(48, 54, 61, 0.5);
+          border: 1px solid var(--border-color);
           border-radius: 16px;
           overflow: hidden;
         }
@@ -1155,9 +1156,9 @@ export function SettingsScreen() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(48, 54, 61, 0.5);
+          background: var(--input-bg);
           border-radius: 12px;
-          color: #8b949e;
+          color: var(--text-secondary);
           transition: all 0.2s ease;
         }
 
@@ -1169,11 +1170,11 @@ export function SettingsScreen() {
         .theme-option-label {
           font-size: 13px;
           font-weight: 500;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .theme-option.selected .theme-option-label {
-          color: white;
+          color: var(--text-primary);
         }
 
         /* Settings Item */
@@ -1188,7 +1189,7 @@ export function SettingsScreen() {
           cursor: pointer;
           transition: all 0.15s ease;
           text-align: left;
-          border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+          border-bottom: 1px solid var(--border-color);
           -webkit-tap-highlight-color: transparent;
         }
 
@@ -1197,11 +1198,11 @@ export function SettingsScreen() {
         }
 
         .settings-item:active {
-          background: rgba(48, 54, 61, 0.5);
+          background: var(--input-bg);
         }
 
         .settings-item-icon {
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .settings-item-content {
@@ -1211,7 +1212,7 @@ export function SettingsScreen() {
         .settings-item-title {
           font-size: 15px;
           font-weight: 500;
-          color: white;
+          color: var(--text-primary);
         }
 
         .settings-item-title.warning {
@@ -1224,12 +1225,12 @@ export function SettingsScreen() {
 
         .settings-item-subtitle {
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin-top: 2px;
         }
 
         .settings-item-chevron {
-          color: #484f58;
+          color: var(--text-muted);
         }
 
         /* Settings Toggle */
@@ -1238,7 +1239,7 @@ export function SettingsScreen() {
           align-items: center;
           gap: 14px;
           padding: 16px;
-          border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+          border-bottom: 1px solid var(--border-color);
           cursor: pointer;
           -webkit-tap-highlight-color: transparent;
         }
@@ -1251,7 +1252,7 @@ export function SettingsScreen() {
           position: relative;
           width: 52px;
           height: 32px;
-          background: #30363d;
+          background: var(--toggle-bg);
           border: none;
           border-radius: 16px;
           cursor: pointer;
@@ -1291,13 +1292,13 @@ export function SettingsScreen() {
 
         .app-version {
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0;
         }
 
         .app-tagline {
           font-size: 12px;
-          color: #484f58;
+          color: var(--text-muted);
           margin: 4px 0 0;
         }
 
@@ -1305,7 +1306,7 @@ export function SettingsScreen() {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0, 0, 0, 0.8);
+          background: var(--overlay-bg);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1314,7 +1315,7 @@ export function SettingsScreen() {
         }
 
         .modal-content {
-          background: #161B22;
+          background: var(--modal-bg);
           border-radius: 20px;
           padding: 24px;
           width: 100%;
@@ -1322,6 +1323,7 @@ export function SettingsScreen() {
           max-height: 90vh;
           overflow-y: auto;
           position: relative;
+          border: 1px solid var(--border-color);
         }
 
         .modal-content.wallets-modal {
@@ -1334,7 +1336,7 @@ export function SettingsScreen() {
           right: 16px;
           background: none;
           border: none;
-          color: #8b949e;
+          color: var(--text-secondary);
           cursor: pointer;
           padding: 4px;
         }
@@ -1359,14 +1361,14 @@ export function SettingsScreen() {
         .modal-title {
           font-size: 20px;
           font-weight: 700;
-          color: white;
+          color: var(--text-primary);
           text-align: center;
           margin: 0 0 8px;
         }
 
         .modal-subtitle {
           font-size: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           text-align: center;
           margin: 0 0 24px;
         }
@@ -1407,7 +1409,7 @@ export function SettingsScreen() {
           width: 14px;
           height: 14px;
           border-radius: 50%;
-          background: #30363d;
+          background: var(--pin-dot-bg);
           transition: all 0.15s ease;
         }
 
@@ -1429,8 +1431,8 @@ export function SettingsScreen() {
           height: 70px;
           border-radius: 50%;
           border: none;
-          background: rgba(48, 54, 61, 0.5);
-          color: white;
+          background: var(--numpad-bg);
+          color: var(--text-primary);
           font-size: 26px;
           font-weight: 500;
           cursor: pointer;
@@ -1448,7 +1450,7 @@ export function SettingsScreen() {
 
         .numpad-key.action {
           background: transparent;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .numpad-spacer {
@@ -1467,7 +1469,7 @@ export function SettingsScreen() {
           width: 8px;
           height: 8px;
           border-radius: 50%;
-          background: #30363d;
+          background: var(--pin-dot-bg);
         }
 
         .step.active {
@@ -1497,7 +1499,7 @@ export function SettingsScreen() {
         }
 
         .phrase-word {
-          background: rgba(48, 54, 61, 0.5);
+          background: var(--input-bg);
           border-radius: 8px;
           padding: 8px;
           display: flex;
@@ -1507,13 +1509,13 @@ export function SettingsScreen() {
 
         .word-number {
           font-size: 11px;
-          color: #8b949e;
+          color: var(--text-secondary);
           min-width: 16px;
         }
 
         .word-text {
           font-size: 13px;
-          color: white;
+          color: var(--text-primary);
           font-family: monospace;
         }
 
@@ -1527,7 +1529,7 @@ export function SettingsScreen() {
           gap: 8px;
           background: none;
           border: none;
-          color: white;
+          color: var(--text-primary);
           cursor: pointer;
         }
 
@@ -1543,16 +1545,17 @@ export function SettingsScreen() {
           justify-content: center;
           gap: 8px;
           padding: 12px;
-          background: rgba(48, 54, 61, 0.5);
+          background: var(--input-bg);
           border: none;
           border-radius: 12px;
-          color: white;
+          color: var(--text-primary);
           font-size: 14px;
           cursor: pointer;
         }
 
         .action-button.primary {
           background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+          color: white;
         }
 
         /* Wallets List */
@@ -1565,7 +1568,7 @@ export function SettingsScreen() {
           align-items: center;
           justify-content: space-between;
           padding: 14px;
-          background: rgba(48, 54, 61, 0.3);
+          background: var(--input-bg);
           border-radius: 12px;
           margin-bottom: 8px;
         }
@@ -1598,13 +1601,13 @@ export function SettingsScreen() {
         }
 
         .wallet-name {
-          color: white;
+          color: var(--text-primary);
           font-weight: 500;
         }
 
         .wallet-address {
           font-size: 12px;
-          color: #8b949e;
+          color: var(--text-secondary);
           font-family: monospace;
         }
 
@@ -1640,17 +1643,17 @@ export function SettingsScreen() {
         .input-group label {
           display: block;
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin-bottom: 8px;
         }
 
         .text-input {
           width: 100%;
           padding: 12px 16px;
-          background: rgba(48, 54, 61, 0.5);
-          border: 1px solid rgba(48, 54, 61, 0.8);
+          background: var(--input-bg);
+          border: 1px solid var(--border-color);
           border-radius: 12px;
-          color: white;
+          color: var(--text-primary);
           font-size: 15px;
           outline: none;
         }
@@ -1686,7 +1689,7 @@ export function SettingsScreen() {
         .spinner {
           width: 40px;
           height: 40px;
-          border: 3px solid #30363d;
+          border: 3px solid var(--pin-dot-bg);
           border-top-color: #3B82F6;
           border-radius: 50%;
           animation: spin 1s linear infinite;
@@ -1698,7 +1701,7 @@ export function SettingsScreen() {
         }
 
         .loading-state p {
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         /* Biometric UI */
@@ -1711,7 +1714,7 @@ export function SettingsScreen() {
         }
 
         .biometric-loading p {
-          color: #8b949e;
+          color: var(--text-secondary);
           margin-top: 16px;
         }
 
@@ -1755,17 +1758,17 @@ export function SettingsScreen() {
           padding: 12px;
           margin-top: 16px;
           background: transparent;
-          border: 1px solid rgba(48, 54, 61, 0.8);
+          border: 1px solid var(--border-color);
           border-radius: 12px;
-          color: #8b949e;
+          color: var(--text-secondary);
           font-size: 14px;
           cursor: pointer;
           transition: all 0.2s ease;
         }
 
         .pin-fallback-button:hover {
-          background: rgba(48, 54, 61, 0.3);
-          color: white;
+          background: var(--input-bg);
+          color: var(--text-primary);
         }
       `}</style>
     </div>
