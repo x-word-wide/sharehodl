@@ -46,17 +46,24 @@ export default function Home() {
 
         {/* Network Status Banner */}
         <div className={`mb-8 p-4 rounded-lg flex items-center justify-between ${
+          loading && !networkStatus ? 'bg-blue-900/20 border border-blue-800' :
           networkStatus?.connected ? 'bg-green-900/20 border border-green-800' : 'bg-red-900/20 border border-red-800'
         }`}>
           <div className="flex items-center gap-3">
-            {networkStatus?.connected ? (
+            {loading && !networkStatus ? (
+              <RefreshCw className="h-5 w-5 text-blue-400 animate-spin" />
+            ) : networkStatus?.connected ? (
               <Wifi className="h-5 w-5 text-green-400" />
             ) : (
               <WifiOff className="h-5 w-5 text-red-400" />
             )}
             <div>
-              <p className={`font-medium ${networkStatus?.connected ? 'text-green-400' : 'text-red-400'}`}>
-                {networkStatus?.connected ? 'Connected to ShareHODL Network' : 'Disconnected from Network'}
+              <p className={`font-medium ${
+                loading && !networkStatus ? 'text-blue-400' :
+                networkStatus?.connected ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {loading && !networkStatus ? 'Connecting to ShareHODL Network...' :
+                 networkStatus?.connected ? 'Connected to ShareHODL Network' : 'Disconnected from Network'}
               </p>
               <p className="text-sm text-gray-400">
                 {networkStatus?.chainId || 'sharehodl-1'} | Block #{formatBlockHeight(networkStatus?.latestBlockHeight)}
