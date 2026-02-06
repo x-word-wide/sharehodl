@@ -4,11 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/hex"
 	"fmt"
-	"math/big"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +12,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 // SecurityValidationSuite validates security frameworks and monitoring

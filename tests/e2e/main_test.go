@@ -46,8 +46,8 @@ func TestModuleIntegration(t *testing.T) {
 	testSuite.TestCrossModuleIntegration()
 }
 
-// TestPerformance runs performance tests only
-func TestPerformance(t *testing.T) {
+// TestPerformanceTests runs performance tests only
+func TestPerformanceTests(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping performance tests in short mode")
 	}

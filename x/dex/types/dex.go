@@ -254,6 +254,29 @@ type LiquidityPool struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
+// LPPosition represents a user's liquidity provision position
+// This tracks beneficial ownership of equity in liquidity pools
+type LPPosition struct {
+	ID              uint64         `json:"id"`                // Unique position ID
+	Provider        string         `json:"provider"`          // LP provider address
+	MarketSymbol    string         `json:"market_symbol"`     // Market symbol (e.g., "APPLE/HODL")
+
+	// Deposited amounts
+	BaseAmount      math.Int       `json:"base_amount"`       // Base asset (equity) deposited
+	QuoteAmount     math.Int       `json:"quote_amount"`      // Quote asset (HODL) deposited
+	LPTokenAmount   math.Int       `json:"lp_token_amount"`   // LP tokens received
+
+	// Beneficial ownership tracking (for equity)
+	CompanyID       uint64         `json:"company_id"`        // Company ID if base is equity
+
+	// Earnings tracking
+	FeesEarned      math.Int       `json:"fees_earned"`       // Total fees earned
+	DividendsEarned math.Int       `json:"dividends_earned"`  // Dividends received while in LP
+
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
 // UserPosition represents a user's position in a market
 type UserPosition struct {
 	User            string         `json:"user"`              // User address

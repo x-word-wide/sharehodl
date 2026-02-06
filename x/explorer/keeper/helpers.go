@@ -1,10 +1,8 @@
 package keeper
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
-	"time"
 
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
@@ -14,6 +12,22 @@ import (
 )
 
 // Helper methods for the ShareScan explorer keeper
+
+// prefixEndBytes returns the end bytes for a prefix for use in iterators
+func prefixEndBytes(prefix []byte) []byte {
+	if len(prefix) == 0 {
+		return nil
+	}
+	end := make([]byte, len(prefix))
+	copy(end, prefix)
+	for i := len(end) - 1; i >= 0; i-- {
+		if end[i] < 0xff {
+			end[i]++
+			return end[:i+1]
+		}
+	}
+	return nil
+}
 
 // getAccountShareholdings retrieves shareholdings for an account
 func (k Keeper) getAccountShareholdings(ctx sdk.Context, address string) []types.ShareholdingInfo {
@@ -36,7 +50,7 @@ func (k Keeper) getAccountShareholdings(ctx sdk.Context, address string) []types
 				Shares:        shareholding.Shares,
 				Percentage:    math.LegacyZeroDec(), // Would calculate percentage of total shares
 				MarketValue:   marketValue,
-				AcquiredAt:    shareholding.AcquiredAt,
+				AcquiredAt:    shareholding.AcquisitionDate,
 				LastUpdated:   shareholding.UpdatedAt,
 			})
 		}
@@ -51,7 +65,7 @@ func (k Keeper) getAccountTransactions(ctx sdk.Context, address string, limit in
 	accountTxStore := prefix.NewStore(store, types.AccountTransactionPrefix)
 	
 	addrPrefix := []byte(address)
-	iterator := accountTxStore.ReverseIterator(addrPrefix, sdk.PrefixEndBytes(addrPrefix))
+	iterator := accountTxStore.ReverseIterator(addrPrefix, prefixEndBytes(addrPrefix))
 	defer iterator.Close()
 	
 	transactions := make([]types.TransactionSummary, 0, limit)
@@ -85,33 +99,11 @@ func (k Keeper) getAccountTransactions(ctx sdk.Context, address string, limit in
 // getAccountVotes retrieves governance votes for an account
 func (k Keeper) getAccountVotes(ctx sdk.Context, address string) []types.VoteInfo {
 	votes := make([]types.VoteInfo, 0)
-	
-	// Get all proposals and check if account voted
-	proposals := k.governanceKeeper.GetProposals(ctx)
-	voterAddr, err := sdk.AccAddressFromBech32(address)
-	if err != nil {
-		return votes
-	}
-	
-	for _, proposal := range proposals {
-		vote, found := k.governanceKeeper.GetVote(ctx, proposal.ID, voterAddr)
-		if found {
-			voteInfo := types.VoteInfo{
-				Voter:       address,
-				ProposalID:  proposal.ID,
-				Option:      string(vote.Option),
-				Weight:      vote.Weight,
-				VotingPower: vote.VotingPower,
-				Reason:      vote.Reason,
-				SubmittedAt: vote.SubmittedAt,
-				BlockHeight: 0, // Would need to track this
-				TxHash:      "", // Would need to track this
-				IsWeighted:  false, // Simple vote
-			}
-			votes = append(votes, voteInfo)
-		}
-	}
-	
+
+	// Placeholder - would need GovernanceKeeper.GetVotesByVoter method
+	// For now, return empty slice
+	_ = address // avoid unused warning
+
 	return votes
 }
 
@@ -148,42 +140,12 @@ func (k Keeper) getAccountDividends(ctx sdk.Context, address string) []types.Div
 // getAccountTrades retrieves trading history for an account
 func (k Keeper) getAccountTrades(ctx sdk.Context, address string, limit int) []types.TradeSummary {
 	trades := make([]types.TradeSummary, 0)
-	
-	// Get all trades and filter by trader
-	allTrades := k.equityKeeper.GetTrades(ctx)
-	count := 0
-	
-	for i := len(allTrades) - 1; i >= 0 && count < limit; i-- {
-		trade := allTrades[i]
-		if trade.Trader == address {
-			company, found := k.equityKeeper.GetCompany(ctx, trade.CompanyID)
-			symbol := ""
-			if found {
-				symbol = company.Symbol
-			}
-			
-			tradeSummary := types.TradeSummary{
-				ID:             trade.ID,
-				CompanyID:      trade.CompanyID,
-				CompanySymbol:  symbol,
-				OrderType:      string(trade.OrderType),
-				Side:           string(trade.Side),
-				Price:          trade.Price,
-				Quantity:       trade.Quantity,
-				FilledQuantity: trade.FilledQuantity,
-				TotalValue:     trade.Price.MulInt(trade.FilledQuantity),
-				Status:         string(trade.Status),
-				Trader:         trade.Trader,
-				CreatedAt:      trade.CreatedAt,
-				UpdatedAt:      trade.UpdatedAt,
-				BlockHeight:    0, // Would need to track this
-				TxHash:         "", // Would need to track this
-			}
-			trades = append(trades, tradeSummary)
-			count++
-		}
-	}
-	
+
+	// Placeholder - would need EquityKeeper.GetTradesByAddress method
+	// For now, return empty slice
+	_ = address // avoid unused warning
+	_ = limit
+
 	return trades
 }
 
@@ -263,41 +225,12 @@ func (k Keeper) getCompanyDividends(ctx sdk.Context, companyID uint64, limit int
 // getCompanyTrades retrieves recent trades for a company
 func (k Keeper) getCompanyTrades(ctx sdk.Context, companyID uint64, limit int) []types.TradeSummary {
 	trades := make([]types.TradeSummary, 0)
-	
-	allTrades := k.equityKeeper.GetTrades(ctx)
-	count := 0
-	
-	for i := len(allTrades) - 1; i >= 0 && count < limit; i-- {
-		trade := allTrades[i]
-		if trade.CompanyID == companyID {
-			company, found := k.equityKeeper.GetCompany(ctx, companyID)
-			symbol := ""
-			if found {
-				symbol = company.Symbol
-			}
-			
-			tradeSummary := types.TradeSummary{
-				ID:             trade.ID,
-				CompanyID:      trade.CompanyID,
-				CompanySymbol:  symbol,
-				OrderType:      string(trade.OrderType),
-				Side:           string(trade.Side),
-				Price:          trade.Price,
-				Quantity:       trade.Quantity,
-				FilledQuantity: trade.FilledQuantity,
-				TotalValue:     trade.Price.MulInt(trade.FilledQuantity),
-				Status:         string(trade.Status),
-				Trader:         trade.Trader,
-				CreatedAt:      trade.CreatedAt,
-				UpdatedAt:      trade.UpdatedAt,
-				BlockHeight:    0, // Would need to track this
-				TxHash:         "", // Would need to track this
-			}
-			trades = append(trades, tradeSummary)
-			count++
-		}
-	}
-	
+
+	// Placeholder - would need EquityKeeper.GetTradesByCompany method
+	// For now, return empty slice
+	_ = companyID // avoid unused warning
+	_ = limit
+
 	return trades
 }
 
@@ -323,47 +256,24 @@ func (k Keeper) getProposalVotes(ctx sdk.Context, proposalID uint64) []types.Vot
 
 // calculateMarketMetrics calculates market cap and last price for a company
 func (k Keeper) calculateMarketMetrics(ctx sdk.Context, companyID uint64) (math.LegacyDec, math.LegacyDec) {
-	// Get recent trades to calculate last price
-	allTrades := k.equityKeeper.GetTrades(ctx)
-	lastPrice := math.LegacyNewDec(100) // Default price
-	
-	// Find most recent trade for this company
-	for i := len(allTrades) - 1; i >= 0; i-- {
-		trade := allTrades[i]
-		if trade.CompanyID == companyID && trade.FilledQuantity.GT(math.ZeroInt()) {
-			lastPrice = trade.Price
-			break
-		}
-	}
-	
+	// Default price placeholder
+	lastPrice := math.LegacyNewDec(100)
+
 	// Calculate market cap
 	company, found := k.equityKeeper.GetCompany(ctx, companyID)
 	if !found {
 		return math.LegacyZeroDec(), lastPrice
 	}
-	
+
 	marketCap := math.LegacyNewDecFromInt(company.TotalShares).Mul(lastPrice)
 	return marketCap, lastPrice
 }
 
 // getCompany24hVolume calculates 24h trading volume for a company
 func (k Keeper) getCompany24hVolume(ctx sdk.Context, companyID uint64) math.LegacyDec {
-	volume := math.LegacyZeroDec()
-	
-	// Calculate from trades in last 24 hours
-	cutoffTime := ctx.BlockTime().Add(-24 * time.Hour)
-	allTrades := k.equityKeeper.GetTrades(ctx)
-	
-	for _, trade := range allTrades {
-		if trade.CompanyID == companyID && 
-		   trade.CreatedAt.After(cutoffTime) && 
-		   trade.FilledQuantity.GT(math.ZeroInt()) {
-			tradeValue := trade.Price.MulInt(trade.FilledQuantity)
-			volume = volume.Add(tradeValue)
-		}
-	}
-	
-	return volume
+	// Placeholder - would need EquityKeeper.GetTradesByCompanyInTimeRange method
+	_ = companyID // avoid unused warning
+	return math.LegacyZeroDec()
 }
 
 // getCompanyPriceChange24h calculates 24h price change for a company

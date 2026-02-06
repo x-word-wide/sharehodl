@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ShareHODL Brand Colors -->
+    <color name="primary">#1E3A5F</color>
+    <color name="primary_variant">#0D2137</color>
+    <color name="secondary">#FFD700</color>
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="error">#CF6679</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="on_secondary">#000000</color>
+    <color name="on_background">#FFFFFF</color>
+    <color name="on_surface">#FFFFFF</color>
+    <color name="on_error">#000000</color>
+
+    <!-- Launcher Icon Colors -->
+    <color name="ic_launcher_background">#1E3A5F</color>
+</resources>

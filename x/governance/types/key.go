@@ -65,6 +65,27 @@ var (
 	// Statistics and analytics
 	GovernanceStatsPrefix      = []byte{0x90}
 	ParticipationStatsPrefix   = []byte{0x91}
+
+	// Time-based proposal queues for efficient end block processing
+	// Key format: DepositEndTimePrefix + endTime (seconds) + proposalID
+	DepositEndTimePrefix       = []byte{0xA0}
+	// Key format: VotingEndTimePrefix + endTime (seconds) + proposalID
+	VotingEndTimePrefix        = []byte{0xA1}
+
+	// ==========================================================================
+	// ANTI-SPAM RATE LIMITING KEYS
+	// ==========================================================================
+
+	// ProposerDailyCountPrefix stores proposal count per address per day
+	// Key format: ProposerDailyCountPrefix + address + dayTimestamp
+	ProposerDailyCountPrefix   = []byte{0xB0}
+
+	// ProposerLastSubmitPrefix stores the timestamp of last proposal submission
+	// Key format: ProposerLastSubmitPrefix + address
+	ProposerLastSubmitPrefix   = []byte{0xB1}
+
+	// BurnedFeesPrefix stores total fees burned from proposals
+	BurnedFeesPrefix           = []byte{0xB2}
 )
 
 // Key construction functions
@@ -384,4 +405,104 @@ func ParticipationStatsKey(participant []byte) []byte {
 	copy(key, ParticipationStatsPrefix)
 	copy(key[len(ParticipationStatsPrefix):], participant)
 	return key
+}
+
+// CompanyProposalIndexKey returns the index key for company proposals
+func CompanyProposalIndexKey(companyID uint64) []byte {
+	key := make([]byte, len(CompanyProposalPrefix)+8)
+	copy(key, CompanyProposalPrefix)
+	binary.BigEndian.PutUint64(key[len(CompanyProposalPrefix):], companyID)
+	return key
+}
+
+// CompanyProposalTypeIndexKey returns the index key for company proposals by type
+func CompanyProposalTypeIndexKey(proposalType CompanyProposalType) []byte {
+	typeBytes := []byte(proposalType.String())
+	key := make([]byte, len(CompanyProposalPrefix)+len(typeBytes)+1)
+	copy(key, CompanyProposalPrefix)
+	copy(key[len(CompanyProposalPrefix):], typeBytes)
+	key[len(CompanyProposalPrefix)+len(typeBytes)] = 0x00
+	return key
+}
+
+// PrefixEndBytes returns the end bytes for a prefix iterator
+func PrefixEndBytes(prefix []byte) []byte {
+	end := make([]byte, len(prefix))
+	copy(end, prefix)
+	for i := len(end) - 1; i >= 0; i-- {
+		if end[i] < 0xff {
+			end[i]++
+			return end[:i+1]
+		}
+	}
+	return nil // All 0xff bytes, no end
+}
+
+// DepositEndTimeKey returns the key for deposit end time queue
+// This allows efficient querying of proposals with expired deposit periods
+func DepositEndTimeKey(endTime int64, proposalID uint64) []byte {
+	key := make([]byte, len(DepositEndTimePrefix)+8+8)
+	copy(key, DepositEndTimePrefix)
+	binary.BigEndian.PutUint64(key[len(DepositEndTimePrefix):], uint64(endTime))
+	binary.BigEndian.PutUint64(key[len(DepositEndTimePrefix)+8:], proposalID)
+	return key
+}
+
+// VotingEndTimeKey returns the key for voting end time queue
+// This allows efficient querying of proposals with ended voting periods
+func VotingEndTimeKey(endTime int64, proposalID uint64) []byte {
+	key := make([]byte, len(VotingEndTimePrefix)+8+8)
+	copy(key, VotingEndTimePrefix)
+	binary.BigEndian.PutUint64(key[len(VotingEndTimePrefix):], uint64(endTime))
+	binary.BigEndian.PutUint64(key[len(VotingEndTimePrefix)+8:], proposalID)
+	return key
+}
+
+// DepositEndTimeRangePrefix returns the prefix for iterating proposals expiring before a time
+func DepositEndTimeRangePrefix(maxTime int64) []byte {
+	key := make([]byte, len(DepositEndTimePrefix)+8)
+	copy(key, DepositEndTimePrefix)
+	binary.BigEndian.PutUint64(key[len(DepositEndTimePrefix):], uint64(maxTime))
+	return key
+}
+
+// VotingEndTimeRangePrefix returns the prefix for iterating proposals ending before a time
+func VotingEndTimeRangePrefix(maxTime int64) []byte {
+	key := make([]byte, len(VotingEndTimePrefix)+8)
+	copy(key, VotingEndTimePrefix)
+	binary.BigEndian.PutUint64(key[len(VotingEndTimePrefix):], uint64(maxTime))
+	return key
+}
+
+// ==========================================================================
+// ANTI-SPAM KEY FUNCTIONS
+// ==========================================================================
+
+// ProposerDailyCountKey returns the key for tracking daily proposal count per address
+// dayTimestamp should be the Unix timestamp at the start of the day (midnight UTC)
+func ProposerDailyCountKey(proposer []byte, dayTimestamp int64) []byte {
+	key := make([]byte, len(ProposerDailyCountPrefix)+len(proposer)+8)
+	copy(key, ProposerDailyCountPrefix)
+	copy(key[len(ProposerDailyCountPrefix):], proposer)
+	binary.BigEndian.PutUint64(key[len(ProposerDailyCountPrefix)+len(proposer):], uint64(dayTimestamp))
+	return key
+}
+
+// ProposerLastSubmitKey returns the key for tracking when an address last submitted a proposal
+func ProposerLastSubmitKey(proposer []byte) []byte {
+	key := make([]byte, len(ProposerLastSubmitPrefix)+len(proposer))
+	copy(key, ProposerLastSubmitPrefix)
+	copy(key[len(ProposerLastSubmitPrefix):], proposer)
+	return key
+}
+
+// BurnedFeesKey returns the key for tracking total burned fees
+func BurnedFeesKey() []byte {
+	return BurnedFeesPrefix
+}
+
+// GetDayTimestamp returns the Unix timestamp for the start of the day (midnight UTC)
+func GetDayTimestamp(timestamp int64) int64 {
+	// 86400 seconds per day
+	return (timestamp / 86400) * 86400
 }

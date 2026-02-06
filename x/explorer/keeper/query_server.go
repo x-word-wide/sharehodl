@@ -2,11 +2,9 @@ package keeper
 
 import (
 	"context"
-	"strconv"
 
 	"cosmossdk.io/store/prefix"
 	"github.com/cosmos/cosmos-sdk/runtime"
-	"github.com/cosmos/cosmos-sdk/types/query"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/explorer/types"
 	"google.golang.org/grpc/codes"
@@ -261,33 +259,31 @@ func (q QueryServer) TransactionsByAccount(c context.Context, req *types.QueryTr
 	accountTxStore := prefix.NewStore(store, types.AccountTransactionPrefix)
 
 	addrPrefix := []byte(req.Address)
-	
-	transactions, pageRes, err := query.GenericFilteredPaginate(
-		q.Keeper.cdc,
-		accountTxStore,
-		req.Pagination,
-		func(key []byte, value []byte) (*types.TransactionInfo, error) {
-			// Extract transaction hash from key
-			txHash := string(key[len(addrPrefix):])
-			
-			// Get full transaction info
-			if txInfo, found := q.Keeper.GetTransactionInfo(ctx, txHash); found {
-				return &txInfo, nil
-			}
-			return nil, status.Error(codes.NotFound, "transaction not found")
-		},
-		func() *types.TransactionInfo {
-			return &types.TransactionInfo{}
-		},
-	)
 
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+	// Simple iteration without complex pagination
+	iterator := accountTxStore.Iterator(addrPrefix, prefixEndBytes(addrPrefix))
+	defer iterator.Close()
+
+	transactions := make([]*types.TransactionInfo, 0)
+	limit := 100 // Default limit
+	if req.Pagination != nil && req.Pagination.Limit > 0 {
+		limit = int(req.Pagination.Limit)
+	}
+
+	count := 0
+	for ; iterator.Valid() && count < limit; iterator.Next() {
+		key := iterator.Key()
+		txHash := string(key[len(addrPrefix):])
+
+		if txInfo, found := q.Keeper.GetTransactionInfo(ctx, txHash); found {
+			transactions = append(transactions, &txInfo)
+			count++
+		}
 	}
 
 	return &types.QueryTransactionsByAccountResponse{
 		Transactions: transactions,
-		Pagination:   pageRes,
+		Pagination:   nil,
 	}, nil
 }
 

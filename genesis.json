@@ -1,7 +1,7 @@
 {
   "app_name": "sharehodl",
-  "app_version": "1.0.0", 
-  "genesis_time": "2024-12-04T00:00:00.000000000Z",
+  "app_version": "1.0.0",
+  "genesis_time": "2026-02-15T12:00:00.000000000Z",
   "chain_id": "sharehodl-1",
   "initial_height": "1",
   "app_hash": null,
@@ -27,20 +27,29 @@
           "coins": [
             {
               "denom": "uhodl",
-              "amount": "1000000000000"
+              "amount": "100000000000000"
+            }
+          ]
+        },
+        {
+          "address": "sharehodl1treasury0000000000000000000000",
+          "coins": [
+            {
+              "denom": "uhodl",
+              "amount": "1010000000000000"
             }
           ]
         }
       ],
       "supply": [
         {
-          "denom": "uhodl", 
-          "amount": "1000000000000"
+          "denom": "uhodl",
+          "amount": "1110000000000000"
         }
       ],
       "denom_metadata": [
         {
-          "description": "ShareHODL stablecoin pegged to USD",
+          "description": "ShareHODL - Native token and equity in the ShareHODL platform. HODL represents ownership in the ShareHODL network.",
           "denom_units": [
             {
               "denom": "uhodl",
@@ -48,9 +57,14 @@
               "aliases": ["microhodl"]
             },
             {
+              "denom": "mhodl",
+              "exponent": 3,
+              "aliases": ["millihodl"]
+            },
+            {
               "denom": "hodl",
               "exponent": 6,
-              "aliases": ["sharehodl"]
+              "aliases": ["sharehodl", "HODL"]
             }
           ],
           "base": "uhodl",
@@ -67,7 +81,7 @@
         "max_entries": 7,
         "historical_entries": 10000,
         "bond_denom": "uhodl",
-        "min_commission_rate": "0.000000000000000000"
+        "min_commission_rate": "0.050000000000000000"
       },
       "last_total_power": "0",
       "last_validator_powers": [],
@@ -116,7 +130,7 @@
         "min_deposit": [
           {
             "denom": "uhodl",
-            "amount": "10000000"
+            "amount": "10000000000"
           }
         ],
         "max_deposit_period": "172800s"
@@ -138,7 +152,7 @@
       "params": {
         "mint_denom": "uhodl",
         "inflation_rate_change": "0.000000000000000000",
-        "inflation_max": "0.000000000000000000", 
+        "inflation_max": "0.000000000000000000",
         "inflation_min": "0.000000000000000000",
         "goal_bonded": "0.670000000000000000",
         "blocks_per_year": "15768000"
@@ -146,78 +160,182 @@
     },
     "hodl": {
       "params": {
-        "peg_rate": "1.000000000000000000",
+        "minting_enabled": true,
+        "collateral_ratio": "1.500000000000000000",
         "stability_fee": "0.001000000000000000",
-        "max_supply": "10000000000000000",
-        "min_collateral_ratio": "1.500000000000000000"
+        "liquidation_ratio": "1.300000000000000000",
+        "mint_fee": "0.001000000000000000",
+        "burn_fee": "0.001000000000000000"
       },
-      "total_supply": "1000000000000",
-      "reserve_pool": "0"
+      "total_supply": "1110000000000000",
+      "total_collateral": [],
+      "positions": []
     },
     "dex": {
       "params": {
         "trading_fee": "0.003000000000000000",
-        "max_slippage": "0.500000000000000000",
-        "order_timeout": "86400s"
+        "maker_fee": "0.001000000000000000",
+        "taker_fee": "0.002000000000000000",
+        "max_slippage": "0.100000000000000000",
+        "order_timeout": "86400s",
+        "min_order_size": "1000000",
+        "trading_enabled": true
       },
       "orders": [],
+      "trades": [],
       "markets": [
         {
-          "base_denom": "uapple",
-          "quote_denom": "uhodl",
+          "id": "1",
+          "base_symbol": "HODL",
+          "quote_symbol": "USD",
+          "base_denom": "uhodl",
+          "quote_denom": "uusd",
           "tick_size": "0.000001",
-          "min_quantity": "1"
-        },
-        {
-          "base_denom": "utsla", 
-          "quote_denom": "uhodl",
-          "tick_size": "0.000001",
-          "min_quantity": "1"
-        },
-        {
-          "base_denom": "ugoogl",
-          "quote_denom": "uhodl", 
-          "tick_size": "0.000001",
-          "min_quantity": "1"
-        },
-        {
-          "base_denom": "umsft",
-          "quote_denom": "uhodl",
-          "tick_size": "0.000001", 
-          "min_quantity": "1"
+          "lot_size": "1000000",
+          "min_quantity": "1000000",
+          "status": "active",
+          "is_native_pair": true
         }
-      ]
+      ],
+      "market_stats": []
     },
     "equity": {
       "params": {
         "issuance_fee": "0.001000000000000000",
         "transfer_fee": "0.000100000000000000",
-        "verification_deposit": "1000000000"
+        "verification_deposit": "1000000000000",
+        "min_company_deposit": "10000000000",
+        "dividend_fee": "0.001000000000000000"
       },
-      "companies": [],
-      "share_classes": [],
-      "shareholdings": []
+      "companies": [
+        {
+          "id": "1",
+          "name": "ShareHODL Inc.",
+          "symbol": "HODL",
+          "description": "ShareHODL is a decentralized platform for tokenized equity trading. The HODL token represents ownership in the ShareHODL network and serves as the native currency for all transactions.",
+          "founder": "sharehodl1genesis0000000000000000000000000",
+          "website": "https://sharehodl.io",
+          "industry": "Financial Technology",
+          "country": "Decentralized",
+          "status": 1,
+          "verified": true,
+          "listing_fee": [],
+          "total_shares": "1110000000000000",
+          "authorized_shares": "10000000000000000",
+          "par_value": "0.000001000000000000",
+          "market_cap": "0",
+          "last_valuation": "0",
+          "created_at": "2024-12-04T00:00:00.000000000Z",
+          "updated_at": "2024-12-04T00:00:00.000000000Z"
+        }
+      ],
+      "share_classes": [
+        {
+          "company_id": "1",
+          "class_id": "COMMON",
+          "name": "Common Stock",
+          "description": "Common voting shares of ShareHODL Inc. Each HODL token represents one common share with full voting and dividend rights.",
+          "voting_rights": true,
+          "dividend_rights": true,
+          "liquidation_preference": false,
+          "conversion_rights": false,
+          "authorized_shares": "10000000000000000",
+          "issued_shares": "1110000000000000",
+          "outstanding_shares": "1110000000000000",
+          "par_value": "0.000001000000000000",
+          "current_price": "1.000000000000000000",
+          "transferable": true,
+          "restricted_to": [],
+          "lockup_period": "0s",
+          "created_at": "2024-12-04T00:00:00.000000000Z",
+          "updated_at": "2024-12-04T00:00:00.000000000Z"
+        }
+      ],
+      "shareholdings": [
+        {
+          "company_id": "1",
+          "class_id": "COMMON",
+          "owner": "sharehodl1genesis0000000000000000000000000",
+          "shares": "100000000000000",
+          "vested_shares": "100000000000000",
+          "locked_shares": "0",
+          "cost_basis": "0.000001000000000000",
+          "total_cost": "100000.000000000000000000",
+          "acquisition_date": "2024-12-04T00:00:00.000000000Z",
+          "transfer_restricted": false,
+          "updated_at": "2024-12-04T00:00:00.000000000Z"
+        },
+        {
+          "company_id": "1",
+          "class_id": "COMMON",
+          "owner": "sharehodl1treasury0000000000000000000000",
+          "shares": "1010000000000000",
+          "vested_shares": "1010000000000000",
+          "locked_shares": "0",
+          "cost_basis": "0.000001000000000000",
+          "total_cost": "1010000.000000000000000000",
+          "acquisition_date": "2024-12-04T00:00:00.000000000Z",
+          "transfer_restricted": false,
+          "updated_at": "2024-12-04T00:00:00.000000000Z"
+        }
+      ],
+      "dividends": [],
+      "vesting_schedules": []
     },
-    "validator": {
+    "escrow": {
       "params": {
-        "min_stake_bronze": "10000000000",
-        "min_stake_silver": "100000000000", 
-        "min_stake_gold": "1000000000000",
-        "min_stake_platinum": "5000000000000",
-        "min_stake_diamond": "10000000000000",
-        "reward_multiplier_bronze": "1.000000000000000000",
-        "reward_multiplier_silver": "1.200000000000000000",
-        "reward_multiplier_gold": "1.500000000000000000", 
-        "reward_multiplier_platinum": "2.000000000000000000",
-        "reward_multiplier_diamond": "3.000000000000000000"
+        "min_escrow_amount": "1000000",
+        "max_escrow_duration": "2592000s",
+        "dispute_resolution_period": "604800s",
+        "moderator_fee_percent": "0.010000000000000000",
+        "min_moderator_stake": "100000000000",
+        "required_moderator_votes": 3
       },
-      "validator_tiers": []
+      "escrows": [],
+      "disputes": [],
+      "moderators": []
+    },
+    "lending": {
+      "params": {
+        "min_loan_amount": "10000000",
+        "max_loan_duration": "31536000s",
+        "min_collateral_ratio": "1.500000000000000000",
+        "liquidation_threshold": "1.200000000000000000",
+        "liquidation_penalty": "0.100000000000000000",
+        "base_interest_rate": "0.050000000000000000",
+        "interest_rate_multiplier": "0.200000000000000000",
+        "protocol_fee": "0.001000000000000000"
+      },
+      "loans": [],
+      "pools": [],
+      "pool_deposits": []
+    },
+    "governance": {
+      "params": {
+        "min_deposit": "10000000000",
+        "max_deposit_period_days": 7,
+        "voting_period_days": 14,
+        "quorum": "0.334000000000000000",
+        "threshold": "0.500000000000000000",
+        "veto_threshold": "0.334000000000000000",
+        "burn_deposits": true,
+        "burn_vote_veto": true,
+        "min_initial_deposit_ratio": "0.250000000000000000"
+      },
+      "proposals": [],
+      "votes": [],
+      "deposits": [],
+      "delegations": []
     },
     "crisis": {
       "constant_fee": {
         "denom": "uhodl",
-        "amount": "1000000000"
+        "amount": "1000000000000"
       }
+    },
+    "upgrade": {
+      "current_plan": null,
+      "done_upgrades": []
     }
   },
   "consensus": {

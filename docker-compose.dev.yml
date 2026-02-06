@@ -14,7 +14,7 @@ services:
       - "9090:9090"    # gRPC
       - "9091:9091"    # gRPC Web
     volumes:
-      - ./data/node:/root/.sharehodl
+      - sharehodl_node_data:/root/.sharehodl
       - ./scripts:/scripts
     environment:
       - CHAIN_ID=sharehodl-local-1
@@ -27,29 +27,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
-
-  # Local faucet service
-  faucet:
-    build:
-      context: .
-      dockerfile: services/faucet/Dockerfile
-    container_name: sharehodl-faucet
-    ports:
-      - "8080:8080"
-    environment:
-      - CHAIN_ID=sharehodl-local-1
-      - NODE_URL=http://sharehodl-node:1317
-      - FAUCET_MNEMONIC=abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art
-      - DAILY_LIMIT=1000000000hodl,100000000shodl
-      - REQUEST_LIMIT=100000000hodl,10000000shodl
-    volumes:
-      - ./data/faucet:/data
-    networks:
-      - sharehodl-network
-    depends_on:
-      sharehodl-node:
-        condition: service_healthy
     restart: unless-stopped
 
   # PostgreSQL for advanced indexing and analytics
@@ -111,14 +88,12 @@ services:
       - "3000:3000"
     environment:
       - NODE_URL=http://sharehodl-node:1317
-      - FAUCET_URL=http://faucet:8080
       - DATABASE_URL=postgres://sharehodl:sharehodl123@postgres:5432/sharehodl
       - REDIS_URL=redis://redis:6379
     networks:
       - sharehodl-network
     depends_on:
       - sharehodl-node
-      - faucet
       - postgres
       - redis
     restart: unless-stopped
@@ -147,11 +122,8 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  sharehodl_node_data:
 
 networks:
   sharehodl-network:
     driver: bridge
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16

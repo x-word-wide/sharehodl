@@ -27,13 +27,26 @@ func (m *GenesisState) String() string {
 }
 
 // Params defines the parameters for the hodl module.
+// ALL parameters are governance-controllable via validator voting
 type Params struct {
-	MintingEnabled   bool               `json:"minting_enabled" yaml:"minting_enabled"`
-	CollateralRatio  math.LegacyDec     `json:"collateral_ratio" yaml:"collateral_ratio"`
-	StabilityFee     math.LegacyDec     `json:"stability_fee" yaml:"stability_fee"`
-	LiquidationRatio math.LegacyDec     `json:"liquidation_ratio" yaml:"liquidation_ratio"`
-	MintFee         math.LegacyDec      `json:"mint_fee" yaml:"mint_fee"`
-	BurnFee         math.LegacyDec      `json:"burn_fee" yaml:"burn_fee"`
+	// Core parameters
+	MintingEnabled   bool           `json:"minting_enabled" yaml:"minting_enabled"`
+	CollateralRatio  math.LegacyDec `json:"collateral_ratio" yaml:"collateral_ratio"`     // 150% default
+	StabilityFee     math.LegacyDec `json:"stability_fee" yaml:"stability_fee"`           // 0.05% annual
+	LiquidationRatio math.LegacyDec `json:"liquidation_ratio" yaml:"liquidation_ratio"`   // 130% default
+	MintFee          math.LegacyDec `json:"mint_fee" yaml:"mint_fee"`                     // 0.01% default
+	BurnFee          math.LegacyDec `json:"burn_fee" yaml:"burn_fee"`                     // 0.01% default
+
+	// Liquidation parameters (governance-controllable)
+	LiquidationPenalty math.LegacyDec `json:"liquidation_penalty" yaml:"liquidation_penalty"` // 10% default
+	LiquidatorReward   math.LegacyDec `json:"liquidator_reward" yaml:"liquidator_reward"`     // 5% of penalty
+
+	// Price oracle parameters (governance-controllable)
+	MaxPriceDeviation math.LegacyDec `json:"max_price_deviation" yaml:"max_price_deviation"` // 20% max change
+
+	// System parameters (governance-controllable)
+	BlocksPerYear   uint64   `json:"blocks_per_year" yaml:"blocks_per_year"`       // ~5,256,000 at 6s blocks
+	MaxBadDebtLimit math.Int `json:"max_bad_debt_limit" yaml:"max_bad_debt_limit"` // Circuit breaker
 }
 
 // ProtoMessage implements proto.Message interface

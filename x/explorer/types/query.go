@@ -494,3 +494,23 @@ func NewQueryAnalyticsRequest(timeFrame string, startTime, endTime time.Time) *Q
 		EndTime:   timestamppb.New(endTime),
 	}
 }
+
+// RegisterQueryServer is a placeholder stub for gRPC registration
+// This will be replaced when protobuf generation is available
+func RegisterQueryServer(server interface{}, impl QueryServer) {
+	// Placeholder - will be implemented via proto generation
+}
+
+// RegisterQueryHandlerClient is a placeholder stub for gRPC gateway registration
+func RegisterQueryHandlerClient(ctx context.Context, mux interface{}, client interface{}) error {
+	return nil
+}
+
+// NewQueryClient creates a query client (placeholder)
+func NewQueryClient(cc interface{}) QueryClient {
+	return &queryClient{}
+}
+
+type queryClient struct{}
+
+type QueryClient interface {}

@@ -1,0 +1,11 @@
+syntax = "proto3";
+package sharehodl.explorer.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/x/explorer/types";
+
+// Query defines the gRPC querier service
+service Query {
+  // Placeholder - queries will be added as needed
+}

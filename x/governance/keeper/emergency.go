@@ -1,12 +1,13 @@
 package keeper
 
 import (
+	"encoding/json"
+	"fmt"
+	"time"
+
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/governance/types"
-	validatortypes "github.com/sharehodl/sharehodl-blockchain/x/validator/types"
-	"fmt"
-	"time"
 )
 
 // SubmitEmergencyProposal submits an emergency proposal with expedited procedures
@@ -18,7 +19,7 @@ func (k Keeper) SubmitEmergencyProposal(
 	description string,
 	justification string,
 	severityLevel int,
-	targetEntity string, // For validator/company specific emergencies
+	targetEntity string,
 ) (uint64, error) {
 	submitterAddr, err := sdk.AccAddressFromBech32(submitter)
 	if err != nil {
@@ -41,41 +42,41 @@ func (k Keeper) SubmitEmergencyProposal(
 
 	// Create emergency proposal
 	emergencyProposal := types.EmergencyProposal{
-		ProposalID:     proposalID,
-		EmergencyType:  emergencyType,
-		SeverityLevel:  severityLevel,
-		Justification:  justification,
-		RequiredTier:   requiredTier.String(),
-		FastTrack:      severityLevel >= 4, // Severity 4+ gets fast track
-		ExecuteOnPass:  severityLevel >= 3, // Severity 3+ executes immediately
-		TimeLimit:      k.getExecutionTimeLimit(emergencyType, severityLevel),
-		CreatedAt:      ctx.BlockTime(),
+		ProposalID:    proposalID,
+		EmergencyType: emergencyType,
+		SeverityLevel: severityLevel,
+		Justification: justification,
+		RequiredTier:  fmt.Sprintf("%d", requiredTier),
+		FastTrack:     severityLevel >= 4,
+		ExecuteOnPass: severityLevel >= 3,
+		TimeLimit:     k.getExecutionTimeLimit(emergencyType, severityLevel),
+		CreatedAt:     ctx.BlockTime(),
 	}
 
 	// Create main governance proposal
 	proposal := types.Proposal{
-		ID:                proposalID,
-		Type:              types.ProposalTypeEmergencyAction,
-		Title:             fmt.Sprintf("[EMERGENCY:%s] %s", emergencyType.String(), title),
-		Description:       description,
-		Proposer:          submitter,
-		Status:            types.ProposalStatusVotingPeriod, // Skip deposit period
-		VotingStartTime:   ctx.BlockTime(),
-		VotingEndTime:     ctx.BlockTime().Add(votingPeriod),
-		DepositEndTime:    ctx.BlockTime(),
-		TotalDeposit:      math.ZeroInt(),
-		MinDeposit:        math.ZeroInt(),
-		YesVotes:          math.ZeroInt(),
-		NoVotes:           math.ZeroInt(),
-		AbstainVotes:      math.ZeroInt(),
-		NoWithVetoVotes:   math.ZeroInt(),
-		TotalVotingPower:  math.ZeroInt(),
-		Quorum:            quorum,
-		Threshold:         threshold,
-		VetoThreshold:     math.LegacyNewDecWithPrec(25, 2), // 25% for emergency
-		ValidatorAddr:     targetEntity,
-		CreatedAt:         ctx.BlockTime(),
-		UpdatedAt:         ctx.BlockTime(),
+		ID:               proposalID,
+		Type:             types.ProposalTypeEmergencyAction,
+		Title:            fmt.Sprintf("[EMERGENCY] %s", title),
+		Description:      description,
+		Proposer:         submitter,
+		Status:           types.ProposalStatusVotingPeriod,
+		VotingStartTime:  ctx.BlockTime(),
+		VotingEndTime:    ctx.BlockTime().Add(votingPeriod),
+		DepositEndTime:   ctx.BlockTime(),
+		TotalDeposit:     math.ZeroInt(),
+		MinDeposit:       math.ZeroInt(),
+		YesVotes:         math.ZeroInt(),
+		NoVotes:          math.ZeroInt(),
+		AbstainVotes:     math.ZeroInt(),
+		NoWithVetoVotes:  math.ZeroInt(),
+		TotalVotingPower: math.ZeroInt(),
+		Quorum:           quorum,
+		Threshold:        threshold,
+		VetoThreshold:    math.LegacyNewDecWithPrec(25, 2),
+		ValidatorAddr:    targetEntity,
+		CreatedAt:        ctx.BlockTime(),
+		UpdatedAt:        ctx.BlockTime(),
 	}
 
 	// Store proposals
@@ -84,7 +85,6 @@ func (k Keeper) SubmitEmergencyProposal(
 
 	// Index proposals
 	k.indexProposal(ctx, proposal)
-	k.indexEmergencyProposal(ctx, emergencyProposal)
 
 	// Immediately notify validators if severity is high
 	if severityLevel >= 4 {
@@ -95,12 +95,10 @@ func (k Keeper) SubmitEmergencyProposal(
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"submit_emergency_proposal",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
-			sdk.NewAttribute("emergency_type", emergencyType.String()),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
 			sdk.NewAttribute("severity_level", fmt.Sprintf("%d", severityLevel)),
 			sdk.NewAttribute("submitter", submitter),
 			sdk.NewAttribute("fast_track", fmt.Sprintf("%t", emergencyProposal.FastTrack)),
-			sdk.NewAttribute("execute_on_pass", fmt.Sprintf("%t", emergencyProposal.ExecuteOnPass)),
 		),
 	)
 
@@ -156,7 +154,7 @@ func (k Keeper) VoteOnEmergencyProposal(
 		ProposalID:    proposalID,
 		Voter:         voter,
 		Option:        option,
-		VotingPower:   votingPower,
+		VotingPower:   votingPower.TruncateInt(),
 		Weight:        math.LegacyOneDec(),
 		Justification: reason,
 		VotedAt:       ctx.BlockTime(),
@@ -172,8 +170,7 @@ func (k Keeper) VoteOnEmergencyProposal(
 	if emergencyProposal.ExecuteOnPass && k.hasReachedEmergencyThreshold(ctx, proposal, emergencyProposal) {
 		err = k.executeEmergencyProposal(ctx, proposal, emergencyProposal)
 		if err != nil {
-			// Log error but don't fail the vote
-			ctx.Logger().Error("Failed to execute emergency proposal immediately", 
+			ctx.Logger().Error("Failed to execute emergency proposal immediately",
 				"proposal_id", proposalID, "error", err)
 		}
 	}
@@ -182,11 +179,10 @@ func (k Keeper) VoteOnEmergencyProposal(
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"vote_emergency_proposal",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
 			sdk.NewAttribute("voter", voter),
 			sdk.NewAttribute("option", option.String()),
 			sdk.NewAttribute("voting_power", votingPower.String()),
-			sdk.NewAttribute("emergency_type", emergencyProposal.EmergencyType.String()),
 		),
 	)
 
@@ -231,12 +227,12 @@ func (k Keeper) validateEmergencyProposalSubmission(
 	}
 
 	// Check if submitter is a qualified validator
-	validator, found := k.validatorKeeper.GetValidator(ctx, submitter.String())
-	if !found {
+	validator := k.GetValidatorByAddress(ctx, submitter.String())
+	if validator.Address == "" {
 		return types.ErrValidatorNotFound
 	}
 
-	tier := k.validatorKeeper.GetValidatorTier(ctx, validator.Address)
+	tier := validator.Tier
 	requiredTier := k.getRequiredSubmitterTier(emergencyType, severityLevel)
 
 	if tier < requiredTier {
@@ -244,7 +240,7 @@ func (k Keeper) validateEmergencyProposalSubmission(
 	}
 
 	// Check validator status
-	if !k.validatorKeeper.IsValidatorActive(ctx, validator.Address) {
+	if !validator.Active {
 		return types.ErrValidatorNotActive
 	}
 
@@ -268,12 +264,12 @@ func (k Keeper) validateEmergencyVoting(
 	}
 
 	// Check if voter meets tier requirement
-	validator, found := k.validatorKeeper.GetValidator(ctx, voter.String())
-	if !found {
+	validator := k.GetValidatorByAddress(ctx, voter.String())
+	if validator.Address == "" {
 		return types.ErrValidatorNotFound
 	}
 
-	tier := k.validatorKeeper.GetValidatorTier(ctx, validator.Address)
+	tier := validator.Tier
 	requiredTier := k.getRequiredValidatorTier(emergencyProposal.EmergencyType, emergencyProposal.SeverityLevel)
 
 	if tier < requiredTier {
@@ -290,19 +286,19 @@ func (k Keeper) calculateEmergencyVotingPower(
 	emergencyProposal types.EmergencyProposal,
 	voter sdk.AccAddress,
 ) (math.LegacyDec, error) {
-	validator, found := k.validatorKeeper.GetValidator(ctx, voter.String())
-	if !found {
+	validator := k.GetValidatorByAddress(ctx, voter.String())
+	if validator.Address == "" {
 		return math.LegacyZeroDec(), types.ErrValidatorNotFound
 	}
 
-	tier := k.validatorKeeper.GetValidatorTier(ctx, validator.Address)
-	
+	tier := validator.Tier
+
 	// Base voting power from tier
-	basePower := k.getValidatorTierMultiplier(tier)
-	
+	basePower := k.getTierMultiplier(tier)
+
 	// Emergency multiplier based on type and severity
 	emergencyMultiplier := k.getEmergencyMultiplier(emergencyProposal.EmergencyType, emergencyProposal.SeverityLevel)
-	
+
 	return basePower.Mul(emergencyMultiplier), nil
 }
 
@@ -310,89 +306,83 @@ func (k Keeper) calculateEmergencyVotingPower(
 
 func (k Keeper) getEmergencyVotingPeriod(emergencyType types.EmergencyType, severityLevel int) time.Duration {
 	baseHours := 24
-	
-	// Reduce voting period based on severity
+
 	switch severityLevel {
 	case 5:
-		baseHours = 2  // 2 hours for most critical
+		baseHours = 2
 	case 4:
-		baseHours = 6  // 6 hours for critical
+		baseHours = 6
 	case 3:
-		baseHours = 12 // 12 hours for high
+		baseHours = 12
 	case 2:
-		baseHours = 18 // 18 hours for medium
+		baseHours = 18
 	default:
-		baseHours = 24 // 24 hours for low
+		baseHours = 24
 	}
-	
+
 	return time.Hour * time.Duration(baseHours)
 }
 
 func (k Keeper) getEmergencyQuorum(emergencyType types.EmergencyType, severityLevel int) math.LegacyDec {
-	// Lower quorum for higher severity
 	switch severityLevel {
 	case 5:
-		return math.LegacyNewDecWithPrec(33, 2) // 33%
+		return math.LegacyNewDecWithPrec(33, 2)
 	case 4:
-		return math.LegacyNewDecWithPrec(40, 2) // 40%
+		return math.LegacyNewDecWithPrec(40, 2)
 	case 3:
-		return math.LegacyNewDecWithPrec(50, 2) // 50%
+		return math.LegacyNewDecWithPrec(50, 2)
 	case 2:
-		return math.LegacyNewDecWithPrec(60, 2) // 60%
+		return math.LegacyNewDecWithPrec(60, 2)
 	default:
-		return math.LegacyNewDecWithPrec(67, 2) // 67%
+		return math.LegacyNewDecWithPrec(67, 2)
 	}
 }
 
 func (k Keeper) getEmergencyThreshold(emergencyType types.EmergencyType, severityLevel int) math.LegacyDec {
-	// Different thresholds based on emergency type
 	switch emergencyType {
 	case types.EmergencyTypeSecurityBreach, types.EmergencyTypeSystemOutage:
-		return math.LegacyNewDecWithPrec(60, 2) // 60% for security issues
+		return math.LegacyNewDecWithPrec(60, 2)
 	case types.EmergencyTypeMarketHalt:
-		return math.LegacyNewDecWithPrec(67, 2) // 67% for market halts
+		return math.LegacyNewDecWithPrec(67, 2)
 	case types.EmergencyTypeValidatorSlash:
-		return math.LegacyNewDecWithPrec(75, 2) // 75% for validator punishment
+		return math.LegacyNewDecWithPrec(75, 2)
 	default:
-		return math.LegacyNewDecWithPrec(67, 2) // 67% default
+		return math.LegacyNewDecWithPrec(67, 2)
 	}
 }
 
-func (k Keeper) getRequiredValidatorTier(emergencyType types.EmergencyType, severityLevel int) validatortypes.ValidatorTier {
+func (k Keeper) getRequiredValidatorTier(emergencyType types.EmergencyType, severityLevel int) int {
 	switch severityLevel {
 	case 5, 4:
-		return validatortypes.TierGold // Highest severity requires Gold+
+		return 4 // Archon
 	case 3:
-		return validatortypes.TierSilver // High severity requires Silver+
+		return 3 // Steward
 	default:
-		return validatortypes.TierBronze // Lower severity requires Bronze+
+		return 2 // Warden
 	}
 }
 
-func (k Keeper) getRequiredSubmitterTier(emergencyType types.EmergencyType, severityLevel int) validatortypes.ValidatorTier {
-	// Submitters need higher tier than voters
+func (k Keeper) getRequiredSubmitterTier(emergencyType types.EmergencyType, severityLevel int) int {
 	switch severityLevel {
 	case 5:
-		return validatortypes.TierPlatinum // Most critical requires Platinum
+		return 5 // Validator
 	case 4:
-		return validatortypes.TierGold     // Critical requires Gold
+		return 4 // Archon
 	case 3:
-		return validatortypes.TierSilver   // High requires Silver
+		return 3 // Steward
 	default:
-		return validatortypes.TierBronze   // Lower requires Bronze
+		return 2 // Warden
 	}
 }
 
 func (k Keeper) getEmergencyMultiplier(emergencyType types.EmergencyType, severityLevel int) math.LegacyDec {
-	// Higher severity gets higher multiplier
 	baseMultiplier := math.LegacyNewDec(int64(severityLevel))
-	
-	// Type-specific adjustments
+
 	switch emergencyType {
 	case types.EmergencyTypeSecurityBreach:
-		return baseMultiplier.Mul(math.LegacyNewDecWithPrec(15, 1)) // 1.5x
+		return baseMultiplier.Mul(math.LegacyNewDecWithPrec(15, 1))
 	case types.EmergencyTypeSystemOutage:
-		return baseMultiplier.Mul(math.LegacyNewDecWithPrec(12, 1)) // 1.2x
+		return baseMultiplier.Mul(math.LegacyNewDecWithPrec(12, 1))
 	default:
 		return baseMultiplier
 	}
@@ -401,13 +391,13 @@ func (k Keeper) getEmergencyMultiplier(emergencyType types.EmergencyType, severi
 func (k Keeper) getExecutionTimeLimit(emergencyType types.EmergencyType, severityLevel int) time.Duration {
 	switch severityLevel {
 	case 5:
-		return time.Minute * 15 // 15 minutes for most critical
+		return time.Minute * 15
 	case 4:
-		return time.Hour * 1    // 1 hour for critical
+		return time.Hour * 1
 	case 3:
-		return time.Hour * 4    // 4 hours for high
+		return time.Hour * 4
 	default:
-		return time.Hour * 24   // 24 hours for lower severity
+		return time.Hour * 24
 	}
 }
 
@@ -417,25 +407,21 @@ func (k Keeper) hasReachedEmergencyThreshold(
 	emergencyProposal types.EmergencyProposal,
 ) bool {
 	tally := proposal.CalculateTallyResult()
-	
-	// Check if threshold is met
+
 	if tally.Turnout.LT(proposal.Quorum) {
 		return false
 	}
-	
+
 	return tally.YesPercentage.GTE(proposal.Threshold)
 }
 
 // Alert and notification functions
 
 func (k Keeper) broadcastEmergencyAlert(ctx sdk.Context, proposal types.EmergencyProposal) {
-	// Implementation would send alerts to all validators
-	// This could use the event system or a separate notification mechanism
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"emergency_alert",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposal.ProposalID).String()),
-			sdk.NewAttribute("emergency_type", proposal.EmergencyType.String()),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposal.ProposalID)),
 			sdk.NewAttribute("severity_level", fmt.Sprintf("%d", proposal.SeverityLevel)),
 			sdk.NewAttribute("alert_time", ctx.BlockTime().String()),
 		),
@@ -445,68 +431,50 @@ func (k Keeper) broadcastEmergencyAlert(ctx sdk.Context, proposal types.Emergenc
 // Storage functions
 
 func (k Keeper) setEmergencyProposal(ctx sdk.Context, proposal types.EmergencyProposal) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
+	store := k.storeService.OpenKVStore(ctx)
 	key := types.EmergencyProposalKey(proposal.ProposalID)
-	value := k.cdc.MustMarshal(&proposal)
+	value, _ := json.Marshal(proposal)
 	store.Set(key, value)
 }
 
 func (k Keeper) GetEmergencyProposal(ctx sdk.Context, proposalID uint64) (types.EmergencyProposal, bool) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
+	store := k.storeService.OpenKVStore(ctx)
 	key := types.EmergencyProposalKey(proposalID)
-	
-	value := store.Get(key)
-	if value == nil {
+
+	value, err := store.Get(key)
+	if err != nil || value == nil {
 		return types.EmergencyProposal{}, false
 	}
 
 	var proposal types.EmergencyProposal
-	k.cdc.MustUnmarshal(value, &proposal)
+	if err := json.Unmarshal(value, &proposal); err != nil {
+		return types.EmergencyProposal{}, false
+	}
 	return proposal, true
-}
-
-func (k Keeper) indexEmergencyProposal(ctx sdk.Context, proposal types.EmergencyProposal) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	
-	// Index by emergency type
-	typeKey := types.EmergencyTypeIndexKey(proposal.EmergencyType)
-	typeIndexKey := append(typeKey, sdk.Uint64ToBigEndian(proposal.ProposalID)...)
-	store.Set(typeIndexKey, []byte{})
-	
-	// Index by severity
-	severityKey := types.EmergencySeverityIndexKey(proposal.SeverityLevel)
-	severityIndexKey := append(severityKey, sdk.Uint64ToBigEndian(proposal.ProposalID)...)
-	store.Set(severityIndexKey, []byte{})
 }
 
 // Execution implementations (placeholders)
 
 func (k Keeper) executeSecurityBreachResponse(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would handle security breach response
 	return nil
 }
 
 func (k Keeper) executeMarketHalt(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would halt trading
 	return nil
 }
 
 func (k Keeper) executeValidatorSlashing(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would slash validator
 	return nil
 }
 
 func (k Keeper) executeEmergencyProtocolUpgrade(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would trigger protocol upgrade
 	return nil
 }
 
 func (k Keeper) executeEmergencyDelisting(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would delist company
 	return nil
 }
 
 func (k Keeper) executeSystemOutageResponse(ctx sdk.Context, proposal types.Proposal, emergency types.EmergencyProposal) error {
-	// Implementation would handle system outage
 	return nil
 }

@@ -1,12 +1,12 @@
 package keeper
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"cosmossdk.io/math"
-	"cosmossdk.io/store/prefix"
-	storetypes "cosmossdk.io/store/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/governance/types"
-	"time"
 )
 
 // DelegateVotingPower delegates voting power to another address
@@ -25,8 +25,7 @@ func (k Keeper) DelegateVotingPower(
 		return types.ErrInvalidAddress
 	}
 
-	delegateAddr, err := sdk.AccAddressFromBech32(delegate)
-	if err != nil {
+	if _, err := sdk.AccAddressFromBech32(delegate); err != nil {
 		return types.ErrInvalidAddress
 	}
 
@@ -60,19 +59,16 @@ func (k Keeper) DelegateVotingPower(
 	// Store delegation
 	k.setVoteDelegation(ctx, delegation)
 
-	// Update delegation indexes
-	k.indexDelegation(ctx, delegation)
-
 	// Emit event
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"delegate_voting_power",
 			sdk.NewAttribute("delegator", delegator),
 			sdk.NewAttribute("delegate", delegate),
-			sdk.NewAttribute("company_id", sdk.Uint64ToBigEndian(companyID).String()),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", companyID)),
 			sdk.NewAttribute("proposal_type", proposalType.String()),
 			sdk.NewAttribute("voting_power", votingPower.String()),
-			sdk.NewAttribute("expiry_height", sdk.Uint64ToBigEndian(expiryHeight).String()),
+			sdk.NewAttribute("expiry_height", fmt.Sprintf("%d", expiryHeight)),
 		),
 	)
 
@@ -109,7 +105,6 @@ func (k Keeper) RevokeDelegation(
 
 	// Remove delegation
 	k.removeDelegation(ctx, delegation)
-	k.removeFromDelegationIndexes(ctx, delegation)
 
 	// Emit event
 	ctx.EventManager().EmitEvent(
@@ -117,7 +112,7 @@ func (k Keeper) RevokeDelegation(
 			"revoke_delegation",
 			sdk.NewAttribute("delegator", delegator),
 			sdk.NewAttribute("delegate", delegate),
-			sdk.NewAttribute("company_id", sdk.Uint64ToBigEndian(companyID).String()),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", companyID)),
 			sdk.NewAttribute("proposal_type", proposalType.String()),
 		),
 	)
@@ -153,7 +148,10 @@ func (k Keeper) VoteAsDelegate(
 	delegations := k.GetDelegationsForDelegate(ctx, delegateAddr, proposal.Type)
 
 	totalDelegatedPower := math.LegacyZeroDec()
-	
+
+	// Track delegators whose voting power was used
+	var votedDelegators []sdk.AccAddress
+
 	for _, delegation := range delegations {
 		// Check if delegation is valid
 		if k.isDelegationValid(ctx, delegation) {
@@ -161,10 +159,13 @@ func (k Keeper) VoteAsDelegate(
 			delegatorAddr, _ := sdk.AccAddressFromBech32(delegation.Delegator)
 			if !k.hasVoted(ctx, proposalID, delegatorAddr) {
 				totalDelegatedPower = totalDelegatedPower.Add(delegation.VotingPower)
-				
+
 				// Mark delegation as used
 				delegation.LastUsed = ctx.BlockTime()
 				k.setVoteDelegation(ctx, delegation)
+
+				// Track this delegator
+				votedDelegators = append(votedDelegators, delegatorAddr)
 			}
 		}
 	}
@@ -183,14 +184,11 @@ func (k Keeper) VoteAsDelegate(
 	totalVotingPower := ownVotingPower.Add(totalDelegatedPower)
 
 	vote := types.Vote{
-		ProposalID:    proposalID,
-		Voter:         delegate,
-		Option:        option,
-		Weight:        math.LegacyOneDec(),
-		VotingPower:   totalVotingPower,
-		DelegatedPower: totalDelegatedPower,
-		Reason:        reason,
-		SubmittedAt:   ctx.BlockTime(),
+		ProposalID:  proposalID,
+		Voter:       delegate,
+		Option:      option,
+		Weight:      math.LegacyOneDec(),
+		VotingPower: totalVotingPower.TruncateInt(),
 	}
 
 	// Store vote
@@ -199,16 +197,33 @@ func (k Keeper) VoteAsDelegate(
 	// Update tally
 	k.updateTallyResult(ctx, proposal, vote, math.LegacyOneDec())
 
+	// SECURITY FIX: Mark all delegators as having voted to prevent double voting
+	// When a delegate votes on behalf of delegators, the delegators should not be
+	// able to vote again directly on the same proposal
+	for _, delegatorAddr := range votedDelegators {
+		delegatorVote := types.Vote{
+			ProposalID:  proposalID,
+			Voter:       delegatorAddr.String(),
+			Option:      option,
+			Weight:      math.LegacyZeroDec(), // Zero weight since power already counted via delegate
+			VotingPower: math.ZeroInt(),
+			Justification: fmt.Sprintf("Voted via delegate: %s", delegate),
+			VotedAt:     ctx.BlockTime(),
+		}
+		k.setVote(ctx, delegatorVote)
+	}
+
 	// Emit event
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"vote_as_delegate",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
 			sdk.NewAttribute("delegate", delegate),
 			sdk.NewAttribute("option", option.String()),
 			sdk.NewAttribute("own_power", ownVotingPower.String()),
 			sdk.NewAttribute("delegated_power", totalDelegatedPower.String()),
 			sdk.NewAttribute("total_power", totalVotingPower.String()),
+			sdk.NewAttribute("delegators_count", fmt.Sprintf("%d", len(votedDelegators))),
 		),
 	)
 
@@ -230,7 +245,7 @@ func (k Keeper) calculateAvailableVotingPower(
 
 	// Subtract already delegated power
 	delegatedPower := k.getTotalDelegatedPower(ctx, addr, companyID, proposalType)
-	
+
 	availablePower := totalPower.Sub(delegatedPower)
 	if availablePower.IsNegative() {
 		return math.LegacyZeroDec(), nil
@@ -264,9 +279,9 @@ func (k Keeper) isDelegationValid(ctx sdk.Context, delegation types.VoteDelegati
 
 // setVoteDelegation stores a vote delegation
 func (k Keeper) setVoteDelegation(ctx sdk.Context, delegation types.VoteDelegation) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	key := types.DelegationKey(delegation.Delegator, delegation.CompanyID, delegation.ProposalType)
-	value := k.cdc.MustMarshal(&delegation)
+	store := k.storeService.OpenKVStore(ctx)
+	key := types.DelegationKey(delegation.Delegator, delegation.CompanyID, uint32(delegation.ProposalType))
+	value, _ := json.Marshal(delegation)
 	store.Set(key, value)
 }
 
@@ -277,16 +292,18 @@ func (k Keeper) GetDelegation(
 	companyID uint64,
 	proposalType types.ProposalType,
 ) (types.VoteDelegation, bool) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	key := types.DelegationKey(delegator.String(), companyID, proposalType)
-	
-	value := store.Get(key)
-	if value == nil {
+	store := k.storeService.OpenKVStore(ctx)
+	key := types.DelegationKey(delegator.String(), companyID, uint32(proposalType))
+
+	value, err := store.Get(key)
+	if err != nil || value == nil {
 		return types.VoteDelegation{}, false
 	}
 
 	var delegation types.VoteDelegation
-	k.cdc.MustUnmarshal(value, &delegation)
+	if err := json.Unmarshal(value, &delegation); err != nil {
+		return types.VoteDelegation{}, false
+	}
 	return delegation, true
 }
 
@@ -296,63 +313,39 @@ func (k Keeper) GetDelegationsForDelegate(
 	delegate sdk.AccAddress,
 	proposalType types.ProposalType,
 ) []types.VoteDelegation {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	delegateStore := prefix.NewStore(store, types.DelegateIndexKey(delegate.String(), proposalType))
-	
+	store := k.storeService.OpenKVStore(ctx)
+
 	var delegations []types.VoteDelegation
-	
-	iterator := delegateStore.Iterator(nil, nil)
-	defer iterator.Close()
-	
-	for ; iterator.Valid(); iterator.Next() {
+
+	// Use prefix iteration - need to build prefix without delegator
+	prefixBytes := append(types.DelegateIndexPrefix, []byte(delegate.String())...)
+	prefixBytes = append(prefixBytes, 0x00) // separator
+	iter, err := store.Iterator(prefixBytes, types.PrefixEndBytes(prefixBytes))
+	if err != nil {
+		return delegations
+	}
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
 		var delegation types.VoteDelegation
-		k.cdc.MustUnmarshal(iterator.Value(), &delegation)
+		if err := json.Unmarshal(iter.Value(), &delegation); err != nil {
+			continue
+		}
 		delegations = append(delegations, delegation)
 	}
-	
+
 	return delegations
 }
 
 // removeDelegation removes a delegation from storage
 func (k Keeper) removeDelegation(ctx sdk.Context, delegation types.VoteDelegation) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	key := types.DelegationKey(delegation.Delegator, delegation.CompanyID, delegation.ProposalType)
+	store := k.storeService.OpenKVStore(ctx)
+	key := types.DelegationKey(delegation.Delegator, delegation.CompanyID, uint32(delegation.ProposalType))
 	store.Delete(key)
-}
 
-// indexDelegation creates indexes for efficient delegation queries
-func (k Keeper) indexDelegation(ctx sdk.Context, delegation types.VoteDelegation) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	
-	// Index by delegate
-	delegateKey := types.DelegateIndexKey(delegation.Delegate, delegation.ProposalType)
-	delegateIndexKey := append(delegateKey, []byte(delegation.Delegator)...)
-	value := k.cdc.MustMarshal(&delegation)
-	store.Set(delegateIndexKey, value)
-	
-	// Index by company
-	if delegation.CompanyID > 0 {
-		companyKey := types.CompanyDelegationIndexKey(delegation.CompanyID, delegation.ProposalType)
-		companyIndexKey := append(companyKey, []byte(delegation.Delegator)...)
-		store.Set(companyIndexKey, value)
-	}
-}
-
-// removeFromDelegationIndexes removes delegation from all indexes
-func (k Keeper) removeFromDelegationIndexes(ctx sdk.Context, delegation types.VoteDelegation) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	
-	// Remove from delegate index
-	delegateKey := types.DelegateIndexKey(delegation.Delegate, delegation.ProposalType)
-	delegateIndexKey := append(delegateKey, []byte(delegation.Delegator)...)
-	store.Delete(delegateIndexKey)
-	
-	// Remove from company index
-	if delegation.CompanyID > 0 {
-		companyKey := types.CompanyDelegationIndexKey(delegation.CompanyID, delegation.ProposalType)
-		companyIndexKey := append(companyKey, []byte(delegation.Delegator)...)
-		store.Delete(companyIndexKey)
-	}
+	// Also remove from delegate index
+	delegateKey := types.DelegateIndexKey(delegation.Delegate, uint32(delegation.ProposalType), delegation.Delegator)
+	store.Delete(delegateKey)
 }
 
 // getTotalDelegatedPower gets total power already delegated by an address
@@ -362,26 +355,33 @@ func (k Keeper) getTotalDelegatedPower(
 	companyID uint64,
 	proposalType types.ProposalType,
 ) math.LegacyDec {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	delegatorStore := prefix.NewStore(store, types.DelegatorIndexKey(addr.String()))
-	
+	store := k.storeService.OpenKVStore(ctx)
+
 	totalDelegated := math.LegacyZeroDec()
-	
-	iterator := delegatorStore.Iterator(nil, nil)
-	defer iterator.Close()
-	
-	for ; iterator.Valid(); iterator.Next() {
+
+	// Use prefix iteration for delegator's delegations
+	prefixBytes := append(types.DelegatorIndexPrefix, []byte(addr.String())...)
+	prefixBytes = append(prefixBytes, 0x00) // separator
+	iter, err := store.Iterator(prefixBytes, types.PrefixEndBytes(prefixBytes))
+	if err != nil {
+		return totalDelegated
+	}
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
 		var delegation types.VoteDelegation
-		k.cdc.MustUnmarshal(iterator.Value(), &delegation)
-		
+		if err := json.Unmarshal(iter.Value(), &delegation); err != nil {
+			continue
+		}
+
 		// Filter by company and proposal type if specified
 		if (companyID == 0 || delegation.CompanyID == companyID) &&
-		   (proposalType == 0 || delegation.ProposalType == proposalType) &&
-		   k.isDelegationValid(ctx, delegation) {
+			(proposalType == 0 || delegation.ProposalType == proposalType) &&
+			k.isDelegationValid(ctx, delegation) {
 			totalDelegated = totalDelegated.Add(delegation.VotingPower)
 		}
 	}
-	
+
 	return totalDelegated
 }
 
@@ -395,6 +395,6 @@ func (k Keeper) calculateVotingPowerForType(
 	dummyProposal := types.Proposal{
 		Type: proposalType,
 	}
-	
+
 	return k.calculateVotingPower(ctx, dummyProposal, addr)
 }

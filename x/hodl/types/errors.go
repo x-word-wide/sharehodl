@@ -14,4 +14,6 @@ var (
 	ErrInvalidBurnAmount        = errors.Register(ModuleName, 6, "invalid burn amount")
 	ErrLiquidationInProgress    = errors.Register(ModuleName, 7, "position is being liquidated")
 	ErrPositionNotFound         = errors.Register(ModuleName, 8, "collateral position not found")
+	ErrInvalidCollateral        = errors.Register(ModuleName, 9, "invalid collateral")
+	ErrInvalidAmount            = errors.Register(ModuleName, 10, "invalid amount - must be positive")
 )

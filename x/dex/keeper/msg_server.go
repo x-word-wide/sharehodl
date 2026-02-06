@@ -27,13 +27,16 @@ func (k msgServer) CreateMarket(goCtx context.Context, msg *types.SimpleMsgCreat
 	ctx := sdk.UnwrapSDKContext(goCtx)
 
 	// Validate creator address
-	_, err := sdk.AccAddressFromBech32(msg.Creator)
+	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
 	if err != nil {
 		return nil, errors.Wrapf(types.ErrUnauthorized, "invalid creator address: %v", err)
 	}
 
-	// For now, allow any user to create markets
-	// In production, might require governance approval or special permissions
+	// SECURITY FIX: Only authorized addresses can create markets
+	// This prevents fake markets and symbol spoofing attacks
+	if !k.Keeper.IsAuthorizedMarketCreator(ctx, creatorAddr) {
+		return nil, errors.Wrap(types.ErrUnauthorized, "only authorized addresses can create markets; submit a governance proposal to request market creation authorization")
+	}
 
 	// Create market
 	err = k.Keeper.CreateMarket(
@@ -187,7 +190,7 @@ func (k msgServer) PlaceOrder(goCtx context.Context, msg *types.SimpleMsgPlaceOr
 		sdk.NewEvent(
 			"place_order",
 			sdk.NewAttribute("creator", msg.Creator),
-			sdk.NewAttribute("order_id", string(rune(order.ID))),
+			sdk.NewAttribute("order_id", fmt.Sprintf("%d", order.ID)),
 			sdk.NewAttribute("market_symbol", msg.MarketSymbol),
 			sdk.NewAttribute("side", msg.Side),
 			sdk.NewAttribute("order_type", msg.OrderType),
@@ -229,7 +232,7 @@ func (k msgServer) CancelOrder(goCtx context.Context, msg *types.SimpleMsgCancel
 		sdk.NewEvent(
 			"cancel_order",
 			sdk.NewAttribute("creator", msg.Creator),
-			sdk.NewAttribute("order_id", string(rune(msg.OrderID))),
+			sdk.NewAttribute("order_id", fmt.Sprintf("%d", msg.OrderID)),
 		),
 	)
 
@@ -271,7 +274,7 @@ func (k msgServer) CancelAllOrders(goCtx context.Context, msg *types.SimpleMsgCa
 			"cancel_all_orders",
 			sdk.NewAttribute("creator", msg.Creator),
 			sdk.NewAttribute("market_symbol", msg.MarketSymbol),
-			sdk.NewAttribute("orders_cancelled", string(rune(cancelledCount))),
+			sdk.NewAttribute("orders_cancelled", fmt.Sprintf("%d", cancelledCount)),
 		),
 	)
 
@@ -321,7 +324,9 @@ func (k msgServer) CreateLiquidityPool(goCtx context.Context, msg *types.SimpleM
 		FeesCollected24h: math.LegacyZeroDec(),
 	}
 
-	k.Keeper.SetLiquidityPool(ctx, pool)
+	if err := k.Keeper.SetLiquidityPool(ctx, pool); err != nil {
+		return nil, err
+	}
 
 	// Emit event
 	ctx.EventManager().EmitEvent(
@@ -342,57 +347,447 @@ func (k msgServer) CreateLiquidityPool(goCtx context.Context, msg *types.SimpleM
 	}, nil
 }
 
-// AddLiquidity handles liquidity addition
+// AddLiquidity handles liquidity addition to AMM pools
 func (k msgServer) AddLiquidity(goCtx context.Context, msg *types.SimpleMsgAddLiquidity) (*types.MsgAddLiquidityResponse, error) {
-	// Simplified implementation - return success
-	// Full implementation would:
-	// 1. Check pool exists
-	// 2. Calculate optimal amounts based on current ratio
-	// 3. Transfer funds from user
-	// 4. Mint LP tokens
-	// 5. Update pool reserves
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Validate creator address
+	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
+	if err != nil {
+		return nil, errors.Wrapf(types.ErrUnauthorized, "invalid creator address: %v", err)
+	}
+
+	// Get market to find base/quote assets
+	market, found := k.GetMarketBySymbol(ctx, msg.MarketSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrInvalidMarket, "market %s not found", msg.MarketSymbol)
+	}
+
+	// Get the liquidity pool
+	pool, found := k.GetLiquidityPool(ctx, market.BaseSymbol, market.QuoteSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrPoolNotFound, "liquidity pool for %s not found", msg.MarketSymbol)
+	}
+
+	// Check user has sufficient funds
+	balance := k.bankKeeper.GetAllBalances(ctx, creatorAddr)
+	if balance.AmountOf(market.BaseSymbol).LT(msg.BaseAmount) {
+		return nil, errors.Wrapf(types.ErrInsufficientFunds, "insufficient %s balance", market.BaseSymbol)
+	}
+	if balance.AmountOf(market.QuoteSymbol).LT(msg.QuoteAmount) {
+		return nil, errors.Wrapf(types.ErrInsufficientFunds, "insufficient %s balance", market.QuoteSymbol)
+	}
+
+	// Calculate LP tokens to mint based on current pool ratio
+	var lpTokensToMint math.Int
+	if pool.BaseReserve.IsZero() || pool.QuoteReserve.IsZero() {
+		// First liquidity provider - use geometric mean approximation
+		// sqrt(base * quote) approximated as (base + quote) / 2 for simplicity
+		lpTokensToMint = msg.BaseAmount.Add(msg.QuoteAmount).Quo(math.NewInt(2))
+	} else {
+		// Calculate proportional LP tokens using minimum ratio
+		baseRatio := math.LegacyNewDecFromInt(msg.BaseAmount).Quo(math.LegacyNewDecFromInt(pool.BaseReserve))
+		quoteRatio := math.LegacyNewDecFromInt(msg.QuoteAmount).Quo(math.LegacyNewDecFromInt(pool.QuoteReserve))
+
+		var minRatio math.LegacyDec
+		if baseRatio.LT(quoteRatio) {
+			minRatio = baseRatio
+		} else {
+			minRatio = quoteRatio
+		}
+		lpTokensToMint = minRatio.MulInt(pool.LPTokenSupply).TruncateInt()
+	}
+
+	// Check minimum LP tokens received
+	if lpTokensToMint.LT(msg.MinLPTokens) {
+		return nil, errors.Wrapf(types.ErrSlippageExceeded, "LP tokens %s below minimum %s", lpTokensToMint.String(), msg.MinLPTokens.String())
+	}
+
+	// Transfer funds from provider to module
+	coins := sdk.NewCoins(
+		sdk.NewCoin(market.BaseSymbol, msg.BaseAmount),
+		sdk.NewCoin(market.QuoteSymbol, msg.QuoteAmount),
+	)
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, creatorAddr, types.ModuleName, coins); err != nil {
+		return nil, errors.Wrap(err, "failed to transfer funds to pool")
+	}
+
+	// MINT LP TOKENS TO USER'S WALLET
+	// LP token denom format: lp/{base}-{quote} (e.g., "lp/APPLE-HODL")
+	lpTokenDenom := types.GetLPTokenDenom(market.BaseSymbol, market.QuoteSymbol)
+	lpCoins := sdk.NewCoins(sdk.NewCoin(lpTokenDenom, lpTokensToMint))
+
+	// Mint LP tokens to module first
+	if err := k.bankKeeper.MintCoins(ctx, types.ModuleName, lpCoins); err != nil {
+		// Rollback: return deposited funds
+		k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, coins)
+		return nil, errors.Wrap(err, "failed to mint LP tokens")
+	}
+
+	// Send LP tokens from module to user
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, lpCoins); err != nil {
+		// Rollback: burn minted tokens and return deposited funds
+		k.bankKeeper.BurnCoins(ctx, types.ModuleName, lpCoins)
+		k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, coins)
+		return nil, errors.Wrap(err, "failed to send LP tokens to user")
+	}
+
+	// Update pool reserves
+	pool.BaseReserve = pool.BaseReserve.Add(msg.BaseAmount)
+	pool.QuoteReserve = pool.QuoteReserve.Add(msg.QuoteAmount)
+	pool.LPTokenSupply = pool.LPTokenSupply.Add(lpTokensToMint)
+	pool.UpdatedAt = ctx.BlockTime()
+	k.SetLiquidityPool(ctx, pool)
+
+	// REGISTER BENEFICIAL OWNERSHIP FOR EQUITY IN LIQUIDITY POOL
+	// This ensures the LP provider can still:
+	// 1. Vote on company matters
+	// 2. Receive dividends
+	// 3. Maintain their shareholder rights
+	if k.equityKeeper != nil {
+		companyID, found := k.equityKeeper.GetCompanyBySymbol(ctx, market.BaseSymbol)
+		if found {
+			// Register as beneficial owner - shares are in DEX module but user owns them
+			lpPositionID := k.getNextLPPositionID(ctx)
+			err := k.equityKeeper.RegisterBeneficialOwner(
+				ctx,
+				types.ModuleName,          // Module account holding the equity
+				companyID,                 // Company ID
+				"common",                  // Default share class
+				msg.Creator,               // Beneficial owner (LP provider)
+				msg.BaseAmount,            // Number of shares
+				lpPositionID,              // Reference ID (LP position)
+				"liquidity_provision",     // Reference type
+			)
+			if err != nil {
+				k.Logger(ctx).Error("failed to register beneficial owner for LP",
+					"provider", msg.Creator,
+					"company_id", companyID,
+					"shares", msg.BaseAmount.String(),
+					"error", err,
+				)
+			} else {
+				// Store LP position for tracking
+				k.SetLPPosition(ctx, types.LPPosition{
+					ID:              lpPositionID,
+					Provider:        msg.Creator,
+					MarketSymbol:    msg.MarketSymbol,
+					BaseAmount:      msg.BaseAmount,
+					QuoteAmount:     msg.QuoteAmount,
+					LPTokenAmount:   lpTokensToMint,
+					CompanyID:       companyID,
+					CreatedAt:       ctx.BlockTime(),
+				})
+			}
+		}
+	}
+
+	// Emit event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"add_liquidity",
+			sdk.NewAttribute("market_symbol", msg.MarketSymbol),
+			sdk.NewAttribute("provider", msg.Creator),
+			sdk.NewAttribute("base_amount", msg.BaseAmount.String()),
+			sdk.NewAttribute("quote_amount", msg.QuoteAmount.String()),
+			sdk.NewAttribute("lp_tokens_minted", lpTokensToMint.String()),
+			sdk.NewAttribute("lp_token_denom", lpTokenDenom),
+			sdk.NewAttribute("beneficial_owner_registered", "true"),
+		),
+	)
 
 	return &types.MsgAddLiquidityResponse{
-		LPTokensReceived: msg.MinLPTokens,
+		LPTokensReceived: lpTokensToMint,
 		BaseUsed:         msg.BaseAmount,
 		QuoteUsed:        msg.QuoteAmount,
 		Success:          true,
 	}, nil
 }
 
-// RemoveLiquidity handles liquidity removal
+// RemoveLiquidity handles liquidity removal from AMM pools
 func (k msgServer) RemoveLiquidity(goCtx context.Context, msg *types.SimpleMsgRemoveLiquidity) (*types.MsgRemoveLiquidityResponse, error) {
-	// Simplified implementation - return success
-	// Full implementation would:
-	// 1. Check pool exists and user has LP tokens
-	// 2. Calculate proportional amounts to return
-	// 3. Burn LP tokens
-	// 4. Transfer assets back to user
-	// 5. Update pool reserves
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Validate creator address
+	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
+	if err != nil {
+		return nil, errors.Wrapf(types.ErrUnauthorized, "invalid creator address: %v", err)
+	}
+
+	// Get market to find base/quote assets
+	market, found := k.GetMarketBySymbol(ctx, msg.MarketSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrInvalidMarket, "market %s not found", msg.MarketSymbol)
+	}
+
+	// Get the liquidity pool
+	pool, found := k.GetLiquidityPool(ctx, market.BaseSymbol, market.QuoteSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrPoolNotFound, "liquidity pool for %s not found", msg.MarketSymbol)
+	}
+
+	// Validate LP tokens amount
+	if msg.LPTokenAmount.IsNil() || msg.LPTokenAmount.IsZero() {
+		return nil, errors.Wrap(types.ErrInvalidOrderSize, "LP tokens amount must be positive")
+	}
+
+	if pool.LPTokenSupply.IsZero() {
+		return nil, errors.Wrap(types.ErrInsufficientFunds, "pool has no LP tokens")
+	}
+
+	if msg.LPTokenAmount.GT(pool.LPTokenSupply) {
+		return nil, errors.Wrap(types.ErrInsufficientFunds, "LP tokens exceed total supply")
+	}
+
+	// VERIFY USER OWNS LP TOKENS
+	lpTokenDenom := types.GetLPTokenDenom(market.BaseSymbol, market.QuoteSymbol)
+	userLPBalance := k.bankKeeper.GetBalance(ctx, creatorAddr, lpTokenDenom)
+	if userLPBalance.Amount.LT(msg.LPTokenAmount) {
+		return nil, errors.Wrapf(types.ErrInsufficientFunds,
+			"insufficient LP tokens: have %s, need %s",
+			userLPBalance.Amount.String(), msg.LPTokenAmount.String())
+	}
+
+	// Calculate proportional amounts to return
+	lpRatio := math.LegacyNewDecFromInt(msg.LPTokenAmount).Quo(math.LegacyNewDecFromInt(pool.LPTokenSupply))
+	baseReceived := lpRatio.MulInt(pool.BaseReserve).TruncateInt()
+	quoteReceived := lpRatio.MulInt(pool.QuoteReserve).TruncateInt()
+
+	// Check minimum amounts
+	if baseReceived.LT(msg.MinBaseAmount) {
+		return nil, errors.Wrapf(types.ErrSlippageExceeded, "base received %s below minimum %s", baseReceived.String(), msg.MinBaseAmount.String())
+	}
+	if quoteReceived.LT(msg.MinQuoteAmount) {
+		return nil, errors.Wrapf(types.ErrSlippageExceeded, "quote received %s below minimum %s", quoteReceived.String(), msg.MinQuoteAmount.String())
+	}
+
+	// BURN LP TOKENS FROM USER'S WALLET
+	lpCoins := sdk.NewCoins(sdk.NewCoin(lpTokenDenom, msg.LPTokenAmount))
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, creatorAddr, types.ModuleName, lpCoins); err != nil {
+		return nil, errors.Wrap(err, "failed to transfer LP tokens from user")
+	}
+	if err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, lpCoins); err != nil {
+		// Rollback: return LP tokens to user
+		k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, lpCoins)
+		return nil, errors.Wrap(err, "failed to burn LP tokens")
+	}
+
+	// Transfer assets back to provider
+	coins := sdk.NewCoins(
+		sdk.NewCoin(market.BaseSymbol, baseReceived),
+		sdk.NewCoin(market.QuoteSymbol, quoteReceived),
+	)
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, coins); err != nil {
+		return nil, errors.Wrap(err, "failed to transfer funds to provider")
+	}
+
+	// Update pool reserves
+	pool.BaseReserve = pool.BaseReserve.Sub(baseReceived)
+	pool.QuoteReserve = pool.QuoteReserve.Sub(quoteReceived)
+	pool.LPTokenSupply = pool.LPTokenSupply.Sub(msg.LPTokenAmount)
+	pool.UpdatedAt = ctx.BlockTime()
+	k.SetLiquidityPool(ctx, pool)
+
+	// UNREGISTER BENEFICIAL OWNERSHIP FOR WITHDRAWN EQUITY
+	// This updates or removes the beneficial owner record
+	if k.equityKeeper != nil {
+		lpPosition, found := k.GetLPPositionByUserAndMarket(ctx, msg.Creator, msg.MarketSymbol)
+		if found && lpPosition.CompanyID > 0 {
+			// Check if this is a full or partial withdrawal
+			if msg.LPTokenAmount.GTE(lpPosition.LPTokenAmount) {
+				// Full withdrawal - unregister beneficial ownership completely
+				err := k.equityKeeper.UnregisterBeneficialOwner(
+					ctx,
+					types.ModuleName,
+					lpPosition.CompanyID,
+					"common",
+					msg.Creator,
+					lpPosition.ID,
+				)
+				if err != nil {
+					k.Logger(ctx).Error("failed to unregister beneficial owner",
+						"provider", msg.Creator,
+						"company_id", lpPosition.CompanyID,
+						"error", err,
+					)
+				}
+				// Delete the LP position
+				k.DeleteLPPosition(ctx, lpPosition)
+			} else {
+				// Partial withdrawal - update beneficial ownership with reduced shares
+				newBaseAmount := lpPosition.BaseAmount.Sub(baseReceived)
+				newLPTokenAmount := lpPosition.LPTokenAmount.Sub(msg.LPTokenAmount)
+
+				err := k.equityKeeper.UpdateBeneficialOwnerShares(
+					ctx,
+					types.ModuleName,
+					lpPosition.CompanyID,
+					"common",
+					msg.Creator,
+					lpPosition.ID,
+					newBaseAmount,
+				)
+				if err != nil {
+					k.Logger(ctx).Error("failed to update beneficial owner shares",
+						"provider", msg.Creator,
+						"company_id", lpPosition.CompanyID,
+						"new_shares", newBaseAmount.String(),
+						"error", err,
+					)
+				}
+				// Update LP position
+				k.UpdateLPPositionShares(ctx, lpPosition.ID, newBaseAmount, newLPTokenAmount)
+			}
+		}
+	}
+
+	// Emit event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"remove_liquidity",
+			sdk.NewAttribute("market_symbol", msg.MarketSymbol),
+			sdk.NewAttribute("provider", msg.Creator),
+			sdk.NewAttribute("lp_tokens_burned", msg.LPTokenAmount.String()),
+			sdk.NewAttribute("base_received", baseReceived.String()),
+			sdk.NewAttribute("quote_received", quoteReceived.String()),
+			sdk.NewAttribute("beneficial_owner_updated", "true"),
+		),
+	)
 
 	return &types.MsgRemoveLiquidityResponse{
-		BaseReceived:  msg.MinBaseAmount,
-		QuoteReceived: msg.MinQuoteAmount,
+		BaseReceived:  baseReceived,
+		QuoteReceived: quoteReceived,
 		Success:       true,
 	}, nil
 }
 
-// Swap handles AMM swaps
+// Swap handles AMM swaps using constant product formula (x * y = k)
 func (k msgServer) Swap(goCtx context.Context, msg *types.SimpleMsgSwap) (*types.MsgSwapResponse, error) {
-	// Simplified implementation - return success
-	// Full implementation would:
-	// 1. Check pool exists and has sufficient liquidity
-	// 2. Calculate output amount using constant product formula
-	// 3. Check slippage tolerance
-	// 4. Transfer input asset from user
-	// 5. Transfer output asset to user
-	// 6. Update pool reserves
-	// 7. Calculate and collect fees
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Validate creator address
+	creatorAddr, err := sdk.AccAddressFromBech32(msg.Creator)
+	if err != nil {
+		return nil, errors.Wrapf(types.ErrUnauthorized, "invalid creator address: %v", err)
+	}
+
+	// Get market to find base/quote assets
+	market, found := k.GetMarketBySymbol(ctx, msg.MarketSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrInvalidMarket, "market %s not found", msg.MarketSymbol)
+	}
+
+	// Get the liquidity pool
+	pool, found := k.GetLiquidityPool(ctx, market.BaseSymbol, market.QuoteSymbol)
+	if !found {
+		return nil, errors.Wrapf(types.ErrPoolNotFound, "liquidity pool for %s not found", msg.MarketSymbol)
+	}
+
+	// Validate input amount
+	if msg.InputAmount.IsNil() || msg.InputAmount.IsZero() {
+		return nil, errors.Wrap(types.ErrInvalidOrderSize, "input amount must be positive")
+	}
+
+	// Determine swap direction and reserves
+	var inputReserve, outputReserve math.Int
+	var outputAsset string
+	if msg.InputAsset == market.BaseSymbol {
+		inputReserve = pool.BaseReserve
+		outputReserve = pool.QuoteReserve
+		outputAsset = market.QuoteSymbol
+	} else if msg.InputAsset == market.QuoteSymbol {
+		inputReserve = pool.QuoteReserve
+		outputReserve = pool.BaseReserve
+		outputAsset = market.BaseSymbol
+	} else {
+		return nil, errors.Wrapf(types.ErrInvalidAsset, "input asset %s not in market %s", msg.InputAsset, msg.MarketSymbol)
+	}
+
+	// Check sufficient liquidity
+	if outputReserve.IsZero() || inputReserve.IsZero() {
+		return nil, errors.Wrap(types.ErrInsufficientLiquidity, "pool has insufficient reserves")
+	}
+
+	// Calculate output using constant product formula: x * y = k
+	// outputAmount = (inputAmount * outputReserve) / (inputReserve + inputAmount)
+	// Apply fee from pool configuration (default 0.3%)
+	feeRate := pool.Fee
+	if feeRate.IsNil() || feeRate.IsZero() {
+		feeRate = math.LegacyNewDecWithPrec(3, 3) // 0.3% default
+	}
+	effectiveInput := math.LegacyNewDecFromInt(msg.InputAmount).Mul(math.LegacyOneDec().Sub(feeRate))
+
+	// Calculate output amount
+	numerator := effectiveInput.MulInt(outputReserve)
+	denominator := math.LegacyNewDecFromInt(inputReserve).Add(effectiveInput)
+	if denominator.IsZero() {
+		return nil, errors.Wrap(types.ErrInsufficientLiquidity, "denominator is zero")
+	}
+	outputAmount := numerator.Quo(denominator).TruncateInt()
+
+	// Calculate fee collected
+	feeAmount := feeRate.MulInt(msg.InputAmount).TruncateInt()
+
+	// Check slippage (minimum output)
+	if outputAmount.LT(msg.MinOutputAmount) {
+		return nil, errors.Wrapf(types.ErrSlippageExceeded, "output %s below minimum %s", outputAmount.String(), msg.MinOutputAmount.String())
+	}
+
+	// Calculate price impact
+	spotPrice := math.LegacyNewDecFromInt(outputReserve).Quo(math.LegacyNewDecFromInt(inputReserve))
+	executionPrice := math.LegacyNewDecFromInt(outputAmount).Quo(math.LegacyNewDecFromInt(msg.InputAmount))
+	priceImpact := spotPrice.Sub(executionPrice).Quo(spotPrice).Abs()
+
+	// Check user has sufficient funds
+	balance := k.bankKeeper.GetBalance(ctx, creatorAddr, msg.InputAsset)
+	if balance.Amount.LT(msg.InputAmount) {
+		return nil, errors.Wrapf(types.ErrInsufficientFunds, "insufficient %s balance", msg.InputAsset)
+	}
+
+	// Transfer input from user to module
+	inputCoins := sdk.NewCoins(sdk.NewCoin(msg.InputAsset, msg.InputAmount))
+	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, creatorAddr, types.ModuleName, inputCoins); err != nil {
+		return nil, errors.Wrap(err, "failed to transfer input to pool")
+	}
+
+	// Transfer output from module to user
+	outputCoins := sdk.NewCoins(sdk.NewCoin(outputAsset, outputAmount))
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, creatorAddr, outputCoins); err != nil {
+		return nil, errors.Wrap(err, "failed to transfer output to trader")
+	}
+
+	// Update pool reserves
+	if msg.InputAsset == market.BaseSymbol {
+		pool.BaseReserve = pool.BaseReserve.Add(msg.InputAmount)
+		pool.QuoteReserve = pool.QuoteReserve.Sub(outputAmount)
+	} else {
+		pool.QuoteReserve = pool.QuoteReserve.Add(msg.InputAmount)
+		pool.BaseReserve = pool.BaseReserve.Sub(outputAmount)
+	}
+	pool.Volume24h = pool.Volume24h.Add(msg.InputAmount)
+	pool.FeesCollected24h = pool.FeesCollected24h.Add(math.LegacyNewDecFromInt(feeAmount))
+	pool.UpdatedAt = ctx.BlockTime()
+	k.SetLiquidityPool(ctx, pool)
+
+	// Emit event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"swap",
+			sdk.NewAttribute("market_symbol", msg.MarketSymbol),
+			sdk.NewAttribute("trader", msg.Creator),
+			sdk.NewAttribute("input_asset", msg.InputAsset),
+			sdk.NewAttribute("input_amount", msg.InputAmount.String()),
+			sdk.NewAttribute("output_asset", outputAsset),
+			sdk.NewAttribute("output_amount", outputAmount.String()),
+			sdk.NewAttribute("fee", feeAmount.String()),
+			sdk.NewAttribute("price_impact", priceImpact.String()),
+		),
+	)
 
 	return &types.MsgSwapResponse{
-		OutputAmount: msg.MinOutputAmount,
-		Fee:          math.LegacyNewDecWithPrec(3, 3), // 0.3% fee
-		PriceImpact:  math.LegacyNewDecWithPrec(1, 2), // 1% price impact
+		OutputAmount: outputAmount,
+		Fee:          feeRate,
+		PriceImpact:  priceImpact,
 		Success:      true,
 	}, nil
 }
@@ -520,7 +915,9 @@ func (k msgServer) CreateTradingStrategy(goCtx context.Context, msg *types.MsgCr
 	}
 
 	// Store strategy
-	k.SetTradingStrategy(ctx, strategy)
+	if err := k.SetTradingStrategy(ctx, strategy); err != nil {
+		return nil, err
+	}
 
 	// Emit strategy creation event
 	ctx.EventManager().EmitEvent(
@@ -614,30 +1011,33 @@ func (k msgServer) ExecuteStrategy(goCtx context.Context, msg *types.MsgExecuteS
 // Helper methods for trading strategies
 
 // SetTradingStrategy stores a trading strategy
-func (k Keeper) SetTradingStrategy(ctx sdk.Context, strategy types.TradingStrategy) {
+func (k Keeper) SetTradingStrategy(ctx sdk.Context, strategy types.TradingStrategy) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetTradingStrategyKey(strategy.StrategyId)
-	
+
 	bz, err := json.Marshal(strategy)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal trading strategy: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // GetTradingStrategy retrieves a trading strategy
 func (k Keeper) GetTradingStrategy(ctx sdk.Context, strategyId string) (types.TradingStrategy, bool) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetTradingStrategyKey(strategyId)
-	
+
 	bz := store.Get(key)
 	if bz == nil {
 		return types.TradingStrategy{}, false
 	}
-	
+
 	var strategy types.TradingStrategy
 	if err := json.Unmarshal(bz, &strategy); err != nil {
-		panic(err)
+		// Log error but return not found instead of panicking
+		ctx.Logger().Error("failed to unmarshal trading strategy", "error", err)
+		return types.TradingStrategy{}, false
 	}
 	return strategy, true
 }

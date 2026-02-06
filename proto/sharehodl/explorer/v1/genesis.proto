@@ -1,0 +1,9 @@
+syntax = "proto3";
+package sharehodl.explorer.v1;
+
+option go_package = "github.com/sharehodl/sharehodl-blockchain/x/explorer/types";
+
+// GenesisState defines the explorer module's genesis state
+message GenesisState {
+  // Explorer module has no genesis state - it indexes data from other modules
+}

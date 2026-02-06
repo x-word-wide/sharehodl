@@ -58,6 +58,26 @@ var (
 	TradingControlsPrefix = []byte{0x10}
 	DailyVolumePrefix     = []byte{0x11}
 	DailyHaltCountPrefix  = []byte{0x12}
+
+	// Authorization keys
+	AuthorizedMarketCreatorPrefix = []byte{0x20}
+
+	// Params key
+	ParamsKey = []byte{0x30}
+
+	// Equity locking keys for atomic swaps
+	LockedEquityPrefix = []byte{0x40}
+
+	// Market-specific order book prefixes for efficient lookups
+	// Key format: MarketOrderBuyPrefix + marketSymbol + price (descending) + orderID
+	MarketOrderBuyPrefix  = []byte{0x50}
+	// Key format: MarketOrderSellPrefix + marketSymbol + price (ascending) + orderID
+	MarketOrderSellPrefix = []byte{0x51}
+
+	// LP Position tracking for beneficial ownership
+	LPPositionPrefix        = []byte{0x60}
+	LPPositionCounterKey    = []byte{0x61}
+	LPPositionByUserPrefix  = []byte{0x62}
 )
 
 // GetMarketKey returns the store key for a market
@@ -145,4 +165,94 @@ func DailyHaltCountKey(marketSymbol string, date time.Time) []byte {
 	dateStr := date.Format("2006-01-02")
 	key := append(DailyHaltCountPrefix, []byte(marketSymbol)...)
 	return append(key, []byte(dateStr)...)
+}
+
+// GetAuthorizedMarketCreatorKey returns the key for an authorized market creator
+func GetAuthorizedMarketCreatorKey(addr sdk.AccAddress) []byte {
+	return append(AuthorizedMarketCreatorPrefix, addr.Bytes()...)
+}
+
+// GetLockedEquityKey returns the key for locked equity shares
+// Key format: prefix + trader_addr + symbol
+func GetLockedEquityKey(trader sdk.AccAddress, symbol string) []byte {
+	key := append(LockedEquityPrefix, trader.Bytes()...)
+	return append(key, []byte(symbol)...)
+}
+
+// GetLockedEquityByTraderPrefix returns the prefix for iterating all locked equity for a trader
+func GetLockedEquityByTraderPrefix(trader sdk.AccAddress) []byte {
+	return append(LockedEquityPrefix, trader.Bytes()...)
+}
+
+// GetMarketOrderKey returns the composite key for a market-specific order (for efficient indexing)
+// This allows O(log n) lookups instead of O(n) full table scans
+func GetMarketOrderKey(baseSymbol, quoteSymbol string, side OrderSide, price string, orderID uint64) []byte {
+	marketSymbol := baseSymbol + "/" + quoteSymbol
+	var prefix []byte
+	if side == OrderSideBuy {
+		prefix = MarketOrderBuyPrefix
+	} else {
+		prefix = MarketOrderSellPrefix
+	}
+
+	key := append(prefix, []byte(marketSymbol)...)
+	key = append(key, []byte("|")...)
+	key = append(key, []byte(price)...)
+	key = append(key, []byte("|")...)
+	return append(key, sdk.Uint64ToBigEndian(orderID)...)
+}
+
+// GetMarketOrderPrefix returns the prefix for iterating orders in a specific market and side
+func GetMarketOrderPrefix(baseSymbol, quoteSymbol string, side OrderSide) []byte {
+	marketSymbol := baseSymbol + "/" + quoteSymbol
+	var prefix []byte
+	if side == OrderSideBuy {
+		prefix = MarketOrderBuyPrefix
+	} else {
+		prefix = MarketOrderSellPrefix
+	}
+
+	key := append(prefix, []byte(marketSymbol)...)
+	return append(key, []byte("|")...)
+}
+
+// GetLPTokenDenom returns the LP token denomination for a liquidity pool
+// Format: "lp/{base}-{quote}" (e.g., "lp/APPLE-HODL")
+// LP tokens are minted to users when they add liquidity and burned when removed
+func GetLPTokenDenom(baseSymbol, quoteSymbol string) string {
+	return "lp/" + baseSymbol + "-" + quoteSymbol
+}
+
+// ParseLPTokenDenom parses an LP token denom and returns base and quote symbols
+// Returns empty strings if the denom is not a valid LP token
+func ParseLPTokenDenom(denom string) (baseSymbol, quoteSymbol string, valid bool) {
+	if len(denom) < 4 || denom[:3] != "lp/" {
+		return "", "", false
+	}
+
+	symbols := denom[3:] // Remove "lp/" prefix
+	for i := 0; i < len(symbols); i++ {
+		if symbols[i] == '-' {
+			return symbols[:i], symbols[i+1:], true
+		}
+	}
+	return "", "", false
+}
+
+// GetLPPositionKey returns the store key for an LP position
+func GetLPPositionKey(positionID uint64) []byte {
+	return append(LPPositionPrefix, sdk.Uint64ToBigEndian(positionID)...)
+}
+
+// GetLPPositionByUserKey returns the store key for user's LP positions
+func GetLPPositionByUserKey(user string, positionID uint64) []byte {
+	key := append(LPPositionByUserPrefix, []byte(user)...)
+	key = append(key, []byte(":")...)
+	return append(key, sdk.Uint64ToBigEndian(positionID)...)
+}
+
+// GetLPPositionByUserPrefix returns the prefix for iterating user's LP positions
+func GetLPPositionByUserPrefix(user string) []byte {
+	key := append(LPPositionByUserPrefix, []byte(user)...)
+	return append(key, []byte(":")...)
 }

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- ShareHODL Logo - H with diamond -->
+    <group android:translateX="27" android:translateY="27">
+        <!-- H letter outline -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M8,8 L16,8 L16,24 L38,24 L38,8 L46,8 L46,46 L38,46 L38,30 L16,30 L16,46 L8,46 Z"/>
+        <!-- Diamond shape -->
+        <path
+            android:fillColor="#FFD700"
+            android:pathData="M27,2 L34,12 L27,22 L20,12 Z"/>
+    </group>
+</vector>

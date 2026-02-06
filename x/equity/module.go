@@ -15,6 +15,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 
+	"github.com/sharehodl/sharehodl-blockchain/x/equity/client/cli"
 	"github.com/sharehodl/sharehodl-blockchain/x/equity/keeper"
 	"github.com/sharehodl/sharehodl-blockchain/x/equity/types"
 )
@@ -69,20 +70,12 @@ func (AppModuleBasic) RegisterGRPCGatewayRoutes(clientCtx client.Context, mux *r
 
 // GetTxCmd returns the equity module's root tx command.
 func (a AppModuleBasic) GetTxCmd() *cobra.Command {
-	// Return tx commands - simplified for now
-	return &cobra.Command{
-		Use:   types.ModuleName,
-		Short: fmt.Sprintf("%s transactions subcommands", types.ModuleName),
-	}
+	return cli.GetTxCmd()
 }
 
 // GetQueryCmd returns the equity module's root query command.
 func (AppModuleBasic) GetQueryCmd() *cobra.Command {
-	// Return query commands - simplified for now
-	return &cobra.Command{
-		Use:   types.ModuleName,
-		Short: fmt.Sprintf("Querying commands for the %s module", types.ModuleName),
-	}
+	return cli.GetQueryCmd()
 }
 
 // AppModule implements the AppModule interface for the equity module.
@@ -151,6 +144,109 @@ func (am AppModule) BeginBlock(ctx context.Context) error {
 
 // EndBlock executes all ABCI EndBlock logic respective to the equity module.
 func (am AppModule) EndBlock(ctx context.Context) error {
-	// EndBlock logic - none needed for now  
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+
+	// Process automatic dividend operations
+	am.processDividendEndBlock(sdkCtx)
+
+	// Process delisting-related operations
+	am.processDelistingEndBlock(sdkCtx)
+
+	// Process shareholder petition thresholds
+	am.processPetitionEndBlock(sdkCtx)
+
 	return nil
+}
+
+// processDelistingEndBlock handles delisting and compensation processing
+func (am AppModule) processDelistingEndBlock(ctx sdk.Context) {
+	// Process expired freeze warnings (execute freeze or escalate to Archon)
+	am.keeper.ProcessExpiredFreezeWarnings(ctx)
+
+	// Process expired trading halts (auto-resume)
+	am.keeper.ProcessExpiredTradingHalts(ctx)
+
+	// Process expired compensation claims (return remaining to community pool)
+	am.keeper.ProcessExpiredCompensations(ctx)
+}
+
+// processPetitionEndBlock handles shareholder petition processing
+func (am AppModule) processPetitionEndBlock(ctx sdk.Context) {
+	// Process petition thresholds - convert to reports if threshold met
+	am.keeper.ProcessPetitionThresholds(ctx)
+}
+
+// processDividendEndBlock handles automatic dividend processing
+func (am AppModule) processDividendEndBlock(ctx sdk.Context) {
+	// Process dividends that need record date snapshots
+	am.processRecordDateSnapshots(ctx)
+
+	// Process dividend payments in batches
+	am.processDividendPayments(ctx)
+}
+
+// processRecordDateSnapshots creates snapshots for dividends that reached record date
+func (am AppModule) processRecordDateSnapshots(ctx sdk.Context) {
+	// Get all dividends in declared status
+	dividends := am.keeper.GetAllDividendsByStatus(ctx, types.DividendStatusDeclared)
+
+	for _, dividend := range dividends {
+		if dividend.IsRecordDateReached(ctx.BlockTime()) {
+			err := am.keeper.CreateRecordSnapshot(ctx, dividend.ID)
+			if err != nil {
+				ctx.Logger().Error("failed to create record snapshot",
+					"dividend_id", dividend.ID,
+					"error", err,
+				)
+			} else {
+				ctx.EventManager().EmitEvent(
+					sdk.NewEvent(
+						"dividend_snapshot_created",
+						sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividend.ID)),
+						sdk.NewAttribute("company_id", fmt.Sprintf("%d", dividend.CompanyID)),
+					),
+				)
+			}
+		}
+	}
+}
+
+// processDividendPayments processes dividend payments in batches
+func (am AppModule) processDividendPayments(ctx sdk.Context) {
+	// Get all dividends ready for processing
+	dividends := am.keeper.GetAllDividendsByStatus(ctx, types.DividendStatusRecorded)
+
+	// Process up to 10 dividends per block, 100 payments each
+	const maxDividendsPerBlock = 10
+	const batchSize = 100
+
+	processed := 0
+	for _, dividend := range dividends {
+		if processed >= maxDividendsPerBlock {
+			break
+		}
+
+		if dividend.IsReadyForPayment(ctx.BlockTime()) {
+			paymentsProcessed, totalPaid, isComplete, err := am.keeper.ProcessDividendPayments(ctx, dividend.ID, uint32(batchSize))
+
+			if err != nil {
+				ctx.Logger().Error("failed to process dividend payments",
+					"dividend_id", dividend.ID,
+					"error", err,
+				)
+			} else {
+				ctx.EventManager().EmitEvent(
+					sdk.NewEvent(
+						"dividend_payments_processed",
+						sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividend.ID)),
+						sdk.NewAttribute("payments_processed", fmt.Sprintf("%d", paymentsProcessed)),
+						sdk.NewAttribute("total_paid", totalPaid.String()),
+						sdk.NewAttribute("is_complete", fmt.Sprintf("%t", isComplete)),
+					),
+				)
+			}
+
+			processed++
+		}
+	}
 }

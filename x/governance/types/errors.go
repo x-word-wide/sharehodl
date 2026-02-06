@@ -30,6 +30,7 @@ var (
 	ErrProposalDescriptionTooLong = errors.Register(DefaultCodespace, 111, "proposal description too long")
 	ErrProposalAlreadyExists = errors.Register(DefaultCodespace, 112, "proposal already exists")
 	ErrInvalidProposalID = errors.Register(DefaultCodespace, 113, "invalid proposal ID")
+	ErrInvalidProposer = errors.Register(DefaultCodespace, 114, "invalid proposer - only the original proposer can perform this action")
 
 	// Voting errors
 	ErrInvalidVote = errors.Register(DefaultCodespace, 200, "invalid vote")
@@ -120,4 +121,29 @@ var (
 	ErrInvalidKeyFormat = errors.Register(DefaultCodespace, 902, "invalid key format")
 	ErrSerializationFailed = errors.Register(DefaultCodespace, 903, "serialization failed")
 	ErrDeserializationFailed = errors.Register(DefaultCodespace, 904, "deserialization failed")
+
+	// ==========================================================================
+	// ANTI-SPAM ERRORS
+	// ==========================================================================
+
+	// Rate limiting errors
+	ErrRateLimitExceeded = errors.Register(DefaultCodespace, 950, "proposal rate limit exceeded - maximum proposals per day reached")
+	ErrCooldownNotElapsed = errors.Register(DefaultCodespace, 951, "proposal cooldown period has not elapsed")
+
+	// Stake requirement errors
+	ErrInsufficientStake = errors.Register(DefaultCodespace, 952, "insufficient HODL balance to submit proposal")
+
+	// Fee errors
+	ErrInsufficientProposalFee = errors.Register(DefaultCodespace, 953, "insufficient funds for proposal fee")
+	ErrFeeBurnFailed = errors.Register(DefaultCodespace, 954, "failed to burn proposal fee")
+
+	// ==========================================================================
+	// VOTER ELIGIBILITY ERRORS
+	// ==========================================================================
+
+	// Eligibility restriction errors
+	ErrNotEligibleToVote = errors.Register(DefaultCodespace, 960, "not eligible to vote on this proposal")
+	ErrValidatorRequired = errors.Register(DefaultCodespace, 961, "only validators can vote on this proposal")
+	ErrShareholderRequired = errors.Register(DefaultCodespace, 962, "only shareholders of this company can vote on this proposal")
+	ErrHODLHolderRequired = errors.Register(DefaultCodespace, 963, "must hold HODL tokens to vote on this proposal")
 )

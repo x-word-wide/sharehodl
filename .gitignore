@@ -180,6 +180,11 @@ aws-deployment.env
 *-keypair.pem
 aws-config-secrets.env
 
+# SECURITY: Server credentials - NEVER COMMIT
+SERVER_CREDENTIALS.md
+*-credentials.md
+.server-credentials*
+
 # Protobuf generated files
 *.pb.go
 *.pb.gw.go
@@ -203,4 +208,6 @@ dependency-graph.png
 !README.md
 !LICENSE
 !SECURITY.md
-!CONTRIBUTING.md
+!CONTRIBUTING.mdsharehodl-ios/.build/
+sharehodl-android/.gradle/
+sharehodl-android/build/

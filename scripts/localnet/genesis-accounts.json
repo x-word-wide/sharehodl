@@ -81,24 +81,22 @@
       "description": "GreenEnergy LLC test company"
     },
     {
-      "name": "faucet",
-      "address": "sharehodl1...",
+      "name": "treasury",
+      "address": "sharehodl1treasury0000000000000000000000",
       "balance": {
-        "hodl": "1000000000000000",
-        "shodl": "100000000000000"
+        "hodl": "1010000000000000",
+        "shodl": "101000000000000"
       },
-      "role": "faucet",
-      "description": "Faucet account for dispensing test tokens"
+      "role": "treasury",
+      "description": "ShareHODL company treasury - HODL tokens available for trading"
     }
   ],
   "total_supply": {
-    "hodl": "1000000000000000",
-    "shodl": "100000000000000"
+    "hodl": "1110000000000000",
+    "shodl": "111000000000000"
   },
   "distribution": {
-    "validators": "10%",
-    "companies": "15%",
-    "individuals": "5%",
-    "faucet": "70%"
+    "genesis_validator": "9%",
+    "treasury": "91%"
   }
 }

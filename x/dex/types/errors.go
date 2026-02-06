@@ -58,6 +58,7 @@ var (
 	// Authorization errors
 	ErrUnauthorized        = errors.Register(ModuleName, 70, "unauthorized")
 	ErrPermissionDenied    = errors.Register(ModuleName, 71, "permission denied")
+	ErrTooFrequentUpdate   = errors.Register(ModuleName, 72, "price update too frequent")
 
 	// Atomic swap errors
 	ErrAssetNotFound       = errors.Register(ModuleName, 80, "asset not found")
@@ -82,6 +83,9 @@ var (
 	ErrRestrictedInvestor    = errors.Register(ModuleName, 106, "restricted investor")
 	ErrRightOfFirstRefusalPending = errors.Register(ModuleName, 107, "right of first refusal pending")
 	ErrTakeoverDefenseTriggered = errors.Register(ModuleName, 108, "takeover defense triggered")
+	ErrOrderTooLarge         = errors.Register(ModuleName, 109, "order size exceeds maximum limit")
+	ErrOrderTooSmall         = errors.Register(ModuleName, 110, "order size below minimum limit")
+	ErrDailyLimitExceeded    = errors.Register(ModuleName, 111, "daily trading limit exceeded")
 	
 	// Event types for advanced trading
 	EventTypeCircuitBreakerTriggered = "circuit_breaker_triggered"

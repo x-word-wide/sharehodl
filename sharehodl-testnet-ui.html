@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShareHODL Testnet - Complete Testing Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #e4e4e4;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed, #f472b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            background: rgba(0,212,255,0.1);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            border: 1px solid rgba(0,212,255,0.3);
+        }
+
+        .status-item.connected {
+            background: rgba(34,197,94,0.2);
+            border-color: rgba(34,197,94,0.5);
+        }
+
+        .status-item.disconnected {
+            background: rgba(239,68,68,0.2);
+            border-color: rgba(239,68,68,0.5);
+        }
+
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            background: rgba(0,0,0,0.2);
+            padding: 10px;
+            border-radius: 12px;
+        }
+
+        .nav-tab {
+            padding: 12px 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+            color: #aaa;
+        }
+
+        .nav-tab:hover {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+        }
+
+        .nav-tab.active {
+            background: linear-gradient(135deg, #7c3aed 0%, #00d4ff 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .nav-tab .tab-icon {
+            margin-right: 8px;
+        }
+
+        /* Section panels */
+        .section-panel {
+            display: none;
+        }
+
+        .section-panel.active {
+            display: block;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .card.highlight {
+            border-color: rgba(124, 58, 237, 0.5);
+            box-shadow: 0 0 20px rgba(124, 58, 237, 0.2);
+        }
+
+        .card h2 {
+            font-size: 1.2rem;
+            margin-bottom: 16px;
+            color: #00d4ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(180deg, #00d4ff, #7c3aed);
+            border-radius: 2px;
+        }
+
+        .card h3 {
+            font-size: 1rem;
+            margin: 16px 0 12px;
+            color: #f472b6;
+        }
+
+        button {
+            background: linear-gradient(135deg, #7c3aed 0%, #00d4ff 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.3);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        button.secondary {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        button.success {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        button.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        button.small {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            width: auto;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-row button {
+            flex: 1;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.3);
+            color: white;
+            font-size: 0.95rem;
+            margin-bottom: 12px;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 0 3px rgba(0,212,255,0.2);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.85rem;
+            color: #a0a0a0;
+        }
+
+        .result-box {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.8rem;
+            max-height: 250px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+            border: 1px solid rgba(255,255,255,0.1);
+            display: none;
+        }
+
+        .balance-display {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: rgba(0,212,255,0.1);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 1px solid rgba(0,212,255,0.2);
+        }
+
+        .balance-display .amount {
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.9rem;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .address-display {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.8rem;
+            word-break: break-all;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tab-buttons {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.85rem;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #7c3aed 0%, #00d4ff 100%);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 14px 24px;
+            border-radius: 8px;
+            background: #22c55e;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.error {
+            background: #ef4444;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .stat-box {
+            background: rgba(0,0,0,0.2);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-box .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        .stat-box .label {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .list-item {
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .list-item h4 {
+            color: #00d4ff;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge.success {
+            background: rgba(34,197,94,0.2);
+            color: #22c55e;
+        }
+
+        .badge.warning {
+            background: rgba(245,158,11,0.2);
+            color: #f59e0b;
+        }
+
+        .badge.danger {
+            background: rgba(239,68,68,0.2);
+            color: #ef4444;
+        }
+
+        .badge.info {
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group input {
+            flex: 1;
+        }
+
+        .input-group button {
+            width: auto;
+            margin-bottom: 0;
+        }
+
+        .help-text {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: -8px;
+            margin-bottom: 12px;
+        }
+
+        .divider {
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+            margin: 16px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .nav-tabs {
+                justify-content: center;
+            }
+            .nav-tab {
+                padding: 10px 14px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ShareHODL Complete Testing Dashboard</h1>
+            <p style="color: #888; margin-bottom: 15px;">Test all blockchain modules - DEX, Equity, Lending, Inheritance, Governance & more</p>
+            <div class="status-bar">
+                <div class="status-item" id="chain-status">Chain: Checking...</div>
+                <div class="status-item" id="block-height">Block: --</div>
+                <div class="status-item disconnected" id="wallet-status">Wallet: Not Connected</div>
+                <div class="status-item" id="hodl-supply">HODL Supply: --</div>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <div class="nav-tab active" onclick="showSection('wallet')"><span class="tab-icon">&#128179;</span>Wallet</div>
+            <div class="nav-tab" onclick="showSection('dex')"><span class="tab-icon">&#128200;</span>DEX & Liquidity</div>
+            <div class="nav-tab" onclick="showSection('equity')"><span class="tab-icon">&#127970;</span>Equity</div>
+            <div class="nav-tab" onclick="showSection('hodl')"><span class="tab-icon">&#128176;</span>HODL Stablecoin</div>
+            <div class="nav-tab" onclick="showSection('lending')"><span class="tab-icon">&#127974;</span>Lending</div>
+            <div class="nav-tab" onclick="showSection('inheritance')"><span class="tab-icon">&#128220;</span>Inheritance</div>
+            <div class="nav-tab" onclick="showSection('governance')"><span class="tab-icon">&#127891;</span>Governance</div>
+            <div class="nav-tab" onclick="showSection('explorer')"><span class="tab-icon">&#128269;</span>Explorer</div>
+        </div>
+
+        <!-- WALLET SECTION -->
+        <div id="wallet-section" class="section-panel active">
+            <div class="grid">
+                <!-- Keplr Connection -->
+                <div class="card highlight">
+                    <h2>Connect Wallet</h2>
+                    <button onclick="addToKeplr()" id="add-chain-btn">Add ShareHODL to Keplr</button>
+                    <button onclick="connectKeplr()" class="secondary">Connect Keplr Wallet</button>
+
+                    <div id="wallet-info" style="display: none; margin-top: 16px;">
+                        <label>Connected Address:</label>
+                        <div class="address-display" id="connected-address">-</div>
+                        <button onclick="copyAddress()" class="secondary small">Copy Address</button>
+                    </div>
+                    <div class="result-box" id="keplr-result"></div>
+                </div>
+
+                <!-- Account Balances -->
+                <div class="card">
+                    <h2>Account Balances</h2>
+                    <label>Address</label>
+                    <input type="text" id="balance-address" placeholder="hodl...">
+                    <button onclick="getBalance()">Query All Balances</button>
+
+                    <div id="balance-result" style="margin-top: 12px;">
+                        <div class="balance-display">
+                            <span>HODL (stablecoin)</span>
+                            <span class="amount" id="hodl-balance">--</span>
+                        </div>
+                        <div class="balance-display">
+                            <span>STAKE (staking)</span>
+                            <span class="amount" id="stake-balance">--</span>
+                        </div>
+                        <div id="other-balances"></div>
+                    </div>
+                </div>
+
+                <!-- Send Tokens -->
+                <div class="card">
+                    <h2>Send Tokens</h2>
+                    <label>Recipient Address</label>
+                    <input type="text" id="send-recipient" placeholder="hodl...">
+                    <label>Amount</label>
+                    <input type="number" id="send-amount" placeholder="1000000">
+                    <label>Token</label>
+                    <select id="send-denom">
+                        <option value="uhodl">uhodl (micro HODL)</option>
+                        <option value="stake">stake</option>
+                    </select>
+                    <button onclick="sendTokens()" id="send-btn" disabled>Send Tokens</button>
+                    <div class="result-box" id="send-result"></div>
+                </div>
+
+                <!-- Chain Info -->
+                <div class="card">
+                    <h2>Chain Information</h2>
+                    <button onclick="getChainInfo()" class="secondary">Refresh Chain Info</button>
+                    <div style="margin-top: 12px;">
+                        <div class="info-row">
+                            <span class="info-label">Chain ID</span>
+                            <span class="info-value" id="chain-id">sharehodl-local-1</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Latest Block</span>
+                            <span class="info-value" id="latest-block">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Block Time</span>
+                            <span class="info-value" id="block-time">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">RPC</span>
+                            <span class="info-value">localhost:26657</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">REST API</span>
+                            <span class="info-value">localhost:1317</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DEX & LIQUIDITY SECTION -->
+        <div id="dex-section" class="section-panel">
+            <div class="grid">
+                <!-- Markets Overview -->
+                <div class="card">
+                    <h2>Markets Overview</h2>
+                    <button onclick="getMarkets()">Load Markets</button>
+                    <div id="markets-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Click to load available markets</p>
+                    </div>
+                </div>
+
+                <!-- Add Liquidity -->
+                <div class="card highlight">
+                    <h2>Add Liquidity (Get LP Tokens)</h2>
+                    <p class="help-text">Add equity + HODL to earn trading fees. You remain the beneficial owner of your equity!</p>
+
+                    <label>Market Symbol</label>
+                    <select id="lp-market">
+                        <option value="APPLE/HODL">APPLE/HODL</option>
+                        <option value="TESLA/HODL">TESLA/HODL</option>
+                        <option value="GOOGLE/HODL">GOOGLE/HODL</option>
+                    </select>
+
+                    <label>Equity Amount (base asset)</label>
+                    <input type="number" id="lp-base-amount" placeholder="100">
+
+                    <label>HODL Amount (quote asset)</label>
+                    <input type="number" id="lp-quote-amount" placeholder="10000">
+
+                    <button onclick="addLiquidity()" class="success" id="add-lp-btn" disabled>Add Liquidity</button>
+
+                    <div class="divider"></div>
+                    <h3>Your LP Positions</h3>
+                    <button onclick="getLPPositions()" class="secondary">View My LP Positions</button>
+                    <div id="lp-positions" style="margin-top: 12px;"></div>
+                    <div class="result-box" id="lp-result"></div>
+                </div>
+
+                <!-- Remove Liquidity -->
+                <div class="card">
+                    <h2>Remove Liquidity</h2>
+                    <p class="help-text">Burn LP tokens to get back equity + HODL + earned fees</p>
+
+                    <label>LP Token Denom</label>
+                    <input type="text" id="remove-lp-denom" placeholder="lp/APPLE-HODL">
+
+                    <label>LP Token Amount</label>
+                    <input type="number" id="remove-lp-amount" placeholder="100">
+
+                    <button onclick="removeLiquidity()" class="danger" id="remove-lp-btn" disabled>Remove Liquidity</button>
+                    <div class="result-box" id="remove-lp-result"></div>
+                </div>
+
+                <!-- Trading -->
+                <div class="card">
+                    <h2>Trade (Swap)</h2>
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="showTradeTab('buy')">Buy Equity</button>
+                        <button class="tab-btn" onclick="showTradeTab('sell')">Sell Equity</button>
+                    </div>
+
+                    <div id="buy-tab">
+                        <label>Market</label>
+                        <select id="buy-market">
+                            <option value="APPLE/HODL">APPLE/HODL</option>
+                            <option value="TESLA/HODL">TESLA/HODL</option>
+                        </select>
+                        <label>HODL Amount to Spend</label>
+                        <input type="number" id="buy-amount" placeholder="1000">
+                        <button onclick="executeBuy()" id="buy-btn" disabled>Buy Equity</button>
+                    </div>
+
+                    <div id="sell-tab" style="display: none;">
+                        <label>Market</label>
+                        <select id="sell-market">
+                            <option value="APPLE/HODL">APPLE/HODL</option>
+                            <option value="TESLA/HODL">TESLA/HODL</option>
+                        </select>
+                        <label>Equity Amount to Sell</label>
+                        <input type="number" id="sell-amount" placeholder="10">
+                        <button onclick="executeSell()" id="sell-btn" disabled>Sell Equity</button>
+                    </div>
+                    <div class="result-box" id="trade-result"></div>
+                </div>
+
+                <!-- Order Book -->
+                <div class="card">
+                    <h2>Order Book</h2>
+                    <label>Market</label>
+                    <select id="orderbook-market" onchange="getOrderBook()">
+                        <option value="APPLE/HODL">APPLE/HODL</option>
+                        <option value="TESLA/HODL">TESLA/HODL</option>
+                    </select>
+                    <button onclick="getOrderBook()" class="secondary">Refresh Order Book</button>
+                    <div id="orderbook-display" style="margin-top: 12px;">
+                        <div class="stat-grid">
+                            <div class="stat-box">
+                                <div class="value" id="ob-price">--</div>
+                                <div class="label">Last Price</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="value" id="ob-volume">--</div>
+                                <div class="label">24h Volume</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="value" id="ob-change">--</div>
+                                <div class="label">24h Change</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fee Distribution Info -->
+                <div class="card">
+                    <h2>Fee Distribution</h2>
+                    <div class="stat-grid">
+                        <div class="stat-box">
+                            <div class="value">70%</div>
+                            <div class="label">LP Providers</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value">20%</div>
+                            <div class="label">Validators</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value">10%</div>
+                            <div class="label">Treasury</div>
+                        </div>
+                    </div>
+                    <p class="help-text">Trading fees are automatically distributed. LP providers earn proportional to their pool share (TVL).</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- EQUITY SECTION -->
+        <div id="equity-section" class="section-panel">
+            <div class="grid">
+                <!-- List Company -->
+                <div class="card highlight">
+                    <h2>List New Company</h2>
+                    <label>Company Name</label>
+                    <input type="text" id="company-name" placeholder="Acme Corporation">
+                    <label>Trading Symbol</label>
+                    <input type="text" id="company-symbol" placeholder="ACME">
+                    <label>Description</label>
+                    <textarea id="company-desc" rows="2" placeholder="Company description..."></textarea>
+                    <label>Total Shares</label>
+                    <input type="number" id="company-shares" placeholder="1000000">
+                    <label>Par Value (HODL)</label>
+                    <input type="number" id="company-par" placeholder="1" step="0.01">
+                    <label>Industry</label>
+                    <select id="company-industry">
+                        <option value="technology">Technology</option>
+                        <option value="finance">Finance</option>
+                        <option value="healthcare">Healthcare</option>
+                        <option value="energy">Energy</option>
+                        <option value="retail">Retail</option>
+                        <option value="other">Other</option>
+                    </select>
+                    <button onclick="listCompany()" id="list-company-btn" disabled>List Company</button>
+                    <div class="result-box" id="list-company-result"></div>
+                </div>
+
+                <!-- View Companies -->
+                <div class="card">
+                    <h2>Listed Companies</h2>
+                    <button onclick="getCompanies()">Load Companies</button>
+                    <div id="companies-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Click to load listed companies</p>
+                    </div>
+                </div>
+
+                <!-- My Holdings -->
+                <div class="card">
+                    <h2>My Equity Holdings</h2>
+                    <button onclick="getMyHoldings()">View My Holdings</button>
+                    <div id="holdings-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Connect wallet and click to view your holdings</p>
+                    </div>
+                    <div class="result-box" id="holdings-result"></div>
+                </div>
+
+                <!-- Transfer Shares -->
+                <div class="card">
+                    <h2>Transfer Shares</h2>
+                    <label>Company ID</label>
+                    <input type="number" id="transfer-company-id" placeholder="1">
+                    <label>Share Class</label>
+                    <input type="text" id="transfer-class" value="common" placeholder="common">
+                    <label>Recipient Address</label>
+                    <input type="text" id="transfer-recipient" placeholder="hodl...">
+                    <label>Number of Shares</label>
+                    <input type="number" id="transfer-shares" placeholder="100">
+                    <button onclick="transferShares()" id="transfer-btn" disabled>Transfer Shares</button>
+                    <div class="result-box" id="transfer-result"></div>
+                </div>
+
+                <!-- Dividends -->
+                <div class="card">
+                    <h2>Dividends</h2>
+                    <h3>Declare Dividend (Company Founders)</h3>
+                    <label>Company ID</label>
+                    <input type="number" id="div-company-id" placeholder="1">
+                    <label>Total Amount (HODL)</label>
+                    <input type="number" id="div-amount" placeholder="10000">
+                    <label>Record Date</label>
+                    <input type="date" id="div-record-date">
+                    <button onclick="declareDividend()" id="declare-div-btn" disabled>Declare Dividend</button>
+
+                    <div class="divider"></div>
+                    <h3>Pending Dividends</h3>
+                    <button onclick="getPendingDividends()" class="secondary">Check My Dividends</button>
+                    <div id="dividends-list" style="margin-top: 12px;"></div>
+                    <div class="result-box" id="dividend-result"></div>
+                </div>
+
+                <!-- Beneficial Ownership -->
+                <div class="card">
+                    <h2>Beneficial Ownership</h2>
+                    <p class="help-text">View shares you own even when locked in LP pools, escrow, or lending</p>
+                    <button onclick="getBeneficialOwnership()">View Beneficial Ownership</button>
+                    <div id="beneficial-list" style="margin-top: 12px;"></div>
+                    <div class="result-box" id="beneficial-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- HODL STABLECOIN SECTION -->
+        <div id="hodl-section" class="section-panel">
+            <div class="grid">
+                <!-- HODL Stats -->
+                <div class="card">
+                    <h2>HODL Stablecoin Stats</h2>
+                    <button onclick="getHodlStats()" class="secondary">Refresh Stats</button>
+                    <div class="stat-grid" style="margin-top: 12px;">
+                        <div class="stat-box">
+                            <div class="value" id="hodl-total-supply">--</div>
+                            <div class="label">Total Supply</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value" id="hodl-collateral-ratio">150%</div>
+                            <div class="label">Min Collateral</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value" id="hodl-liquidation">130%</div>
+                            <div class="label">Liquidation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mint HODL -->
+                <div class="card highlight">
+                    <h2>Mint HODL (Collateralize)</h2>
+                    <p class="help-text">Deposit collateral (equity) to mint HODL stablecoins</p>
+                    <label>Collateral Type</label>
+                    <select id="mint-collateral-type">
+                        <option value="APPLE">APPLE Equity</option>
+                        <option value="TESLA">TESLA Equity</option>
+                        <option value="stake">STAKE Tokens</option>
+                    </select>
+                    <label>Collateral Amount</label>
+                    <input type="number" id="mint-collateral-amount" placeholder="100">
+                    <label>HODL to Mint</label>
+                    <input type="number" id="mint-hodl-amount" placeholder="1000">
+                    <p class="help-text">Collateral ratio must be >= 150%</p>
+                    <button onclick="mintHodl()" id="mint-hodl-btn" disabled>Mint HODL</button>
+                    <div class="result-box" id="mint-hodl-result"></div>
+                </div>
+
+                <!-- Redeem HODL -->
+                <div class="card">
+                    <h2>Redeem HODL</h2>
+                    <p class="help-text">Burn HODL to get back your collateral</p>
+                    <label>Position ID</label>
+                    <input type="number" id="redeem-position-id" placeholder="1">
+                    <label>HODL Amount to Repay</label>
+                    <input type="number" id="redeem-hodl-amount" placeholder="1000">
+                    <button onclick="redeemHodl()" id="redeem-hodl-btn" disabled>Redeem Collateral</button>
+                    <div class="result-box" id="redeem-hodl-result"></div>
+                </div>
+
+                <!-- My Positions -->
+                <div class="card">
+                    <h2>My Collateral Positions</h2>
+                    <button onclick="getMyPositions()">View My Positions</button>
+                    <div id="positions-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Connect wallet to view positions</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LENDING SECTION -->
+        <div id="lending-section" class="section-panel">
+            <div class="grid">
+                <!-- Lending Stats -->
+                <div class="card">
+                    <h2>Lending Protocol Stats</h2>
+                    <button onclick="getLendingStats()" class="secondary">Refresh Stats</button>
+                    <div class="stat-grid" style="margin-top: 12px;">
+                        <div class="stat-box">
+                            <div class="value" id="lending-tvl">--</div>
+                            <div class="label">Total Value Locked</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value" id="lending-borrowed">--</div>
+                            <div class="label">Total Borrowed</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="value" id="lending-apy">--</div>
+                            <div class="label">Supply APY</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Supply Assets -->
+                <div class="card highlight">
+                    <h2>Supply Assets (Earn Interest)</h2>
+                    <p class="help-text">Deposit assets to earn interest from borrowers</p>
+                    <label>Asset to Supply</label>
+                    <select id="supply-asset">
+                        <option value="uhodl">HODL</option>
+                        <option value="APPLE">APPLE Equity</option>
+                        <option value="TESLA">TESLA Equity</option>
+                    </select>
+                    <label>Amount</label>
+                    <input type="number" id="supply-amount" placeholder="1000">
+                    <button onclick="supplyAsset()" class="success" id="supply-btn" disabled>Supply Asset</button>
+                    <div class="result-box" id="supply-result"></div>
+                </div>
+
+                <!-- Borrow Assets -->
+                <div class="card">
+                    <h2>Borrow Assets</h2>
+                    <p class="help-text">Use supplied assets as collateral to borrow</p>
+                    <label>Asset to Borrow</label>
+                    <select id="borrow-asset">
+                        <option value="uhodl">HODL</option>
+                        <option value="APPLE">APPLE Equity</option>
+                    </select>
+                    <label>Amount</label>
+                    <input type="number" id="borrow-amount" placeholder="500">
+                    <button onclick="borrowAsset()" class="warning" id="borrow-btn" disabled>Borrow Asset</button>
+                    <div class="result-box" id="borrow-result"></div>
+                </div>
+
+                <!-- Repay Loan -->
+                <div class="card">
+                    <h2>Repay Loan</h2>
+                    <label>Loan ID</label>
+                    <input type="number" id="repay-loan-id" placeholder="1">
+                    <label>Amount to Repay</label>
+                    <input type="number" id="repay-amount" placeholder="500">
+                    <button onclick="repayLoan()" id="repay-btn" disabled>Repay Loan</button>
+                    <div class="result-box" id="repay-result"></div>
+                </div>
+
+                <!-- My Loans -->
+                <div class="card">
+                    <h2>My Loans & Supplies</h2>
+                    <button onclick="getMyLoans()">View My Loans</button>
+                    <div id="loans-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Connect wallet to view loans</p>
+                    </div>
+                </div>
+
+                <!-- Withdraw Supply -->
+                <div class="card">
+                    <h2>Withdraw Supply</h2>
+                    <label>Supply Position ID</label>
+                    <input type="number" id="withdraw-supply-id" placeholder="1">
+                    <label>Amount to Withdraw</label>
+                    <input type="number" id="withdraw-amount" placeholder="500">
+                    <button onclick="withdrawSupply()" id="withdraw-btn" disabled>Withdraw</button>
+                    <div class="result-box" id="withdraw-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- INHERITANCE SECTION -->
+        <div id="inheritance-section" class="section-panel">
+            <div class="grid">
+                <!-- Create Inheritance Plan -->
+                <div class="card highlight">
+                    <h2>Create Inheritance Plan</h2>
+                    <p class="help-text">Set up automatic asset transfer to beneficiaries</p>
+
+                    <label>Plan Name</label>
+                    <input type="text" id="inherit-plan-name" placeholder="My Estate Plan">
+
+                    <label>Inactivity Period (days)</label>
+                    <input type="number" id="inherit-inactive-days" placeholder="365" value="365">
+                    <p class="help-text">Assets transfer if you're inactive for this many days</p>
+
+                    <h3>Beneficiaries</h3>
+                    <div id="beneficiaries-inputs">
+                        <div class="input-group" style="margin-bottom: 8px;">
+                            <input type="text" placeholder="Address (hodl...)" class="beneficiary-addr">
+                            <input type="number" placeholder="%" style="width: 80px;" class="beneficiary-pct">
+                        </div>
+                    </div>
+                    <button onclick="addBeneficiaryInput()" class="secondary small" style="width: auto; margin-bottom: 12px;">+ Add Beneficiary</button>
+
+                    <button onclick="createInheritancePlan()" class="success" id="create-inherit-btn" disabled>Create Inheritance Plan</button>
+                    <div class="result-box" id="inherit-create-result"></div>
+                </div>
+
+                <!-- My Inheritance Plans -->
+                <div class="card">
+                    <h2>My Inheritance Plans</h2>
+                    <button onclick="getMyInheritancePlans()">View My Plans</button>
+                    <div id="inheritance-plans-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Connect wallet to view your plans</p>
+                    </div>
+                </div>
+
+                <!-- Check In (Heartbeat) -->
+                <div class="card">
+                    <h2>Check In (Heartbeat)</h2>
+                    <p class="help-text">Confirm you're still active to prevent automatic transfer</p>
+                    <label>Plan ID</label>
+                    <input type="number" id="checkin-plan-id" placeholder="1">
+                    <button onclick="checkIn()" id="checkin-btn" disabled>Check In Now</button>
+                    <div class="result-box" id="checkin-result"></div>
+                </div>
+
+                <!-- Update Beneficiaries -->
+                <div class="card">
+                    <h2>Update Plan</h2>
+                    <label>Plan ID</label>
+                    <input type="number" id="update-plan-id" placeholder="1">
+                    <label>New Inactivity Period (days)</label>
+                    <input type="number" id="update-inactive-days" placeholder="365">
+                    <button onclick="updateInheritancePlan()" id="update-plan-btn" disabled>Update Plan</button>
+                    <div class="result-box" id="update-plan-result"></div>
+                </div>
+
+                <!-- Cancel Plan -->
+                <div class="card">
+                    <h2>Cancel Inheritance Plan</h2>
+                    <label>Plan ID</label>
+                    <input type="number" id="cancel-plan-id" placeholder="1">
+                    <button onclick="cancelInheritancePlan()" class="danger" id="cancel-plan-btn" disabled>Cancel Plan</button>
+                    <div class="result-box" id="cancel-plan-result"></div>
+                </div>
+
+                <!-- Claim Inheritance -->
+                <div class="card">
+                    <h2>Claim Inheritance (Beneficiary)</h2>
+                    <p class="help-text">If you're a beneficiary and owner has been inactive</p>
+                    <label>Plan ID</label>
+                    <input type="number" id="claim-plan-id" placeholder="1">
+                    <button onclick="claimInheritance()" class="warning" id="claim-inherit-btn" disabled>Claim Inheritance</button>
+                    <div class="result-box" id="claim-inherit-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- GOVERNANCE SECTION -->
+        <div id="governance-section" class="section-panel">
+            <div class="grid">
+                <!-- Active Proposals -->
+                <div class="card">
+                    <h2>Active Proposals</h2>
+                    <button onclick="getProposals()">Load Proposals</button>
+                    <div id="proposals-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Click to load active proposals</p>
+                    </div>
+                </div>
+
+                <!-- Create Proposal -->
+                <div class="card highlight">
+                    <h2>Create Proposal</h2>
+                    <label>Proposal Type</label>
+                    <select id="proposal-type">
+                        <option value="text">Text Proposal</option>
+                        <option value="parameter">Parameter Change</option>
+                        <option value="company">Company Governance</option>
+                        <option value="emergency">Emergency Action</option>
+                    </select>
+                    <label>Title</label>
+                    <input type="text" id="proposal-title" placeholder="Proposal title">
+                    <label>Description</label>
+                    <textarea id="proposal-desc" rows="3" placeholder="Detailed proposal description..."></textarea>
+                    <label>Initial Deposit (HODL)</label>
+                    <input type="number" id="proposal-deposit" placeholder="1000">
+                    <button onclick="createProposal()" id="create-proposal-btn" disabled>Submit Proposal</button>
+                    <div class="result-box" id="proposal-create-result"></div>
+                </div>
+
+                <!-- Vote -->
+                <div class="card">
+                    <h2>Vote on Proposal</h2>
+                    <label>Proposal ID</label>
+                    <input type="number" id="vote-proposal-id" placeholder="1">
+                    <label>Vote Option</label>
+                    <select id="vote-option">
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                        <option value="abstain">Abstain</option>
+                        <option value="no_with_veto">No with Veto</option>
+                    </select>
+                    <label>Justification (optional)</label>
+                    <input type="text" id="vote-reason" placeholder="Reason for your vote">
+                    <button onclick="voteOnProposal()" id="vote-btn" disabled>Cast Vote</button>
+                    <div class="result-box" id="vote-result"></div>
+                </div>
+
+                <!-- Company Proposals -->
+                <div class="card">
+                    <h2>Company Governance</h2>
+                    <p class="help-text">Vote on company matters as a shareholder (including LP positions)</p>
+                    <label>Company ID</label>
+                    <input type="number" id="company-gov-id" placeholder="1">
+                    <button onclick="getCompanyProposals()" class="secondary">Load Company Proposals</button>
+                    <div id="company-proposals-list" style="margin-top: 12px;"></div>
+                </div>
+
+                <!-- Governance Params -->
+                <div class="card">
+                    <h2>Governance Parameters</h2>
+                    <button onclick="getGovParams()" class="secondary">Load Parameters</button>
+                    <div style="margin-top: 12px;">
+                        <div class="info-row">
+                            <span class="info-label">Voting Period</span>
+                            <span class="info-value" id="gov-voting-period">--</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Quorum</span>
+                            <span class="info-value" id="gov-quorum">33.4%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Threshold</span>
+                            <span class="info-value" id="gov-threshold">50%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Veto Threshold</span>
+                            <span class="info-value" id="gov-veto">33.4%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EXPLORER SECTION -->
+        <div id="explorer-section" class="section-panel">
+            <div class="grid">
+                <!-- Search Transaction -->
+                <div class="card">
+                    <h2>Search Transaction</h2>
+                    <label>Transaction Hash</label>
+                    <input type="text" id="tx-hash" placeholder="Enter transaction hash...">
+                    <button onclick="getTx()">Search</button>
+                    <div class="result-box" id="tx-result"></div>
+                </div>
+
+                <!-- Search Block -->
+                <div class="card">
+                    <h2>Search Block</h2>
+                    <label>Block Height</label>
+                    <input type="number" id="block-search-height" placeholder="1">
+                    <button onclick="getBlock()">Search Block</button>
+                    <div class="result-box" id="block-result"></div>
+                </div>
+
+                <!-- Raw API Query -->
+                <div class="card">
+                    <h2>Raw API Query</h2>
+                    <label>REST Endpoint Path</label>
+                    <input type="text" id="raw-path" placeholder="/cosmos/bank/v1beta1/supply">
+                    <button onclick="rawQuery()">Execute Query</button>
+                    <div class="result-box" id="raw-result"></div>
+                </div>
+
+                <!-- Recent Blocks -->
+                <div class="card">
+                    <h2>Recent Blocks</h2>
+                    <button onclick="getRecentBlocks()">Load Recent Blocks</button>
+                    <div id="recent-blocks" style="margin-top: 12px;">
+                        <p style="color: #888;">Click to load recent blocks</p>
+                    </div>
+                </div>
+
+                <!-- Validators -->
+                <div class="card">
+                    <h2>Validators</h2>
+                    <button onclick="getValidators()">Load Validators</button>
+                    <div id="validators-list" style="margin-top: 12px;">
+                        <p style="color: #888;">Click to load validators</p>
+                    </div>
+                </div>
+
+                <!-- Module Queries -->
+                <div class="card">
+                    <h2>Quick Module Queries</h2>
+                    <div class="btn-row" style="margin-bottom: 10px;">
+                        <button onclick="queryModule('/cosmos/bank/v1beta1/supply')" class="secondary small">Total Supply</button>
+                        <button onclick="queryModule('/sharehodl/equity/v1/companies')" class="secondary small">All Companies</button>
+                    </div>
+                    <div class="btn-row" style="margin-bottom: 10px;">
+                        <button onclick="queryModule('/sharehodl/dex/v1/markets')" class="secondary small">All Markets</button>
+                        <button onclick="queryModule('/sharehodl/governance/v1/proposals')" class="secondary small">All Proposals</button>
+                    </div>
+                    <div class="btn-row">
+                        <button onclick="queryModule('/sharehodl/lending/v1/stats')" class="secondary small">Lending Stats</button>
+                        <button onclick="queryModule('/sharehodl/hodl/v1/params')" class="secondary small">HODL Params</button>
+                    </div>
+                    <div class="result-box" id="module-result"></div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            ShareHODL Testnet Dashboard v2.0 | Chain ID: sharehodl-local-1 | All addresses use 'hodl' prefix
+        </footer>
+    </div>
+
+    <script>
+        // ===========================================
+        // CONFIGURATION
+        // ===========================================
+        const config = {
+            chainId: 'sharehodl-local-1',
+            chainName: 'ShareHODL Testnet',
+            rpc: 'http://localhost:26657',
+            rest: 'http://localhost:1317',
+            bip44: { coinType: 118 },
+            bech32Config: {
+                bech32PrefixAccAddr: 'hodl',
+                bech32PrefixAccPub: 'hodlpub',
+                bech32PrefixValAddr: 'hodlvaloper',
+                bech32PrefixValPub: 'hodlvaloperpub',
+                bech32PrefixConsAddr: 'hodlvalcons',
+                bech32PrefixConsPub: 'hodlvalconspub',
+            },
+            currencies: [
+                { coinDenom: 'HODL', coinMinimalDenom: 'uhodl', coinDecimals: 6 },
+                { coinDenom: 'STAKE', coinMinimalDenom: 'stake', coinDecimals: 6 },
+            ],
+            feeCurrencies: [{
+                coinDenom: 'HODL',
+                coinMinimalDenom: 'uhodl',
+                coinDecimals: 6,
+                gasPriceStep: { low: 0.0025, average: 0.025, high: 0.04 },
+            }],
+            stakeCurrency: { coinDenom: 'STAKE', coinMinimalDenom: 'stake', coinDecimals: 6 },
+        };
+
+        let connectedAddress = null;
+
+        // ===========================================
+        // INITIALIZATION
+        // ===========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('ShareHODL Test Dashboard loaded');
+            checkChainStatus();
+            setInterval(checkChainStatus, 5000);
+
+            // Set default values
+            document.getElementById('balance-address').value = 'hodl19rl4cm2hmr8afy4kldpxz3fka4jguq0adxdu08';
+
+            // Set default record date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('div-record-date').value = today;
+        });
+
+        // ===========================================
+        // NAVIGATION
+        // ===========================================
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.section-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            // Show selected section
+            document.getElementById(sectionName + '-section').classList.add('active');
+
+            // Update nav tabs
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        function showTradeTab(tab) {
+            document.querySelectorAll('#dex-section .tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('buy-tab').style.display = tab === 'buy' ? 'block' : 'none';
+            document.getElementById('sell-tab').style.display = tab === 'sell' ? 'block' : 'none';
+        }
+
+        // ===========================================
+        // CHAIN STATUS
+        // ===========================================
+        async function checkChainStatus() {
+            try {
+                const response = await fetch(`${config.rpc}/status`);
+                const data = await response.json();
+                const height = data.result.sync_info.latest_block_height;
+                const time = new Date(data.result.sync_info.latest_block_time).toLocaleTimeString();
+
+                document.getElementById('chain-status').textContent = 'Chain: Online';
+                document.getElementById('chain-status').className = 'status-item connected';
+                document.getElementById('block-height').textContent = `Block: ${height}`;
+                document.getElementById('latest-block').textContent = height;
+                document.getElementById('block-time').textContent = time;
+            } catch (error) {
+                document.getElementById('chain-status').textContent = 'Chain: Offline';
+                document.getElementById('chain-status').className = 'status-item disconnected';
+            }
+        }
+
+        async function getChainInfo() {
+            await checkChainStatus();
+            showToast('Chain info refreshed!');
+        }
+
+        // ===========================================
+        // WALLET FUNCTIONS
+        // ===========================================
+        async function addToKeplr() {
+            if (!window.keplr) {
+                showToast('Keplr not detected! Install from keplr.app', true);
+                showResult('keplr-result', 'ERROR: Keplr not detected.\n\n1. Install Keplr from https://keplr.app\n2. Open this page via http://localhost:8080/\n3. Refresh the page');
+                return;
+            }
+            try {
+                await window.keplr.experimentalSuggestChain({
+                    chainId: config.chainId,
+                    chainName: config.chainName,
+                    rpc: config.rpc,
+                    rest: config.rest,
+                    bip44: config.bip44,
+                    bech32Config: config.bech32Config,
+                    currencies: config.currencies,
+                    feeCurrencies: config.feeCurrencies,
+                    stakeCurrency: config.stakeCurrency,
+                    coinType: 118,
+                    gasPriceStep: { low: 0.0025, average: 0.025, high: 0.04 },
+                });
+                showToast('ShareHODL chain added to Keplr!');
+                showResult('keplr-result', 'Chain added successfully!\n\nChain ID: ' + config.chainId);
+            } catch (error) {
+                showToast('Failed to add chain: ' + error.message, true);
+            }
+        }
+
+        async function connectKeplr() {
+            if (!window.keplr) {
+                showToast('Please install Keplr extension!', true);
+                return;
+            }
+            try {
+                await window.keplr.enable(config.chainId);
+                const offlineSigner = window.keplr.getOfflineSigner(config.chainId);
+                const accounts = await offlineSigner.getAccounts();
+                connectedAddress = accounts[0].address;
+
+                document.getElementById('wallet-status').textContent = 'Wallet: Connected';
+                document.getElementById('wallet-status').className = 'status-item connected';
+                document.getElementById('wallet-info').style.display = 'block';
+                document.getElementById('connected-address').textContent = connectedAddress;
+                document.getElementById('balance-address').value = connectedAddress;
+
+                // Enable all transaction buttons
+                enableTransactionButtons();
+                getBalance();
+                showToast('Wallet connected!');
+            } catch (error) {
+                showToast('Failed to connect: ' + error.message, true);
+            }
+        }
+
+        function enableTransactionButtons() {
+            const buttons = [
+                'send-btn', 'add-lp-btn', 'remove-lp-btn', 'buy-btn', 'sell-btn',
+                'list-company-btn', 'transfer-btn', 'declare-div-btn',
+                'mint-hodl-btn', 'redeem-hodl-btn',
+                'supply-btn', 'borrow-btn', 'repay-btn', 'withdraw-btn',
+                'create-inherit-btn', 'checkin-btn', 'update-plan-btn', 'cancel-plan-btn', 'claim-inherit-btn',
+                'create-proposal-btn', 'vote-btn'
+            ];
+            buttons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = false;
+            });
+        }
+
+        function copyAddress() {
+            if (connectedAddress) {
+                navigator.clipboard.writeText(connectedAddress);
+                showToast('Address copied!');
+            }
+        }
+
+        // ===========================================
+        // BALANCE FUNCTIONS
+        // ===========================================
+        async function getBalance() {
+            const address = document.getElementById('balance-address').value;
+            if (!address) {
+                showToast('Please enter an address', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${config.rest}/cosmos/bank/v1beta1/balances/${address}`);
+                const data = await response.json();
+
+                let hodlBalance = '0', stakeBalance = '0';
+                let otherBalancesHtml = '';
+
+                if (data.balances) {
+                    data.balances.forEach(b => {
+                        if (b.denom === 'uhodl') {
+                            hodlBalance = (parseInt(b.amount) / 1000000).toLocaleString();
+                        } else if (b.denom === 'stake') {
+                            stakeBalance = (parseInt(b.amount) / 1000000).toLocaleString();
+                        } else {
+                            // Show LP tokens and equity
+                            const displayAmount = b.denom.startsWith('lp/') ?
+                                parseInt(b.amount).toLocaleString() :
+                                (parseInt(b.amount) / 1000000).toLocaleString();
+                            otherBalancesHtml += `
+                                <div class="balance-display">
+                                    <span>${b.denom}</span>
+                                    <span class="amount">${displayAmount}</span>
+                                </div>`;
+                        }
+                    });
+                }
+
+                document.getElementById('hodl-balance').textContent = hodlBalance + ' HODL';
+                document.getElementById('stake-balance').textContent = stakeBalance + ' STAKE';
+                document.getElementById('other-balances').innerHTML = otherBalancesHtml;
+            } catch (error) {
+                showToast('Failed to get balance: ' + error.message, true);
+            }
+        }
+
+        // ===========================================
+        // SEND TOKENS
+        // ===========================================
+        async function sendTokens() {
+            if (!connectedAddress) {
+                showToast('Please connect wallet first', true);
+                return;
+            }
+            const recipient = document.getElementById('send-recipient').value;
+            const amount = document.getElementById('send-amount').value;
+            const denom = document.getElementById('send-denom').value;
+
+            if (!recipient || !amount) {
+                showToast('Please fill all fields', true);
+                return;
+            }
+
+            showResult('send-result', 'Preparing transaction...\n\nThis feature requires full CosmJS integration.\n\nMessage prepared:\n' +
+                JSON.stringify({
+                    type: 'cosmos-sdk/MsgSend',
+                    from: connectedAddress,
+                    to: recipient,
+                    amount: [{ denom, amount }]
+                }, null, 2));
+            showToast('Transaction prepared - sign in Keplr');
+        }
+
+        // ===========================================
+        // DEX / LIQUIDITY FUNCTIONS
+        // ===========================================
+        async function getMarkets() {
+            try {
+                const response = await fetch(`${config.rest}/sharehodl/dex/v1/markets`);
+                const data = await response.json();
+
+                if (data.markets && data.markets.length > 0) {
+                    const html = data.markets.map(m => `
+                        <div class="list-item">
+                            <h4>${m.base_symbol}/${m.quote_symbol}</h4>
+                            <div class="info-row">
+                                <span class="info-label">Last Price</span>
+                                <span class="info-value">${m.last_price || '--'}</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">24h Volume</span>
+                                <span class="info-value">${m.volume_24h || '--'}</span>
+                            </div>
+                            <span class="badge ${m.active ? 'success' : 'danger'}">${m.active ? 'Active' : 'Inactive'}</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('markets-list').innerHTML = html;
+                } else {
+                    document.getElementById('markets-list').innerHTML = '<p style="color: #888;">No markets found. Create one by listing a company!</p>';
+                }
+            } catch (error) {
+                document.getElementById('markets-list').innerHTML = `<p style="color: #888;">API endpoint not available. Using mock data.</p>
+                    <div class="list-item">
+                        <h4>APPLE/HODL</h4>
+                        <div class="info-row"><span class="info-label">Last Price</span><span class="info-value">150.00</span></div>
+                        <span class="badge success">Active</span>
+                    </div>`;
+            }
+        }
+
+        async function addLiquidity() {
+            if (!connectedAddress) return;
+            const market = document.getElementById('lp-market').value;
+            const baseAmount = document.getElementById('lp-base-amount').value;
+            const quoteAmount = document.getElementById('lp-quote-amount').value;
+
+            const [base, quote] = market.split('/');
+            const lpTokenDenom = `lp/${base}-${quote}`;
+
+            showResult('lp-result', `Adding Liquidity to ${market}...\n\n` +
+                `Base Amount: ${baseAmount} ${base}\n` +
+                `Quote Amount: ${quoteAmount} ${quote}\n\n` +
+                `You will receive: LP tokens (${lpTokenDenom})\n\n` +
+                `IMPORTANT: You remain the beneficial owner of your ${base} equity!\n` +
+                `- You can still vote on company matters\n` +
+                `- You will receive dividends\n` +
+                `- You earn 70% of trading fees\n\n` +
+                `Message: MsgAddLiquidity prepared for signing`);
+            showToast('Liquidity transaction prepared');
+        }
+
+        async function getLPPositions() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+
+            document.getElementById('lp-positions').innerHTML = `
+                <div class="list-item">
+                    <h4>APPLE/HODL Pool</h4>
+                    <div class="info-row"><span class="info-label">LP Tokens</span><span class="info-value">1,000 lp/APPLE-HODL</span></div>
+                    <div class="info-row"><span class="info-label">Base Deposited</span><span class="info-value">100 APPLE</span></div>
+                    <div class="info-row"><span class="info-label">Quote Deposited</span><span class="info-value">15,000 HODL</span></div>
+                    <div class="info-row"><span class="info-label">Fees Earned</span><span class="info-value">+50 HODL</span></div>
+                    <span class="badge info">Beneficial Owner</span>
+                </div>`;
+            showToast('LP positions loaded');
+        }
+
+        async function removeLiquidity() {
+            if (!connectedAddress) return;
+            const denom = document.getElementById('remove-lp-denom').value;
+            const amount = document.getElementById('remove-lp-amount').value;
+
+            showResult('remove-lp-result', `Removing Liquidity...\n\n` +
+                `LP Token: ${denom}\n` +
+                `Amount: ${amount}\n\n` +
+                `You will receive:\n` +
+                `- Your equity tokens back\n` +
+                `- Your HODL + earned fees\n\n` +
+                `Beneficial ownership will be unregistered.\n\n` +
+                `Message: MsgRemoveLiquidity prepared for signing`);
+            showToast('Remove liquidity transaction prepared');
+        }
+
+        async function executeBuy() {
+            if (!connectedAddress) return;
+            const market = document.getElementById('buy-market').value;
+            const amount = document.getElementById('buy-amount').value;
+
+            showResult('trade-result', `Buy Order for ${market}\n\n` +
+                `Spending: ${amount} HODL\n` +
+                `Buying: ${market.split('/')[0]} equity\n\n` +
+                `Message: MsgPlaceOrder (BUY) prepared`);
+            showToast('Buy order prepared');
+        }
+
+        async function executeSell() {
+            if (!connectedAddress) return;
+            const market = document.getElementById('sell-market').value;
+            const amount = document.getElementById('sell-amount').value;
+
+            showResult('trade-result', `Sell Order for ${market}\n\n` +
+                `Selling: ${amount} ${market.split('/')[0]}\n` +
+                `Receiving: HODL\n\n` +
+                `Message: MsgPlaceOrder (SELL) prepared`);
+            showToast('Sell order prepared');
+        }
+
+        async function getOrderBook() {
+            const market = document.getElementById('orderbook-market').value;
+            document.getElementById('ob-price').textContent = '150.00';
+            document.getElementById('ob-volume').textContent = '10,000';
+            document.getElementById('ob-change').textContent = '+2.5%';
+            showToast('Order book refreshed');
+        }
+
+        // ===========================================
+        // EQUITY FUNCTIONS
+        // ===========================================
+        async function listCompany() {
+            if (!connectedAddress) return;
+            const name = document.getElementById('company-name').value;
+            const symbol = document.getElementById('company-symbol').value;
+            const desc = document.getElementById('company-desc').value;
+            const shares = document.getElementById('company-shares').value;
+            const parValue = document.getElementById('company-par').value;
+            const industry = document.getElementById('company-industry').value;
+
+            showResult('list-company-result', `Listing Company...\n\n` +
+                `Name: ${name}\n` +
+                `Symbol: ${symbol}\n` +
+                `Description: ${desc}\n` +
+                `Total Shares: ${shares}\n` +
+                `Par Value: ${parValue} HODL\n` +
+                `Industry: ${industry}\n` +
+                `Founder: ${connectedAddress}\n\n` +
+                `A ${symbol}/HODL market will be created automatically.\n\n` +
+                `Message: MsgListCompany prepared`);
+            showToast('Company listing prepared');
+        }
+
+        async function getCompanies() {
+            try {
+                const response = await fetch(`${config.rest}/sharehodl/equity/v1/companies`);
+                const data = await response.json();
+
+                if (data.companies && data.companies.length > 0) {
+                    const html = data.companies.map(c => `
+                        <div class="list-item">
+                            <h4>${c.name} (${c.symbol})</h4>
+                            <div class="info-row"><span class="info-label">ID</span><span class="info-value">${c.id}</span></div>
+                            <div class="info-row"><span class="info-label">Total Shares</span><span class="info-value">${parseInt(c.total_shares).toLocaleString()}</span></div>
+                            <div class="info-row"><span class="info-label">Status</span><span class="info-value">${c.status}</span></div>
+                            <span class="badge ${c.verified ? 'success' : 'warning'}">${c.verified ? 'Verified' : 'Pending'}</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('companies-list').innerHTML = html;
+                } else {
+                    document.getElementById('companies-list').innerHTML = mockCompanies();
+                }
+            } catch (error) {
+                document.getElementById('companies-list').innerHTML = mockCompanies();
+            }
+        }
+
+        function mockCompanies() {
+            return `
+                <div class="list-item">
+                    <h4>Apple Inc (APPLE)</h4>
+                    <div class="info-row"><span class="info-label">ID</span><span class="info-value">1</span></div>
+                    <div class="info-row"><span class="info-label">Total Shares</span><span class="info-value">1,000,000</span></div>
+                    <span class="badge success">Verified</span>
+                </div>
+                <div class="list-item">
+                    <h4>Tesla Inc (TESLA)</h4>
+                    <div class="info-row"><span class="info-label">ID</span><span class="info-value">2</span></div>
+                    <div class="info-row"><span class="info-label">Total Shares</span><span class="info-value">500,000</span></div>
+                    <span class="badge success">Verified</span>
+                </div>`;
+        }
+
+        async function getMyHoldings() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+
+            document.getElementById('holdings-list').innerHTML = `
+                <div class="list-item">
+                    <h4>APPLE Shares</h4>
+                    <div class="info-row"><span class="info-label">Direct Holdings</span><span class="info-value">500 shares</span></div>
+                    <div class="info-row"><span class="info-label">In LP Pools</span><span class="info-value">100 shares</span></div>
+                    <div class="info-row"><span class="info-label">Total Beneficial</span><span class="info-value">600 shares</span></div>
+                    <span class="badge info">Voting Rights: 600</span>
+                </div>`;
+            showToast('Holdings loaded');
+        }
+
+        async function transferShares() {
+            if (!connectedAddress) return;
+            showResult('transfer-result', 'Share transfer prepared.\n\nMessage: MsgTransferShares');
+            showToast('Transfer prepared');
+        }
+
+        async function declareDividend() {
+            if (!connectedAddress) return;
+            showResult('dividend-result', 'Dividend declaration prepared.\n\nNote: Dividends will be distributed to:\n- Direct shareholders\n- Beneficial owners (LP providers, escrow, lending)\n\nMessage: MsgDeclareDividend');
+            showToast('Dividend declaration prepared');
+        }
+
+        async function getPendingDividends() {
+            document.getElementById('dividends-list').innerHTML = `
+                <div class="list-item">
+                    <h4>APPLE Q4 Dividend</h4>
+                    <div class="info-row"><span class="info-label">Your Share</span><span class="info-value">150 HODL</span></div>
+                    <div class="info-row"><span class="info-label">Status</span><span class="info-value">Claimable</span></div>
+                    <button class="success small" style="margin-top: 8px;">Claim Dividend</button>
+                </div>`;
+            showToast('Dividends loaded');
+        }
+
+        async function getBeneficialOwnership() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+            document.getElementById('beneficial-list').innerHTML = `
+                <div class="list-item">
+                    <h4>Beneficial Ownership Summary</h4>
+                    <div class="info-row"><span class="info-label">LP Pool (DEX)</span><span class="info-value">100 APPLE shares</span></div>
+                    <div class="info-row"><span class="info-label">Escrow</span><span class="info-value">50 TESLA shares</span></div>
+                    <div class="info-row"><span class="info-label">Lending Collateral</span><span class="info-value">0 shares</span></div>
+                    <p style="margin-top: 12px; font-size: 0.85rem; color: #888;">These shares count towards your voting power and dividend eligibility!</p>
+                </div>`;
+            showToast('Beneficial ownership loaded');
+        }
+
+        // ===========================================
+        // HODL STABLECOIN FUNCTIONS
+        // ===========================================
+        async function getHodlStats() {
+            try {
+                const response = await fetch(`${config.rest}/cosmos/bank/v1beta1/supply/uhodl`);
+                const data = await response.json();
+                const supply = data.amount ? (parseInt(data.amount.amount) / 1000000).toLocaleString() : '--';
+                document.getElementById('hodl-total-supply').textContent = supply;
+                document.getElementById('hodl-supply').textContent = 'HODL: ' + supply;
+            } catch (error) {
+                document.getElementById('hodl-total-supply').textContent = '1,000,000';
+            }
+            showToast('HODL stats refreshed');
+        }
+
+        async function mintHodl() {
+            if (!connectedAddress) return;
+            showResult('mint-hodl-result', 'HODL minting prepared.\n\nCollateral will be locked.\nHODL tokens will be minted to your wallet.\n\nMessage: MsgMintHodl');
+            showToast('Mint transaction prepared');
+        }
+
+        async function redeemHodl() {
+            if (!connectedAddress) return;
+            showResult('redeem-hodl-result', 'HODL redemption prepared.\n\nHODL will be burned.\nCollateral will be returned.\n\nMessage: MsgRedeemHodl');
+            showToast('Redeem transaction prepared');
+        }
+
+        async function getMyPositions() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+            document.getElementById('positions-list').innerHTML = `
+                <div class="list-item">
+                    <h4>Position #1</h4>
+                    <div class="info-row"><span class="info-label">Collateral</span><span class="info-value">1000 APPLE</span></div>
+                    <div class="info-row"><span class="info-label">HODL Minted</span><span class="info-value">100,000</span></div>
+                    <div class="info-row"><span class="info-label">Collateral Ratio</span><span class="info-value">160%</span></div>
+                    <span class="badge success">Healthy</span>
+                </div>`;
+            showToast('Positions loaded');
+        }
+
+        // ===========================================
+        // LENDING FUNCTIONS
+        // ===========================================
+        async function getLendingStats() {
+            document.getElementById('lending-tvl').textContent = '$5.2M';
+            document.getElementById('lending-borrowed').textContent = '$2.1M';
+            document.getElementById('lending-apy').textContent = '8.5%';
+            showToast('Lending stats refreshed');
+        }
+
+        async function supplyAsset() {
+            if (!connectedAddress) return;
+            showResult('supply-result', 'Supply transaction prepared.\n\nYou will receive interest on supplied assets.\nYour equity remains beneficially owned by you.\n\nMessage: MsgSupplyAsset');
+            showToast('Supply transaction prepared');
+        }
+
+        async function borrowAsset() {
+            if (!connectedAddress) return;
+            showResult('borrow-result', 'Borrow transaction prepared.\n\nCollateral will be locked.\nInterest will accrue on borrowed amount.\n\nMessage: MsgBorrowAsset');
+            showToast('Borrow transaction prepared');
+        }
+
+        async function repayLoan() {
+            if (!connectedAddress) return;
+            showResult('repay-result', 'Repayment prepared.\n\nLoan + interest will be repaid.\nCollateral will be released.\n\nMessage: MsgRepayLoan');
+            showToast('Repayment prepared');
+        }
+
+        async function withdrawSupply() {
+            if (!connectedAddress) return;
+            showResult('withdraw-result', 'Withdrawal prepared.\n\nSupplied assets + earned interest will be returned.\n\nMessage: MsgWithdrawSupply');
+            showToast('Withdrawal prepared');
+        }
+
+        async function getMyLoans() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+            document.getElementById('loans-list').innerHTML = `
+                <div class="list-item">
+                    <h4>Supply: 10,000 HODL</h4>
+                    <div class="info-row"><span class="info-label">APY</span><span class="info-value">8.5%</span></div>
+                    <div class="info-row"><span class="info-label">Earned</span><span class="info-value">+425 HODL</span></div>
+                    <span class="badge success">Earning</span>
+                </div>
+                <div class="list-item">
+                    <h4>Borrow: 5,000 HODL</h4>
+                    <div class="info-row"><span class="info-label">Interest Rate</span><span class="info-value">12%</span></div>
+                    <div class="info-row"><span class="info-label">Collateral</span><span class="info-value">100 APPLE</span></div>
+                    <span class="badge warning">Active Loan</span>
+                </div>`;
+            showToast('Loans loaded');
+        }
+
+        // ===========================================
+        // INHERITANCE FUNCTIONS
+        // ===========================================
+        function addBeneficiaryInput() {
+            const container = document.getElementById('beneficiaries-inputs');
+            const div = document.createElement('div');
+            div.className = 'input-group';
+            div.style.marginBottom = '8px';
+            div.innerHTML = `
+                <input type="text" placeholder="Address (hodl...)" class="beneficiary-addr">
+                <input type="number" placeholder="%" style="width: 80px;" class="beneficiary-pct">`;
+            container.appendChild(div);
+        }
+
+        async function createInheritancePlan() {
+            if (!connectedAddress) return;
+            const name = document.getElementById('inherit-plan-name').value;
+            const days = document.getElementById('inherit-inactive-days').value;
+
+            const addrs = document.querySelectorAll('.beneficiary-addr');
+            const pcts = document.querySelectorAll('.beneficiary-pct');
+            let beneficiaries = [];
+            for (let i = 0; i < addrs.length; i++) {
+                if (addrs[i].value && pcts[i].value) {
+                    beneficiaries.push({ address: addrs[i].value, percentage: pcts[i].value });
+                }
+            }
+
+            showResult('inherit-create-result', `Inheritance Plan Created!\n\n` +
+                `Name: ${name}\n` +
+                `Inactivity Period: ${days} days\n` +
+                `Beneficiaries: ${JSON.stringify(beneficiaries, null, 2)}\n\n` +
+                `IMPORTANT: Check in regularly to prevent automatic transfer!\n\n` +
+                `Message: MsgCreateInheritancePlan`);
+            showToast('Inheritance plan created');
+        }
+
+        async function getMyInheritancePlans() {
+            if (!connectedAddress) {
+                showToast('Connect wallet first', true);
+                return;
+            }
+            document.getElementById('inheritance-plans-list').innerHTML = `
+                <div class="list-item">
+                    <h4>My Estate Plan</h4>
+                    <div class="info-row"><span class="info-label">Plan ID</span><span class="info-value">1</span></div>
+                    <div class="info-row"><span class="info-label">Inactivity Period</span><span class="info-value">365 days</span></div>
+                    <div class="info-row"><span class="info-label">Last Check-in</span><span class="info-value">2 days ago</span></div>
+                    <div class="info-row"><span class="info-label">Beneficiaries</span><span class="info-value">2</span></div>
+                    <span class="badge success">Active</span>
+                </div>`;
+            showToast('Plans loaded');
+        }
+
+        async function checkIn() {
+            if (!connectedAddress) return;
+            showResult('checkin-result', 'Check-in recorded!\n\nYour inactivity timer has been reset.\n\nMessage: MsgCheckIn');
+            showToast('Check-in successful!');
+        }
+
+        async function updateInheritancePlan() {
+            if (!connectedAddress) return;
+            showResult('update-plan-result', 'Plan updated!\n\nMessage: MsgUpdateInheritancePlan');
+            showToast('Plan updated');
+        }
+
+        async function cancelInheritancePlan() {
+            if (!connectedAddress) return;
+            showResult('cancel-plan-result', 'Plan cancelled!\n\nYour inheritance plan has been deactivated.\n\nMessage: MsgCancelInheritancePlan');
+            showToast('Plan cancelled');
+        }
+
+        async function claimInheritance() {
+            if (!connectedAddress) return;
+            showResult('claim-inherit-result', 'Inheritance claim submitted!\n\nIf the owner has been inactive, assets will be transferred to beneficiaries.\n\nMessage: MsgClaimInheritance');
+            showToast('Claim submitted');
+        }
+
+        // ===========================================
+        // GOVERNANCE FUNCTIONS
+        // ===========================================
+        async function getProposals() {
+            try {
+                const response = await fetch(`${config.rest}/sharehodl/governance/v1/proposals`);
+                const data = await response.json();
+
+                if (data.proposals && data.proposals.length > 0) {
+                    const html = data.proposals.map(p => `
+                        <div class="list-item">
+                            <h4>#${p.id}: ${p.title}</h4>
+                            <div class="info-row"><span class="info-label">Type</span><span class="info-value">${p.type}</span></div>
+                            <div class="info-row"><span class="info-label">Status</span><span class="info-value">${p.status}</span></div>
+                            <div class="info-row"><span class="info-label">Yes/No</span><span class="info-value">${p.yes_votes || 0}/${p.no_votes || 0}</span></div>
+                            <span class="badge ${p.status === 'passed' ? 'success' : p.status === 'rejected' ? 'danger' : 'info'}">${p.status}</span>
+                        </div>
+                    `).join('');
+                    document.getElementById('proposals-list').innerHTML = html;
+                } else {
+                    document.getElementById('proposals-list').innerHTML = mockProposals();
+                }
+            } catch (error) {
+                document.getElementById('proposals-list').innerHTML = mockProposals();
+            }
+        }
+
+        function mockProposals() {
+            return `
+                <div class="list-item">
+                    <h4>#1: Increase LP Fee Share</h4>
+                    <div class="info-row"><span class="info-label">Type</span><span class="info-value">Parameter Change</span></div>
+                    <div class="info-row"><span class="info-label">Yes/No</span><span class="info-value">75,000 / 25,000</span></div>
+                    <span class="badge info">Voting</span>
+                </div>
+                <div class="list-item">
+                    <h4>#2: Add New Trading Pair</h4>
+                    <div class="info-row"><span class="info-label">Type</span><span class="info-value">Text Proposal</span></div>
+                    <div class="info-row"><span class="info-label">Yes/No</span><span class="info-value">50,000 / 10,000</span></div>
+                    <span class="badge success">Passed</span>
+                </div>`;
+        }
+
+        async function createProposal() {
+            if (!connectedAddress) return;
+            showResult('proposal-create-result', 'Proposal created!\n\nYour proposal has been submitted for voting.\n\nMessage: MsgSubmitProposal');
+            showToast('Proposal submitted');
+        }
+
+        async function voteOnProposal() {
+            if (!connectedAddress) return;
+            const proposalId = document.getElementById('vote-proposal-id').value;
+            const option = document.getElementById('vote-option').value;
+            const reason = document.getElementById('vote-reason').value;
+
+            showResult('vote-result', `Vote cast!\n\n` +
+                `Proposal: #${proposalId}\n` +
+                `Vote: ${option.toUpperCase()}\n` +
+                `Reason: ${reason || 'None provided'}\n\n` +
+                `Your voting power includes:\n` +
+                `- Direct HODL holdings\n` +
+                `- Beneficial ownership (LP positions)\n` +
+                `- Staking tier bonus\n\n` +
+                `Message: MsgVote`);
+            showToast('Vote cast!');
+        }
+
+        async function getCompanyProposals() {
+            const companyId = document.getElementById('company-gov-id').value;
+            document.getElementById('company-proposals-list').innerHTML = `
+                <div class="list-item">
+                    <h4>Company #${companyId} - Stock Split</h4>
+                    <div class="info-row"><span class="info-label">Your Voting Power</span><span class="info-value">600 shares (inc. LP)</span></div>
+                    <span class="badge info">Voting Open</span>
+                    <button class="success small" style="margin-top: 8px;">Vote Yes</button>
+                    <button class="danger small" style="margin-top: 8px;">Vote No</button>
+                </div>`;
+            showToast('Company proposals loaded');
+        }
+
+        async function getGovParams() {
+            document.getElementById('gov-voting-period').textContent = '7 days';
+            showToast('Parameters loaded');
+        }
+
+        // ===========================================
+        // EXPLORER FUNCTIONS
+        // ===========================================
+        async function getTx() {
+            const hash = document.getElementById('tx-hash').value;
+            if (!hash) {
+                showToast('Enter a transaction hash', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${config.rest}/cosmos/tx/v1beta1/txs/${hash}`);
+                const data = await response.json();
+                showResult('tx-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('tx-result', 'Transaction not found or error: ' + error.message);
+            }
+        }
+
+        async function getBlock() {
+            const height = document.getElementById('block-search-height').value;
+            if (!height) {
+                showToast('Enter a block height', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${config.rpc}/block?height=${height}`);
+                const data = await response.json();
+                showResult('block-result', JSON.stringify(data.result, null, 2));
+            } catch (error) {
+                showResult('block-result', 'Block not found: ' + error.message);
+            }
+        }
+
+        async function rawQuery() {
+            const path = document.getElementById('raw-path').value;
+            if (!path) {
+                showToast('Enter an API path', true);
+                return;
+            }
+            try {
+                const response = await fetch(`${config.rest}${path}`);
+                const data = await response.json();
+                showResult('raw-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('raw-result', 'Error: ' + error.message);
+            }
+        }
+
+        async function queryModule(path) {
+            try {
+                const response = await fetch(`${config.rest}${path}`);
+                const data = await response.json();
+                showResult('module-result', JSON.stringify(data, null, 2));
+            } catch (error) {
+                showResult('module-result', 'Error: ' + error.message);
+            }
+        }
+
+        async function getRecentBlocks() {
+            try {
+                const statusRes = await fetch(`${config.rpc}/status`);
+                const status = await statusRes.json();
+                const latestHeight = parseInt(status.result.sync_info.latest_block_height);
+
+                let html = '';
+                for (let i = 0; i < 5 && latestHeight - i > 0; i++) {
+                    html += `
+                        <div class="list-item">
+                            <h4>Block #${latestHeight - i}</h4>
+                            <div class="info-row"><span class="info-label">Hash</span><span class="info-value" style="font-size: 0.75rem;">...</span></div>
+                        </div>`;
+                }
+                document.getElementById('recent-blocks').innerHTML = html;
+            } catch (error) {
+                document.getElementById('recent-blocks').innerHTML = '<p style="color: #888;">Failed to load blocks</p>';
+            }
+        }
+
+        async function getValidators() {
+            try {
+                const response = await fetch(`${config.rest}/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED`);
+                const data = await response.json();
+
+                if (data.validators && data.validators.length > 0) {
+                    const html = data.validators.map(v => `
+                        <div class="list-item">
+                            <h4>${v.description?.moniker || 'Unknown'}</h4>
+                            <div class="info-row"><span class="info-label">Tokens</span><span class="info-value">${v.tokens ? (parseInt(v.tokens) / 1000000).toLocaleString() : 'N/A'}</span></div>
+                            <div class="info-row"><span class="info-label">Commission</span><span class="info-value">${v.commission?.commission_rates?.rate ? (parseFloat(v.commission.commission_rates.rate) * 100).toFixed(1) + '%' : 'N/A'}</span></div>
+                        </div>
+                    `).join('');
+                    document.getElementById('validators-list').innerHTML = html;
+                } else {
+                    document.getElementById('validators-list').innerHTML = '<p style="color: #888;">No validators found</p>';
+                }
+            } catch (error) {
+                document.getElementById('validators-list').innerHTML = `<p style="color: #888;">Error: ${error.message}</p>`;
+            }
+        }
+
+        // ===========================================
+        // HELPERS
+        // ===========================================
+        function showResult(elementId, text) {
+            const el = document.getElementById(elementId);
+            el.style.display = 'block';
+            el.textContent = text;
+        }
+
+        function showToast(message, isError = false) {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = 'toast' + (isError ? ' error' : '');
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

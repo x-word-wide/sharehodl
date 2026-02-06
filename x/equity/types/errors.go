@@ -48,7 +48,11 @@ var (
 	ErrProhibitedIndustry        = errors.Register(ModuleName, 38, "prohibited industry")
 	ErrInvalidJurisdiction       = errors.Register(ModuleName, 39, "invalid jurisdiction")
 	ErrInsufficientListingFee    = errors.Register(ModuleName, 40, "insufficient listing fee")
-	
+
+	// Staking tier requirement errors
+	ErrInsufficientTierForListing = errors.Register(ModuleName, 63, "must be Keeper tier or higher (10K HODL staked) to submit company listing")
+	ErrInsufficientTierToVerify   = errors.Register(ModuleName, 64, "insufficient tier to verify this business size")
+
 	// Dividend system errors
 	ErrDividendAlreadyClaimed    = errors.Register(ModuleName, 41, "dividend already claimed")
 	ErrDividendNotEligible       = errors.Register(ModuleName, 42, "not eligible for dividend")
@@ -60,4 +64,130 @@ var (
 	ErrDividendSnapshotNotReady  = errors.Register(ModuleName, 48, "dividend snapshot not ready")
 	ErrInvalidPaymentMethod      = errors.Register(ModuleName, 49, "invalid payment method")
 	ErrDividendPolicyNotSet      = errors.Register(ModuleName, 50, "dividend policy not set")
+
+	// Anti-dilution errors
+	ErrAntiDilutionNotFound      = errors.Register(ModuleName, 51, "anti-dilution provision not found")
+	ErrAntiDilutionExists        = errors.Register(ModuleName, 52, "anti-dilution provision already exists")
+	ErrInvalidAntiDilutionType   = errors.Register(ModuleName, 53, "invalid anti-dilution type")
+	ErrAntiDilutionInactive      = errors.Register(ModuleName, 54, "anti-dilution provision is inactive")
+	ErrNotDownRound              = errors.Register(ModuleName, 55, "not a down round - price not lower than previous")
+	ErrBelowTriggerThreshold     = errors.Register(ModuleName, 56, "price drop below trigger threshold")
+	ErrExceedsAdjustmentCap      = errors.Register(ModuleName, 57, "adjustment exceeds cap limit")
+	ErrBelowMinimumPrice         = errors.Register(ModuleName, 58, "price below minimum allowed")
+	ErrIssuanceRecordNotFound    = errors.Register(ModuleName, 59, "issuance record not found")
+	ErrAdjustmentNotFound        = errors.Register(ModuleName, 60, "adjustment record not found")
+	ErrNoShareholdersToAdjust    = errors.Register(ModuleName, 61, "no shareholders eligible for adjustment")
+	ErrAdjustmentAlreadyApplied  = errors.Register(ModuleName, 62, "adjustment already applied for this issuance")
+
+	// Delisting and compensation errors
+	ErrCompanyAlreadyDelisted       = errors.Register(ModuleName, 70, "company already delisted")
+	ErrCompanyNotDelisted           = errors.Register(ModuleName, 71, "company not delisted")
+	ErrTradingHalted                = errors.Register(ModuleName, 72, "trading halted for this company")
+	ErrTradingNotHalted             = errors.Register(ModuleName, 73, "trading not halted for this company")
+	ErrCompensationNotFound         = errors.Register(ModuleName, 74, "compensation record not found")
+	ErrCompensationAlreadyExists    = errors.Register(ModuleName, 75, "compensation record already exists")
+	ErrCompensationExpired          = errors.Register(ModuleName, 76, "compensation claim deadline expired")
+	ErrCompensationNotClaimable     = errors.Register(ModuleName, 77, "compensation not currently claimable")
+	ErrClaimNotFound                = errors.Register(ModuleName, 78, "compensation claim not found")
+	ErrClaimAlreadySubmitted        = errors.Register(ModuleName, 79, "claim already submitted for this company")
+	ErrClaimAlreadyProcessed        = errors.Register(ModuleName, 80, "claim already processed")
+	ErrNoSharesHeld                 = errors.Register(ModuleName, 81, "no shares held at time of delisting")
+	ErrInsufficientCompensationPool = errors.Register(ModuleName, 82, "insufficient funds in compensation pool")
+	ErrTreasuryNotFrozen            = errors.Register(ModuleName, 83, "company treasury not frozen")
+	ErrTreasuryAlreadyFrozen        = errors.Register(ModuleName, 84, "company treasury already frozen")
+	ErrVerifierNotFound             = errors.Register(ModuleName, 85, "verifier not found")
+	ErrVerifierAlreadyPenalized     = errors.Register(ModuleName, 86, "verifier already penalized for this company")
+
+	// Company Treasury errors
+	ErrTreasuryNotFound              = errors.Register(ModuleName, 200, "company treasury not found")
+	ErrTreasuryAlreadyExists         = errors.Register(ModuleName, 201, "company treasury already exists")
+	ErrInsufficientTreasuryBalance   = errors.Register(ModuleName, 202, "insufficient treasury balance")
+	ErrTreasuryLocked                = errors.Register(ModuleName, 203, "treasury is locked during proposal/dividend period")
+	ErrWithdrawalNotFound            = errors.Register(ModuleName, 204, "treasury withdrawal not found")
+	ErrWithdrawalNotApproved         = errors.Register(ModuleName, 205, "withdrawal not approved by governance")
+	ErrWithdrawalAlreadyExecuted     = errors.Register(ModuleName, 206, "withdrawal already executed")
+	ErrWithdrawalCancelled           = errors.Register(ModuleName, 207, "withdrawal was cancelled")
+	ErrInvalidWithdrawalAmount       = errors.Register(ModuleName, 208, "invalid withdrawal amount")
+	ErrWithdrawalPending             = errors.Register(ModuleName, 209, "another withdrawal is pending for this treasury")
+	ErrNotTreasuryController         = errors.Register(ModuleName, 210, "not authorized to control treasury")
+
+	// Primary Sale errors
+	ErrPrimarySaleNotFound           = errors.Register(ModuleName, 220, "primary sale offer not found")
+	ErrPrimarySaleNotActive          = errors.Register(ModuleName, 221, "primary sale offer is not active")
+	ErrPrimarySaleEnded              = errors.Register(ModuleName, 222, "primary sale offer has ended")
+	ErrPrimarySaleSoldOut            = errors.Register(ModuleName, 223, "primary sale offer is sold out")
+	ErrExceedsMaxPurchase            = errors.Register(ModuleName, 224, "purchase exceeds maximum per address")
+	ErrBelowMinPurchase              = errors.Register(ModuleName, 225, "purchase below minimum amount")
+	ErrInsufficientSharesAvailable   = errors.Register(ModuleName, 226, "insufficient shares available in offer")
+	ErrPrimarySaleAlreadyExists      = errors.Register(ModuleName, 227, "active primary sale already exists for this class")
+	ErrInvalidOfferPrice             = errors.Register(ModuleName, 228, "invalid offer price")
+	ErrOfferNotStarted               = errors.Register(ModuleName, 229, "primary sale offer has not started yet")
+
+	// Treasury governance errors
+	ErrProposalAmountExceedsAvailable = errors.Register(ModuleName, 230, "proposal amount exceeds available treasury balance")
+	ErrTreasuryFrozenForInvestigation = errors.Register(ModuleName, 231, "treasury frozen during fraud investigation")
+	ErrDividendPeriodActive          = errors.Register(ModuleName, 232, "cannot withdraw during active dividend period")
+	ErrIssuanceLocked                = errors.Register(ModuleName, 233, "share issuance locked during active treasury proposal")
+	ErrInsufficientTreasuryShares    = errors.Register(ModuleName, 234, "insufficient shares in treasury to sell")
+
+	// Authorization errors
+	ErrNotCompanyOwner             = errors.Register(ModuleName, 240, "not company owner")
+	ErrNotAuthorizedProposer       = errors.Register(ModuleName, 241, "not authorized to propose")
+	ErrProposerAlreadyExists       = errors.Register(ModuleName, 242, "proposer already authorized")
+	ErrProposerNotFound            = errors.Register(ModuleName, 243, "proposer not found")
+	ErrOwnershipTransferPending    = errors.Register(ModuleName, 244, "ownership transfer already pending")
+	ErrNoOwnershipTransferPending  = errors.Register(ModuleName, 245, "no ownership transfer pending")
+	ErrCannotRemoveSelf            = errors.Register(ModuleName, 246, "owner cannot remove themselves as proposer")
+
+	// Shareholder blacklist errors
+	ErrShareholderBlacklisted    = errors.Register(ModuleName, 250, "shareholder is blacklisted")
+	ErrNotBlacklisted            = errors.Register(ModuleName, 251, "shareholder is not blacklisted")
+	ErrInvalidCharityWallet      = errors.Register(ModuleName, 252, "invalid charity wallet address")
+	ErrNoRedirectionConfigured   = errors.Register(ModuleName, 253, "no dividend redirection configured")
+	ErrBlacklistExpired          = errors.Register(ModuleName, 254, "blacklist entry has expired")
+	ErrBlacklistAlreadyExists    = errors.Register(ModuleName, 255, "blacklist entry already exists for this shareholder")
+
+	// Beneficial owner registry errors
+	ErrBeneficialOwnerNotFound   = errors.Register(ModuleName, 260, "beneficial owner record not found")
+	ErrInvalidInput              = errors.Register(ModuleName, 261, "invalid input parameter")
+	ErrInternalError             = errors.Register(ModuleName, 262, "internal error")
+
+	// Dividend audit errors
+	ErrAuditRequired             = errors.Register(ModuleName, 270, "audit document required for dividend declaration")
+	ErrAuditNotFound             = errors.Register(ModuleName, 271, "audit record not found")
+	ErrAuditAlreadyExists        = errors.Register(ModuleName, 272, "audit already exists for this dividend")
+	ErrAuditContentHashRequired  = errors.Register(ModuleName, 273, "audit content hash is required")
+	ErrAuditContentHashTooShort  = errors.Register(ModuleName, 274, "audit content hash must be at least 32 characters")
+	ErrAuditStorageURIRequired   = errors.Register(ModuleName, 275, "audit storage URI is required")
+	ErrAuditInvalidDocumentType  = errors.Register(ModuleName, 276, "invalid audit document type (must be pdf, docx, xlsx, png, jpg, or json)")
+	ErrAuditTitleRequired        = errors.Register(ModuleName, 277, "audit title is required")
+	ErrAuditAuditorNameRequired  = errors.Register(ModuleName, 278, "auditor name is required")
+	ErrAuditPeriodRequired       = errors.Register(ModuleName, 279, "audit period is required")
+	ErrAuditReportDateRequired   = errors.Register(ModuleName, 280, "audit report date is required")
+	ErrAuditReportDateFuture     = errors.Register(ModuleName, 281, "audit report date cannot be in the future")
+	ErrAuditReportTooOld         = errors.Register(ModuleName, 282, "audit report is too old (older than 2 years)")
+	ErrAuditVerificationFailed   = errors.Register(ModuleName, 283, "audit verification failed")
+	ErrAuditAlreadyVerified      = errors.Register(ModuleName, 284, "audit already verified by this validator")
+	ErrAuditRejected             = errors.Register(ModuleName, 285, "audit was rejected")
+	ErrAuditDisputed             = errors.Register(ModuleName, 286, "audit is currently disputed")
+	ErrNotValidator              = errors.Register(ModuleName, 287, "only validators can verify audits")
+	ErrAuditNotVerified          = errors.Register(ModuleName, 288, "audit has not been verified yet")
+	ErrAuditContentHashDuplicate = errors.Register(ModuleName, 289, "audit content hash already exists - duplicate audit document")
+
+	// Freeze warning errors
+	ErrFreezeWarningNotFound     = errors.Register(ModuleName, 290, "freeze warning not found")
+	ErrFreezeWarningExpired      = errors.Register(ModuleName, 291, "freeze warning period has expired")
+	ErrFreezeWarningAlreadyExists = errors.Register(ModuleName, 292, "active freeze warning already exists for this company")
+	ErrFreezeWarningAlreadyResolved = errors.Register(ModuleName, 293, "freeze warning already resolved")
+	ErrFreezeWarningAlreadyResponded = errors.Register(ModuleName, 294, "company has already responded to this warning")
+	ErrTreasuryWithdrawalLimitExceeded = errors.Register(ModuleName, 295, "treasury withdrawal limit exceeded during freeze warning period")
+
+	// Shareholder petition errors
+	ErrPetitionNotFound      = errors.Register(ModuleName, 300, "petition not found")
+	ErrPetitionNotOpen       = errors.Register(ModuleName, 301, "petition is not open for signatures")
+	ErrPetitionExpired       = errors.Register(ModuleName, 302, "petition has expired")
+	ErrAlreadySigned         = errors.Register(ModuleName, 303, "already signed this petition")
+	ErrNotShareholder        = errors.Register(ModuleName, 304, "must be a shareholder to participate in petition")
+	ErrNotPetitionCreator    = errors.Register(ModuleName, 305, "only petition creator can perform this action")
+	ErrInvalidAddress        = errors.Register(ModuleName, 306, "invalid address")
 )

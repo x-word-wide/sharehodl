@@ -20,6 +20,11 @@ const (
 	ProposalTypeListingRequirement  ProposalType = 6
 	ProposalTypeTradingHalt         ProposalType = 7
 	ProposalTypeEmergencyAction     ProposalType = 8
+	ProposalTypeSetCharityWallet    ProposalType = 9  // Set protocol default charity wallet
+	// Fee Abstraction proposal types
+	ProposalTypeFeeAbstractionParams ProposalType = 50 // Update fee abstraction parameters
+	ProposalTypeTreasuryGrant        ProposalType = 51 // Grant treasury allowance
+	ProposalTypeTreasuryFunding      ProposalType = 52 // Fund protocol treasury
 )
 
 // String returns the string representation of ProposalType
@@ -43,6 +48,14 @@ func (pt ProposalType) String() string {
 		return "trading_halt"
 	case ProposalTypeEmergencyAction:
 		return "emergency_action"
+	case ProposalTypeSetCharityWallet:
+		return "set_charity_wallet"
+	case ProposalTypeFeeAbstractionParams:
+		return "fee_abstraction_params"
+	case ProposalTypeTreasuryGrant:
+		return "treasury_grant"
+	case ProposalTypeTreasuryFunding:
+		return "treasury_funding"
 	default:
 		return "unknown"
 	}
@@ -529,5 +542,161 @@ func DefaultGovernanceParams() GovernanceParams {
 		ShareholderVoting:     true,
 		ValidatorQuorum:       math.LegacyNewDecWithPrec(67, 2),    // 67%
 		ValidatorThreshold:    math.LegacyNewDecWithPrec(75, 2),    // 75%
+	}
+}
+
+// =============================================================================
+// STATUS ALIASES (for keeper compatibility)
+// =============================================================================
+
+// Status aliases for keeper compatibility
+type Status string
+
+const (
+	StatusDepositPeriod   Status = "deposit_period"
+	StatusVotingPeriod    Status = "voting_period"
+	StatusPassed          Status = "passed"
+	StatusRejected        Status = "rejected"
+	StatusCancelled       Status = "cancelled"
+	StatusVetoed          Status = "vetoed"
+	StatusExecuted        Status = "executed"
+	StatusExecutionFailed Status = "execution_failed"
+)
+
+// VoteOption aliases for keeper compatibility
+type VoteOptionAlias string
+
+const (
+	OptionYes     VoteOptionAlias = "yes"
+	OptionNo      VoteOptionAlias = "no"
+	OptionAbstain VoteOptionAlias = "abstain"
+	OptionVeto    VoteOptionAlias = "no_with_veto"
+)
+
+// ProposalOutcome represents the outcome of a proposal
+type ProposalOutcome string
+
+const (
+	OutcomeVotingInProgress ProposalOutcome = "voting_in_progress"
+	OutcomePassed           ProposalOutcome = "passed"
+	OutcomeRejected         ProposalOutcome = "rejected"
+	OutcomeQuorumNotMet     ProposalOutcome = "quorum_not_met"
+	OutcomeVetoed           ProposalOutcome = "vetoed"
+)
+
+// Extended ProposalType constants for keeper compatibility
+const (
+	ProposalTypeCompanyListing    ProposalType = 10
+	ProposalTypeCompanyDelisting  ProposalType = 11
+	ProposalTypeCompanyParameter  ProposalType = 12
+	ProposalTypeValidatorPromotion ProposalType = 20
+	ProposalTypeValidatorDemotion  ProposalType = 21
+	ProposalTypeValidatorRemoval   ProposalType = 22
+	ProposalTypeProtocolParameter  ProposalType = 30
+	ProposalTypeProtocolUpgrade    ProposalType = 31
+	ProposalTypeTreasurySpend      ProposalType = 40
+)
+
+// =============================================================================
+// EXTENDED TYPES FOR KEEPER
+// =============================================================================
+
+// Extended Proposal for keeper compatibility
+type KeeperProposal struct {
+	ID                uint64         `json:"id"`
+	Type              ProposalType   `json:"type"`
+	Title             string         `json:"title"`
+	Description       string         `json:"description"`
+	Submitter         string         `json:"submitter"`
+	Status            Status         `json:"status"`
+	SubmissionTime    time.Time      `json:"submission_time"`
+	DepositEndTime    time.Time      `json:"deposit_end_time"`
+	VotingStartTime   time.Time      `json:"voting_start_time"`
+	VotingEndTime     time.Time      `json:"voting_end_time"`
+	TotalDeposit      math.Int       `json:"total_deposit"`
+	QuorumRequired    math.LegacyDec `json:"quorum_required"`
+	ThresholdRequired math.LegacyDec `json:"threshold_required"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt         time.Time      `json:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at"`
+}
+
+// Extended Vote for keeper compatibility
+type KeeperVote struct {
+	ProposalID   uint64          `json:"proposal_id"`
+	Voter        string          `json:"voter"`
+	Option       VoteOptionAlias `json:"option"`
+	Weight       math.LegacyDec  `json:"weight"`
+	VotingPower  math.LegacyDec  `json:"voting_power"`
+	Reason       string          `json:"reason,omitempty"`
+	SubmittedAt  time.Time       `json:"submitted_at"`
+}
+
+// Extended WeightedVote for keeper compatibility
+type KeeperWeightedVote struct {
+	ProposalID   uint64                  `json:"proposal_id"`
+	Voter        string                  `json:"voter"`
+	Options      []WeightedVoteOption    `json:"options"`
+	VotingPower  math.LegacyDec          `json:"voting_power"`
+	Reason       string                  `json:"reason,omitempty"`
+	SubmittedAt  time.Time               `json:"submitted_at"`
+}
+
+// Extended TallyResult for keeper compatibility
+type KeeperTallyResult struct {
+	ProposalID         uint64          `json:"proposal_id"`
+	YesVotes           math.LegacyDec  `json:"yes_votes"`
+	NoVotes            math.LegacyDec  `json:"no_votes"`
+	AbstainVotes       math.LegacyDec  `json:"abstain_votes"`
+	VetoVotes          math.LegacyDec  `json:"veto_votes"`
+	TotalVotes         math.LegacyDec  `json:"total_votes"`
+	TotalEligibleVotes math.LegacyDec  `json:"total_eligible_votes"`
+	ParticipationRate  math.LegacyDec  `json:"participation_rate"`
+	YesPercentage      math.LegacyDec  `json:"yes_percentage"`
+	NoPercentage       math.LegacyDec  `json:"no_percentage"`
+	AbstainPercentage  math.LegacyDec  `json:"abstain_percentage"`
+	VetoPercentage     math.LegacyDec  `json:"veto_percentage"`
+	Outcome            ProposalOutcome `json:"outcome"`
+}
+
+// Extended Deposit for keeper compatibility
+type KeeperDeposit struct {
+	ProposalID  uint64    `json:"proposal_id"`
+	Depositor   string    `json:"depositor"`
+	Amount      math.Int  `json:"amount"`
+	DepositedAt time.Time `json:"deposited_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Extended GovernanceParams for keeper compatibility
+type KeeperGovernanceParams struct {
+	MinDeposit             math.Int       `json:"min_deposit"`
+	MaxDepositPeriodDays   uint32         `json:"max_deposit_period_days"`
+	VotingPeriodDays       uint32         `json:"voting_period_days"`
+	Quorum                 math.LegacyDec `json:"quorum"`
+	Threshold              math.LegacyDec `json:"threshold"`
+	VetoThreshold          math.LegacyDec `json:"veto_threshold"`
+	BurnDeposits           bool           `json:"burn_deposits"`
+	BurnVoteVeto           bool           `json:"burn_vote_veto"`
+	MinInitialDepositRatio math.LegacyDec `json:"min_initial_deposit_ratio"`
+}
+
+// DefaultParams returns the default governance parameters for module initialization
+func DefaultParams() GovernanceParams {
+	return GovernanceParams{
+		MinDepositRatio:       math.LegacyNewDecWithPrec(1, 4),      // 0.01%
+		MaxDepositPeriod:      time.Hour * 24 * 7,                   // 1 week
+		VotingPeriod:          time.Hour * 24 * 14,                  // 2 weeks
+		Quorum:                math.LegacyNewDecWithPrec(334, 3),    // 33.4%
+		Threshold:             math.LegacyNewDecWithPrec(5, 1),      // 50%
+		VetoThreshold:         math.LegacyNewDecWithPrec(334, 3),    // 33.4%
+		EmergencyQuorum:       math.LegacyNewDecWithPrec(5, 1),      // 50%
+		EmergencyThreshold:    math.LegacyNewDecWithPrec(67, 2),     // 67%
+		EmergencyVotingPeriod: time.Hour * 24 * 3,                   // 3 days
+		CompanyQuorum:         math.LegacyNewDecWithPrec(5, 1),      // 50%
+		CompanyThreshold:      math.LegacyNewDecWithPrec(67, 2),     // 67%
+		ShareholderVoting:     true,
+		ValidatorQuorum:       math.LegacyNewDecWithPrec(67, 2),     // 67%
+		ValidatorThreshold:    math.LegacyNewDecWithPrec(75, 2),     // 75%
 	}
 }

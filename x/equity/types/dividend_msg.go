@@ -24,6 +24,10 @@ type MsgDeclareDividend struct {
 	Description     string         `json:"description"`
 	PaymentMethod   string         `json:"payment_method"`     // "automatic", "manual", "claim"
 	StockRatio      math.LegacyDec `json:"stock_ratio,omitempty"` // For stock dividends: new shares per existing share
+
+	// Audit document (MANDATORY for dividend declaration)
+	// This ensures company owners provide proper documentation before distributing dividends
+	Audit           AuditInfo      `json:"audit"`              // Audit document information
 }
 
 // GetSigners implements the Msg interface
@@ -60,6 +64,11 @@ func (msg MsgDeclareDividend) ValidateBasic() error {
 
 	if msg.ExDividendDays >= msg.RecordDays || msg.RecordDays >= msg.PaymentDays {
 		return ErrInvalidDividendDate
+	}
+
+	// Validate audit document (MANDATORY)
+	if err := msg.Audit.Validate(); err != nil {
+		return err
 	}
 
 	return nil
@@ -389,4 +398,19 @@ func (msg MsgCancelDividend) String() string {
 func (msg MsgSetDividendPolicy) String() string {
 	out, _ := json.Marshal(msg)
 	return string(out)
+}
+
+// =============================================================================
+// Audit Verification Message Response Types
+// =============================================================================
+
+// MsgVerifyAuditResponse is the response from verifying an audit
+type MsgVerifyAuditResponse struct {
+	Success bool   `json:"success"`
+	Status  string `json:"status"` // Current audit status after verification
+}
+
+// MsgDisputeAuditResponse is the response from disputing an audit
+type MsgDisputeAuditResponse struct {
+	Success bool `json:"success"`
 }

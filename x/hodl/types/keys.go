@@ -16,6 +16,18 @@ const (
 
 	// MemStoreKey defines the in-memory store key
 	MemStoreKey = "mem_hodl"
+
+	// HODLDenom is the denomination for HODL tokens
+	HODLDenom = "uhodl"
+
+	// DefaultDenom is the default denomination (alias for HODLDenom)
+	DefaultDenom = HODLDenom
+
+	// DefaultStakingTokens is the default amount of staking tokens
+	DefaultStakingTokens = 100000000000 // 100,000 HODL
+
+	// DefaultBondedTokens is the default amount of bonded tokens
+	DefaultBondedTokens = 10000000000 // 10,000 HODL
 )
 
 // KVStore keys

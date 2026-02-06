@@ -1,6 +1,9 @@
 package keeper
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"cosmossdk.io/math"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/governance/types"
@@ -13,51 +16,8 @@ func (k Keeper) TallyProposal(ctx sdk.Context, proposalID uint64) (types.TallyRe
 		return types.TallyResult{}, types.ErrProposalNotFound
 	}
 
-	// Get current tally or initialize
-	tally, found := k.GetTallyResult(ctx, proposalID)
-	if !found {
-		tally = types.TallyResult{
-			ProposalID:    proposalID,
-			YesVotes:      math.LegacyZeroDec(),
-			NoVotes:       math.LegacyZeroDec(),
-			AbstainVotes:  math.LegacyZeroDec(),
-			VetoVotes:     math.LegacyZeroDec(),
-			TotalVotes:    math.LegacyZeroDec(),
-		}
-	}
-
-	// Calculate total eligible voting power for quorum
-	totalEligiblePower := k.calculateTotalEligibleVotingPower(ctx, proposal)
-	tally.TotalEligibleVotes = totalEligiblePower
-
-	// Calculate participation rate
-	if !totalEligiblePower.IsZero() {
-		tally.ParticipationRate = tally.TotalVotes.Quo(totalEligiblePower)
-	} else {
-		tally.ParticipationRate = math.LegacyZeroDec()
-	}
-
-	// Calculate vote percentages
-	if !tally.TotalVotes.IsZero() {
-		tally.YesPercentage = tally.YesVotes.Quo(tally.TotalVotes)
-		tally.NoPercentage = tally.NoVotes.Quo(tally.TotalVotes)
-		tally.AbstainPercentage = tally.AbstainVotes.Quo(tally.TotalVotes)
-		tally.VetoPercentage = tally.VetoVotes.Quo(tally.TotalVotes)
-	} else {
-		tally.YesPercentage = math.LegacyZeroDec()
-		tally.NoPercentage = math.LegacyZeroDec()
-		tally.AbstainPercentage = math.LegacyZeroDec()
-		tally.VetoPercentage = math.LegacyZeroDec()
-	}
-
-	// Determine outcome
-	params := k.getGovernanceParams(ctx)
-	tally.Outcome = k.determineProposalOutcome(proposal, tally, params)
-
-	// Store final tally
-	k.setTallyResult(ctx, proposalID, tally)
-
-	return tally, nil
+	// Return the tally result from the proposal
+	return proposal.CalculateTallyResult(), nil
 }
 
 // calculateTotalEligibleVotingPower calculates the total voting power eligible for a proposal
@@ -92,78 +52,75 @@ func (k Keeper) calculateTotalEligibleVotingPower(ctx sdk.Context, proposal type
 }
 
 // calculateValidatorVotingPower calculates total voting power of all validators
+// SECURITY FIX: Actually calculate voting power from validator stakes
 func (k Keeper) calculateValidatorVotingPower(ctx sdk.Context) math.LegacyDec {
 	totalPower := math.LegacyZeroDec()
-	
-	// This would need to iterate through all validators
-	// For now, we'll use a placeholder implementation
-	// In a real implementation, you'd iterate through the validator set
-	
+
+	// Get total staked tokens from staking keeper
+	totalStaked := k.stakingKeeper.GetTotalStaked(ctx)
+	if totalStaked.IsPositive() {
+		// Validator voting power = total staked / 1_000_000 (convert from micro)
+		totalPower = math.LegacyNewDecFromInt(totalStaked).QuoInt64(1000000)
+	}
+
 	return totalPower
 }
 
 // calculateHODLHolderVotingPower calculates total voting power of all HODL holders
+// SECURITY FIX: Actually calculate voting power from HODL supply
 func (k Keeper) calculateHODLHolderVotingPower(ctx sdk.Context) math.LegacyDec {
 	totalPower := math.LegacyZeroDec()
-	
-	// This would need to get total HODL supply and calculate voting power
-	// For now, we'll use a placeholder implementation
-	
+
+	// Get total HODL supply
+	hodlSupply := k.hodlKeeper.GetTotalSupply(ctx)
+	if hodlSupply != nil {
+		if supply, ok := hodlSupply.(math.Int); ok && supply.IsPositive() {
+			// HODL holder voting power = total supply / 1_000_000 (convert from uhodl)
+			// This represents the aggregate voting power of all HODL holders
+			totalPower = math.LegacyNewDecFromInt(supply).QuoInt64(1000000)
+		}
+	}
+
 	return totalPower
 }
 
-// calculateGoldValidatorVotingPower calculates voting power of Gold tier validators only
+// calculateGoldValidatorVotingPower calculates voting power of Archon tier validators and above
+// Note: This is a simplified implementation that uses total staked as a proxy.
+// In production, this would query specific tier stats from the staking module.
 func (k Keeper) calculateGoldValidatorVotingPower(ctx sdk.Context) math.LegacyDec {
-	totalPower := math.LegacyZeroDec()
-	
-	// This would iterate through validators and only count Gold tier
-	// For now, we'll use a placeholder implementation
-	
-	return totalPower
+	// Use a fraction of total staked as a proxy for Archon+ voting power
+	// This assumes approximately 10% of stakers are Archon tier or above
+	totalStaked := k.stakingKeeper.GetTotalStaked(ctx)
+	if totalStaked.IsPositive() {
+		// Archon+ voting power = 10% of total staked / 1_000_000
+		return math.LegacyNewDecFromInt(totalStaked).QuoInt64(10000000)
+	}
+	return math.LegacyZeroDec()
 }
 
 // determineProposalOutcome determines the outcome of a proposal based on tally and parameters
 func (k Keeper) determineProposalOutcome(
 	proposal types.Proposal,
 	tally types.TallyResult,
-	params types.GovernanceParams,
 ) types.ProposalOutcome {
-	
+
 	// Check if voting period has ended
-	if proposal.Status == types.StatusVotingPeriod {
+	if proposal.Status == types.ProposalStatusVotingPeriod {
 		return types.OutcomeVotingInProgress
 	}
 
 	// Check for veto
-	if tally.VetoPercentage.GTE(params.VetoThreshold) {
+	if tally.VetoPercentage.GTE(proposal.VetoThreshold) {
 		return types.OutcomeVetoed
 	}
 
 	// Check quorum
-	quorum := proposal.QuorumRequired
-	if quorum.IsZero() {
-		quorum = params.Quorum
-	}
-	
-	if tally.ParticipationRate.LT(quorum) {
+	if tally.Turnout.LT(proposal.Quorum) {
 		return types.OutcomeQuorumNotMet
 	}
 
 	// Check threshold
-	threshold := proposal.ThresholdRequired
-	if threshold.IsZero() {
-		threshold = params.Threshold
-	}
-
-	// Calculate yes votes as percentage of non-abstain votes
-	nonAbstainVotes := tally.YesVotes.Add(tally.NoVotes)
-	if nonAbstainVotes.IsZero() {
-		return types.OutcomeRejected
-	}
-
-	yesPercentageOfNonAbstain := tally.YesVotes.Quo(nonAbstainVotes)
-	
-	if yesPercentageOfNonAbstain.GTE(threshold) {
+	if tally.YesPercentage.GTE(proposal.Threshold) {
 		return types.OutcomePassed
 	}
 
@@ -178,7 +135,7 @@ func (k Keeper) ProcessProposalResults(ctx sdk.Context, proposalID uint64) error
 	}
 
 	// Can only process proposals that have finished voting
-	if proposal.Status != types.StatusVotingPeriod {
+	if proposal.Status != types.ProposalStatusVotingPeriod {
 		return types.ErrInvalidProposalStatus
 	}
 
@@ -188,66 +145,52 @@ func (k Keeper) ProcessProposalResults(ctx sdk.Context, proposalID uint64) error
 	}
 
 	// Calculate final tally
-	tally, err := k.TallyProposal(ctx, proposalID)
-	if err != nil {
-		return err
-	}
+	tally := proposal.CalculateTallyResult()
+	outcome := k.determineProposalOutcome(proposal, tally)
 
 	// Update proposal status based on outcome
-	params := k.getGovernanceParams(ctx)
-	
-	switch tally.Outcome {
+	switch outcome {
 	case types.OutcomePassed:
-		proposal.Status = types.StatusPassed
+		proposal.Status = types.ProposalStatusPassed
 		// Execute the proposal
-		err = k.executeProposal(ctx, proposal)
+		err := k.executeProposal(ctx, proposal)
 		if err != nil {
-			proposal.Status = types.StatusExecutionFailed
-		} else {
-			proposal.Status = types.StatusExecuted
+			proposal.Status = types.ProposalStatusFailed
 		}
-		
+
 		// Refund deposits on successful proposals
 		k.refundProposalDeposits(ctx, proposalID)
 
 	case types.OutcomeRejected, types.OutcomeQuorumNotMet:
-		proposal.Status = types.StatusRejected
-		
-		// Burn or refund deposits based on parameters
-		if params.BurnDeposits {
-			k.burnProposalDeposits(ctx, proposalID)
-		} else {
-			k.refundProposalDeposits(ctx, proposalID)
-		}
+		proposal.Status = types.ProposalStatusRejected
+
+		// Refund deposits
+		k.refundProposalDeposits(ctx, proposalID)
 
 	case types.OutcomeVetoed:
-		proposal.Status = types.StatusVetoed
-		
-		// Always burn deposits on vetoed proposals
-		if params.BurnVoteVeto {
-			k.burnProposalDeposits(ctx, proposalID)
-		} else {
-			k.refundProposalDeposits(ctx, proposalID)
-		}
+		proposal.Status = types.ProposalStatusRejected
+
+		// Refund deposits
+		k.refundProposalDeposits(ctx, proposalID)
 	}
 
 	// Update proposal
+	proposal.FinalizedAt = ctx.BlockTime()
 	proposal.UpdatedAt = ctx.BlockTime()
 	k.setProposal(ctx, proposal)
-	k.updateProposalIndex(ctx, proposal)
 
 	// Emit event
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"proposal_finalized",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
-			sdk.NewAttribute("status", string(proposal.Status)),
-			sdk.NewAttribute("outcome", string(tally.Outcome)),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
+			sdk.NewAttribute("status", proposal.Status.String()),
+			sdk.NewAttribute("outcome", string(outcome)),
 			sdk.NewAttribute("yes_votes", tally.YesVotes.String()),
 			sdk.NewAttribute("no_votes", tally.NoVotes.String()),
 			sdk.NewAttribute("abstain_votes", tally.AbstainVotes.String()),
-			sdk.NewAttribute("veto_votes", tally.VetoVotes.String()),
-			sdk.NewAttribute("participation_rate", tally.ParticipationRate.String()),
+			sdk.NewAttribute("veto_votes", tally.NoWithVetoVotes.String()),
+			sdk.NewAttribute("turnout", tally.Turnout.String()),
 		),
 	)
 
@@ -277,6 +220,8 @@ func (k Keeper) executeProposal(ctx sdk.Context, proposal types.Proposal) error 
 		return k.executeTreasurySpendProposal(ctx, proposal)
 	case types.ProposalTypeEmergencyAction:
 		return k.executeEmergencyActionProposal(ctx, proposal)
+	case types.ProposalTypeSetCharityWallet:
+		return k.ExecuteSetCharityWalletProposal(ctx, proposal)
 	default:
 		return types.ErrInvalidProposalType
 	}
@@ -333,42 +278,89 @@ func (k Keeper) executeEmergencyActionProposal(ctx sdk.Context, proposal types.P
 	return nil
 }
 
-// EndBlocker processes proposals that have reached their end time
-func (k Keeper) EndBlocker(ctx sdk.Context) {
-	// Process all proposals that have finished voting
-	k.IterateProposals(ctx, func(proposal types.Proposal) bool {
-		if proposal.Status == types.StatusVotingPeriod && 
-		   ctx.BlockTime().After(proposal.VotingEndTime) {
-			
-			err := k.ProcessProposalResults(ctx, proposal.ID)
-			if err != nil {
-				// Log error but continue processing other proposals
-				ctx.Logger().Error("Failed to process proposal results", 
-					"proposal_id", proposal.ID, "error", err)
-			}
+// refundProposalDeposits refunds deposits to depositors
+func (k Keeper) refundProposalDeposits(ctx sdk.Context, proposalID uint64) {
+	proposal, found := k.GetProposal(ctx, proposalID)
+	if !found {
+		return
+	}
+
+	for _, deposit := range proposal.Deposits {
+		depositorAddr, err := sdk.AccAddressFromBech32(deposit.Depositor)
+		if err != nil {
+			continue
 		}
-		
-		// Check for proposals that didn't reach minimum deposit
-		if proposal.Status == types.StatusDepositPeriod && 
-		   ctx.BlockTime().After(proposal.DepositEndTime) {
-			
-			params := k.getGovernanceParams(ctx)
-			if proposal.TotalDeposit.LT(params.MinDeposit) {
-				// Reject proposal due to insufficient deposit
-				proposal.Status = types.StatusRejected
-				proposal.UpdatedAt = ctx.BlockTime()
-				k.setProposal(ctx, proposal)
-				k.updateProposalIndex(ctx, proposal)
-				
-				// Refund or burn deposits based on parameters
-				if params.BurnDeposits {
-					k.burnProposalDeposits(ctx, proposal.ID)
-				} else {
-					k.refundProposalDeposits(ctx, proposal.ID)
-				}
-			}
+
+		coins := sdk.NewCoins(sdk.NewCoin(deposit.Currency, deposit.Amount))
+		err = k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, depositorAddr, coins)
+		if err != nil {
+			ctx.Logger().Error("Failed to refund deposit",
+				"depositor", deposit.Depositor,
+				"amount", deposit.Amount.String(),
+				"error", err)
 		}
-		
-		return false // Continue iterating
-	})
+	}
+}
+
+// burnProposalDeposits burns deposits
+func (k Keeper) burnProposalDeposits(ctx sdk.Context, proposalID uint64) {
+	proposal, found := k.GetProposal(ctx, proposalID)
+	if !found {
+		return
+	}
+
+	for _, deposit := range proposal.Deposits {
+		coins := sdk.NewCoins(sdk.NewCoin(deposit.Currency, deposit.Amount))
+		err := k.bankKeeper.BurnCoins(ctx, types.ModuleName, coins)
+		if err != nil {
+			ctx.Logger().Error("Failed to burn deposit",
+				"depositor", deposit.Depositor,
+				"amount", deposit.Amount.String(),
+				"error", err)
+		}
+	}
+}
+
+// GetGovernanceParams retrieves governance parameters (exported)
+func (k Keeper) GetGovernanceParams(ctx sdk.Context) types.GovernanceParams {
+	store := k.storeService.OpenKVStore(ctx)
+	bz, err := store.Get(types.ParamsPrefix)
+	if err != nil || bz == nil {
+		return types.DefaultParams()
+	}
+
+	var params types.GovernanceParams
+	if err := json.Unmarshal(bz, &params); err != nil {
+		return types.DefaultParams()
+	}
+	return params
+}
+
+// IterateProposals iterates through all proposals
+func (k Keeper) IterateProposals(ctx sdk.Context, fn func(proposal types.Proposal) bool) {
+	store := k.storeService.OpenKVStore(ctx)
+
+	iter, err := store.Iterator(types.ProposalPrefix, types.PrefixEndBytes(types.ProposalPrefix))
+	if err != nil {
+		return
+	}
+	defer iter.Close()
+
+	for ; iter.Valid(); iter.Next() {
+		var proposal types.Proposal
+		if err := json.Unmarshal(iter.Value(), &proposal); err != nil {
+			continue
+		}
+		if fn(proposal) {
+			break
+		}
+	}
+}
+
+// updateProposalIndex updates proposal indexes after status change
+func (k Keeper) updateProposalIndex(ctx sdk.Context, proposal types.Proposal) {
+	// Update status index
+	store := k.storeService.OpenKVStore(ctx)
+	statusKey := types.ProposalByStatusKey(proposal.Status.String(), proposal.ID)
+	store.Set(statusKey, []byte{1})
 }

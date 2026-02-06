@@ -98,6 +98,10 @@ type Dividend struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 	CompletedAt  time.Time `json:"completed_at,omitempty"`
+
+	// Audit requirement (mandatory for dividend declaration)
+	AuditID      uint64    `json:"audit_id"`      // Reference to the DividendAudit record
+	AuditHash    string    `json:"audit_hash"`    // Content hash of audit document for quick reference
 }
 
 // DividendPayment represents a dividend payment to a specific shareholder

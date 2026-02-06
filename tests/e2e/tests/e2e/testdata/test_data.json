@@ -1,0 +1,54 @@
+{
+  "companies": [
+    {
+      "name": "ShareHODL Corp",
+      "symbol": "SHODL",
+      "total_shares": 1000000,
+      "industry": "Blockchain Technology",
+      "valuation_usd": 100000000,
+      "verified": true
+    },
+    {
+      "name": "TechStart Inc",
+      "symbol": "TECH",
+      "total_shares": 500000,
+      "industry": "Software",
+      "valuation_usd": 50000000,
+      "verified": true
+    },
+    {
+      "name": "GreenEnergy LLC",
+      "symbol": "GREEN",
+      "total_shares": 2000000,
+      "industry": "Renewable Energy",
+      "valuation_usd": 200000000,
+      "verified": false
+    }
+  ],
+  "tokens": [
+    {
+      "denom": "hodl",
+      "name": "HODL Stablecoin",
+      "supply": "1000000000000",
+      "decimals": 6,
+      "token_type": "stablecoin"
+    },
+    {
+      "denom": "shodl",
+      "name": "ShareHODL Token",
+      "supply": "100000000000",
+      "decimals": 6,
+      "token_type": "governance"
+    }
+  ],
+  "orders": null,
+  "proposals": null,
+  "scenarios": null,
+  "performance": {
+    "load_test_duration": 1800000000000,
+    "max_concurrent_users": 1000,
+    "transaction_target": 10000,
+    "memory_limit_mb": 8192,
+    "cpu_limit_percent": 80
+  }
+}

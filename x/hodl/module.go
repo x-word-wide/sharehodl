@@ -154,7 +154,14 @@ func (am AppModule) BeginBlock(ctx sdk.Context) (sdk.BeginBlock, error) {
 }
 
 // EndBlock contains the logic that is automatically triggered at the end of each block.
+// SECURITY: Enabled to accrue stability fees and check for liquidatable positions
 func (am AppModule) EndBlock(ctx sdk.Context) (sdk.EndBlock, error) {
+	// Accrue stability fees for all positions
+	am.keeper.AccrueAllStabilityFees(ctx)
+
+	// Check for positions that need liquidation and emit warnings
+	am.keeper.CheckAndLiquidatePositions(ctx)
+
 	return sdk.EndBlock{}, nil
 }
 

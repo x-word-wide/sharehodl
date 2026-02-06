@@ -9,7 +9,10 @@ import (
 	"strings"
 	"time"
 
+	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/stretchr/testify/require"
+
+	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
 )
 
 // DeploymentTestSuite tests deployment procedures across different environments
@@ -683,16 +686,16 @@ func (s *E2ETestSuite) shouldRunTerraformTests() bool {
 func (s *E2ETestSuite) getTerraformOutputs(terraformDir string) (map[string]string, error) {
 	cmd := exec.Command("terraform", "output", "-json")
 	cmd.Dir = terraformDir
-	output, err := cmd.Output()
+	_, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Parse JSON output (simplified for this example)
 	outputs := make(map[string]string)
 	outputs["load_balancer_dns"] = "test-alb-123456789.us-east-1.elb.amazonaws.com"
 	outputs["rds_endpoint"] = "sharehodl-test.cluster-xyz.us-east-1.rds.amazonaws.com"
-	
+
 	return outputs, nil
 }
 

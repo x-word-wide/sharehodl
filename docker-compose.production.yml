@@ -1,6 +1,95 @@
 version: '3.8'
 
 services:
+  # ShareHODL blockchain node
+  sharehodl-node:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sharehodl-node
+    ports:
+      - "26657:26657"  # RPC
+      - "26656:26656"  # P2P
+      - "1317:1317"    # REST API
+      - "9090:9090"    # gRPC
+      - "9091:9091"    # gRPC Web
+      - "26660:26660"  # Prometheus metrics
+    volumes:
+      - sharehodl_node_data:/home/sharehodl/.sharehodl
+      - ./genesis.json:/home/sharehodl/genesis.json:ro
+    environment:
+      - CHAIN_ID=sharehodl-mainnet
+      - NODE_NAME=sharehodl-mainnet-node
+      - MINIMUM_GAS_PRICES=0.0025uhodl
+      - LOG_LEVEL=info
+    networks:
+      - sharehodl-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:26657/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+        reservations:
+          cpus: '2'
+          memory: 4G
+
+  # PostgreSQL for indexing and analytics
+  postgres:
+    image: postgres:15-alpine
+    container_name: sharehodl-postgres
+    environment:
+      - POSTGRES_DB=sharehodl
+      - POSTGRES_USER=sharehodl
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sharehodl_secure_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - sharehodl-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sharehodl -d sharehodl"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    container_name: sharehodl-redis
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - sharehodl-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
   # ShareHODL Frontend Applications
   sharehodl-frontend:
     build:
@@ -9,47 +98,68 @@ services:
     container_name: sharehodl-frontend
     ports:
       - "3000:3000"  # Home
-      - "3001:3001"  # Governance  
+      - "3001:3001"  # Governance
       - "3002:3002"  # Trading
       - "3003:3003"  # Explorer
       - "3004:3004"  # Wallet
       - "3005:3005"  # Business
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.sharehodl.com
+      - NEXT_PUBLIC_API_URL=http://sharehodl-node:1317
+      - NEXT_PUBLIC_RPC_URL=http://sharehodl-node:26657
       - NEXT_PUBLIC_CHAIN_ID=sharehodl-mainnet
-    restart: unless-stopped
+      - NEXT_PUBLIC_CHAIN_NAME=ShareHODL Mainnet
+      - NEXT_PUBLIC_DENOM=uhodl
+    depends_on:
+      sharehodl-node:
+        condition: service_healthy
+    networks:
+      - sharehodl-network
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:3001 && curl -f http://localhost:3002 && curl -f http://localhost:3004"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
       interval: 30s
       timeout: 10s
       retries: 5
       start_period: 120s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Nginx reverse proxy (production)
+  nginx:
+    image: nginx:alpine
+    container_name: sharehodl-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_cache:/var/cache/nginx
+    depends_on:
+      - sharehodl-node
+      - sharehodl-frontend
     networks:
       - sharehodl-network
-    volumes:
-      - app-logs:/tmp
-
-  # Alternative: Individual services for better isolation
-  # Uncomment if needed for debugging
-  
-  # governance:
-  #   build:
-  #     context: ./sharehodl-frontend
-  #     dockerfile: Dockerfile.single
-  #     args:
-  #       APP_NAME: governance
-  #       PORT: 3001
-  #   container_name: sharehodl-governance
-  #   ports:
-  #     - "3001:3001"
-  #   restart: unless-stopped
-  #   networks:
-  #     - sharehodl-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
 
 volumes:
-  app-logs:
+  sharehodl_node_data:
+  postgres_data:
+  redis_data:
+  nginx_cache:
 
 networks:
   sharehodl-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

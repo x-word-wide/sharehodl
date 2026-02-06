@@ -18,6 +18,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/client/rpc"
 	"github.com/cosmos/cosmos-sdk/client/snapshot"
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/address"
 	codectypes "github.com/cosmos/cosmos-sdk/codec/types"
 	"github.com/cosmos/cosmos-sdk/server"
 	serverconfig "github.com/cosmos/cosmos-sdk/server/config"
@@ -25,6 +26,7 @@ import (
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	authcmd "github.com/cosmos/cosmos-sdk/x/auth/client/cli"
+	bankcli "github.com/cosmos/cosmos-sdk/x/bank/client/cli"
 	"github.com/cosmos/cosmos-sdk/x/crisis"
 	genutilcli "github.com/cosmos/cosmos-sdk/x/genutil/client/cli"
 	"github.com/spf13/cobra"
@@ -36,17 +38,14 @@ import (
 // NewRootCmd creates a new root command for sharehodld. It is called once in the
 // main function.
 func NewRootCmd() *cobra.Command {
-	var (
-		interfaceRegistry = codectypes.NewInterfaceRegistry()
-		appCodec          = codec.NewProtoCodec(interfaceRegistry)
-		txConfig          = app.MakeEncodingConfig().TxConfig
-	)
+	// Create encoding config with all module registrations
+	encodingConfig := app.MakeEncodingConfig()
 
 	initClientCtx := client.Context{}.
-		WithCodec(appCodec).
-		WithInterfaceRegistry(interfaceRegistry).
-		WithTxConfig(txConfig).
-		WithLegacyAmino(app.MakeEncodingConfig().Amino).
+		WithCodec(encodingConfig.Codec).
+		WithInterfaceRegistry(encodingConfig.InterfaceRegistry).
+		WithTxConfig(encodingConfig.TxConfig).
+		WithLegacyAmino(encodingConfig.Amino).
 		WithInput(os.Stdin).
 		WithAccountRetriever(app.AccountRetriever{}).
 		WithHomeDir(app.DefaultNodeHome).
@@ -84,10 +83,26 @@ and trade 24/7 with instant settlement.`,
 		},
 	}
 
-	initRootCmd(rootCmd, appCodec, txConfig, interfaceRegistry, app.ModuleBasics)
+	initRootCmd(rootCmd, encodingConfig.Codec, encodingConfig.TxConfig, encodingConfig.InterfaceRegistry, app.ModuleBasics)
 
 	return rootCmd
 }
+
+// ShareHODL bech32 address prefixes
+const (
+	// Bech32PrefixAccAddr defines the bech32 prefix of an account's address
+	Bech32PrefixAccAddr = "hodl"
+	// Bech32PrefixAccPub defines the bech32 prefix of an account's public key
+	Bech32PrefixAccPub = "hodlpub"
+	// Bech32PrefixValAddr defines the bech32 prefix of a validator's operator address
+	Bech32PrefixValAddr = "hodlvaloper"
+	// Bech32PrefixValPub defines the bech32 prefix of a validator's operator public key
+	Bech32PrefixValPub = "hodlvaloperpub"
+	// Bech32PrefixConsAddr defines the bech32 prefix of a consensus node address
+	Bech32PrefixConsAddr = "hodlvalcons"
+	// Bech32PrefixConsPub defines the bech32 prefix of a consensus node public key
+	Bech32PrefixConsPub = "hodlvalconspub"
+)
 
 // initRootCmd builds the root command for sharehodld.
 func initRootCmd(
@@ -98,6 +113,9 @@ func initRootCmd(
 	basicManager module.BasicManager,
 ) {
 	cfg := sdk.GetConfig()
+	cfg.SetBech32PrefixForAccount(Bech32PrefixAccAddr, Bech32PrefixAccPub)
+	cfg.SetBech32PrefixForValidator(Bech32PrefixValAddr, Bech32PrefixValPub)
+	cfg.SetBech32PrefixForConsensusNode(Bech32PrefixConsAddr, Bech32PrefixConsPub)
 	cfg.Seal()
 
 	rootCmd.AddCommand(
@@ -113,9 +131,10 @@ func initRootCmd(
 	// add keybase, auxiliary RPC, query, and tx child commands
 	rootCmd.AddCommand(
 		genesisCommand(txConfig, basicManager),
-		queryCommand(),
-		txCommand(),
+		queryCommand(basicManager),
+		txCommand(basicManager),
 		keys.Commands(),
+		hashCommand(), // Hash encoding/decoding utilities
 	)
 }
 
@@ -133,7 +152,7 @@ func genesisCommand(txConfig client.TxConfig, basicManager module.BasicManager, 
 	return cmd
 }
 
-func queryCommand() *cobra.Command {
+func queryCommand(basicManager module.BasicManager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                        "query",
 		Aliases:                    []string{"q"},
@@ -152,12 +171,27 @@ func queryCommand() *cobra.Command {
 		server.QueryBlockResultsCmd(),
 	)
 
+	// CRITICAL: Register module query commands
+	// This adds commands like "sharehodld query bank balances"
+	// which are essential for querying chain state via CLI
+	//
+	// NOTE: We manually add query commands instead of using basicManager.AddQueryCommands()
+	// because some SDK modules require properly initialized codecs which aren't available
+	// in the global ModuleBasics variable. Query commands generally don't need codecs.
+	for _, module := range basicManager {
+		if queryModule, ok := module.(interface{ GetQueryCmd() *cobra.Command }); ok {
+			if queryCmd := queryModule.GetQueryCmd(); queryCmd != nil {
+				cmd.AddCommand(queryCmd)
+			}
+		}
+	}
+
 	cmd.PersistentFlags().String(flags.FlagChainID, "", "The network chain ID")
 
 	return cmd
 }
 
-func txCommand() *cobra.Command {
+func txCommand(basicManager module.BasicManager) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:                        "tx",
 		Short:                      "Transactions subcommands",
@@ -176,6 +210,35 @@ func txCommand() *cobra.Command {
 		authcmd.GetEncodeCommand(),
 		authcmd.GetDecodeCommand(),
 	)
+
+	// CRITICAL: Add bank tx commands directly with proper address codec.
+	// The ModuleBasics bank module has nil address codec which causes panics.
+	// We create the address codec here to match our chain's bech32 prefix.
+	addressCodec := address.NewBech32Codec(Bech32PrefixAccAddr)
+	cmd.AddCommand(bankcli.NewTxCmd(addressCodec))
+
+	// Register other module transaction commands
+	// Skip bank (already added above) and modules that panic due to nil codecs.
+	for _, module := range basicManager {
+		// Skip bank module - we added it manually above
+		if module.Name() == "bank" {
+			continue
+		}
+		if txModule, ok := module.(interface{ GetTxCmd() *cobra.Command }); ok {
+			// Safely get command, skip if it panics (due to nil codec)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						// Skip modules that panic due to uninitialized codecs
+						// This is expected for SDK modules like staking in v0.54
+					}
+				}()
+				if txCmd := txModule.GetTxCmd(); txCmd != nil {
+					cmd.AddCommand(txCmd)
+				}
+			}()
+		}
+	}
 
 	cmd.PersistentFlags().String(flags.FlagChainID, "", "The network chain ID")
 

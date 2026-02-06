@@ -7,31 +7,29 @@ import (
 	"strings"
 	"time"
 
+	"cosmossdk.io/core/store"
 	"cosmossdk.io/math"
-	"cosmossdk.io/store/prefix"
-	storetypes "cosmossdk.io/store/types"
+	storetypes "cosmossdk.io/store/prefix"
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/runtime"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/sharehodl/sharehodl-blockchain/x/explorer/types"
 	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
 	governancetypes "github.com/sharehodl/sharehodl-blockchain/x/governance/types"
-	hodltypes "github.com/sharehodl/sharehodl-blockchain/x/hodl/types"
-	validatortypes "github.com/sharehodl/sharehodl-blockchain/x/validator/types"
 )
 
 // Keeper handles ShareScan explorer operations
 type Keeper struct {
 	cdc          codec.Codec
-	storeService storetypes.KVStoreService
+	storeService store.KVStoreService
 	txDecoder    sdk.TxDecoder
 
 	// Module keepers for data access
-	equityKeeper    EquityKeeper
-	hodlKeeper      HODLKeeper
-	validatorKeeper ValidatorKeeper
+	equityKeeper     EquityKeeper
+	hodlKeeper       HODLKeeper
+	stakingKeeper    UniversalStakingKeeper
 	governanceKeeper GovernanceKeeper
-	bankKeeper      BankKeeper
+	bankKeeper       BankKeeper
 
 	// Indexer for real-time data processing
 	indexer *Indexer
@@ -48,28 +46,22 @@ type EquityKeeper interface {
 	GetDividend(ctx sdk.Context, id uint64) (equitytypes.Dividend, bool)
 	GetDividends(ctx sdk.Context) []equitytypes.Dividend
 	GetDividendPayment(ctx sdk.Context, dividendID uint64, shareholder string) (equitytypes.DividendPayment, bool)
-	GetTrade(ctx sdk.Context, id uint64) (equitytypes.Trade, bool)
-	GetTrades(ctx sdk.Context) []equitytypes.Trade
 }
 
 type HODLKeeper interface {
 	GetBalance(ctx sdk.Context, addr sdk.AccAddress) math.Int
 	GetTotalSupply(ctx sdk.Context) math.Int
-	GetTransactions(ctx sdk.Context, addr sdk.AccAddress) []hodltypes.Transaction
 }
 
-type ValidatorKeeper interface {
-	GetValidator(ctx sdk.Context, addr string) (validatortypes.Validator, bool)
-	GetValidators(ctx sdk.Context) []validatortypes.Validator
-	GetValidatorTier(ctx sdk.Context, addr string) validatortypes.ValidatorTier
-	IsValidatorActive(ctx sdk.Context, addr string) bool
+type UniversalStakingKeeper interface {
+	GetUserStake(ctx sdk.Context, addr sdk.AccAddress) (interface{}, bool)
+	GetUserTier(ctx sdk.Context, addr sdk.AccAddress) int
+	GetReputation(ctx sdk.Context, addr sdk.AccAddress) math.LegacyDec
 }
 
 type GovernanceKeeper interface {
 	GetProposal(ctx sdk.Context, proposalID uint64) (governancetypes.Proposal, bool)
-	GetProposals(ctx sdk.Context) []governancetypes.Proposal
-	GetVote(ctx sdk.Context, proposalID uint64, voter sdk.AccAddress) (governancetypes.Vote, bool)
-	GetTallyResult(ctx sdk.Context, proposalID uint64) (governancetypes.TallyResult, bool)
+	GetAllProposals(ctx sdk.Context) []governancetypes.Proposal
 }
 
 type BankKeeper interface {
@@ -81,11 +73,11 @@ type BankKeeper interface {
 // NewKeeper creates a new ShareScan explorer Keeper
 func NewKeeper(
 	cdc codec.Codec,
-	storeService storetypes.KVStoreService,
+	storeService store.KVStoreService,
 	txDecoder sdk.TxDecoder,
 	equityKeeper EquityKeeper,
 	hodlKeeper HODLKeeper,
-	validatorKeeper ValidatorKeeper,
+	stakingKeeper UniversalStakingKeeper,
 	governanceKeeper GovernanceKeeper,
 	bankKeeper BankKeeper,
 ) *Keeper {
@@ -95,7 +87,7 @@ func NewKeeper(
 		txDecoder:        txDecoder,
 		equityKeeper:     equityKeeper,
 		hodlKeeper:       hodlKeeper,
-		validatorKeeper:  validatorKeeper,
+		stakingKeeper:    stakingKeeper,
 		governanceKeeper: governanceKeeper,
 		bankKeeper:       bankKeeper,
 		config: types.ExplorerConfig{
@@ -120,7 +112,7 @@ func NewKeeper(
 // GetBlockInfo retrieves detailed block information
 func (k Keeper) GetBlockInfo(ctx sdk.Context, height int64) (types.BlockInfo, bool) {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	blockStore := prefix.NewStore(store, types.BlockPrefix)
+	blockStore := storetypes.NewStore(store, types.BlockPrefix)
 
 	bz := blockStore.Get(sdk.Uint64ToBigEndian(uint64(height)))
 	if bz == nil {
@@ -139,7 +131,7 @@ func (k Keeper) GetBlockInfo(ctx sdk.Context, height int64) (types.BlockInfo, bo
 // GetLatestBlocks retrieves the latest N blocks
 func (k Keeper) GetLatestBlocks(ctx sdk.Context, limit uint32) []types.BlockInfo {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	blockStore := prefix.NewStore(store, types.BlockPrefix)
+	blockStore := storetypes.NewStore(store, types.BlockPrefix)
 
 	// Get latest blocks in reverse order
 	iterator := blockStore.ReverseIterator(nil, nil)
@@ -164,7 +156,7 @@ func (k Keeper) GetLatestBlocks(ctx sdk.Context, limit uint32) []types.BlockInfo
 // GetTransactionInfo retrieves detailed transaction information
 func (k Keeper) GetTransactionInfo(ctx sdk.Context, hash string) (types.TransactionInfo, bool) {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	txStore := prefix.NewStore(store, types.TransactionPrefix)
+	txStore := storetypes.NewStore(store, types.TransactionPrefix)
 
 	bz := txStore.Get([]byte(hash))
 	if bz == nil {
@@ -183,10 +175,11 @@ func (k Keeper) GetTransactionInfo(ctx sdk.Context, hash string) (types.Transact
 // GetBlockTransactions retrieves all transactions in a block
 func (k Keeper) GetBlockTransactions(ctx sdk.Context, height int64) []types.TransactionInfo {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	blockTxStore := prefix.NewStore(store, types.BlockTransactionPrefix)
+	blockTxStore := storetypes.NewStore(store, types.BlockTransactionPrefix)
 
 	heightKey := sdk.Uint64ToBigEndian(uint64(height))
-	iterator := blockTxStore.Iterator(heightKey, sdk.PrefixEndBytes(heightKey))
+	endKey := prefixEndBytes(heightKey)
+	iterator := blockTxStore.Iterator(heightKey, endKey)
 	defer iterator.Close()
 
 	transactions := make([]types.TransactionInfo, 0)
@@ -195,7 +188,7 @@ func (k Keeper) GetBlockTransactions(ctx sdk.Context, height int64) []types.Tran
 		// Extract transaction hash from key
 		key := iterator.Key()
 		txHash := string(key[len(heightKey):])
-		
+
 		// Get full transaction info
 		if txInfo, found := k.GetTransactionInfo(ctx, txHash); found {
 			transactions = append(transactions, txInfo)
@@ -219,50 +212,20 @@ func (k Keeper) GetAccountInfo(ctx sdk.Context, address string) types.AccountInf
 	hodlBalance := k.hodlKeeper.GetBalance(ctx, addr)
 
 	// Check if validator
-	validator, isValidator := k.validatorKeeper.GetValidator(ctx, address)
 	var validatorTier string
-	var businessName string
-	if isValidator {
-		tier := k.validatorKeeper.GetValidatorTier(ctx, address)
-		validatorTier = string(tier)
-		businessName = validator.BusinessName
+	var isValidator bool
+	if k.stakingKeeper != nil {
+		tier := k.stakingKeeper.GetUserTier(ctx, addr)
+		isValidator = tier >= 5 // TierValidator = 5
+		validatorTier = strconv.Itoa(tier)
 	}
 
-	// Get shareholdings
-	shareholdings := k.getAccountShareholdings(ctx, address)
-
-	// Get recent transactions
-	recentTxs := k.getAccountTransactions(ctx, address, 10)
-
-	// Get governance votes
-	governanceVotes := k.getAccountVotes(ctx, address)
-
-	// Get dividend history
-	dividendHistory := k.getAccountDividends(ctx, address)
-
-	// Get trading history
-	tradingHistory := k.getAccountTrades(ctx, address, 20)
-
-	// Calculate totals
-	totalDividends := k.calculateTotalDividends(dividendHistory)
-	totalTrades := uint64(len(tradingHistory))
-	tradingVolume := k.calculateTradingVolume(tradingHistory)
-
 	return types.AccountInfo{
-		Address:         address,
-		Balance:         allBalances,
-		HODLBalance:     hodlBalance,
-		IsValidator:     isValidator,
-		ValidatorTier:   validatorTier,
-		BusinessName:    businessName,
-		Shareholdings:   shareholdings,
-		RecentTxs:       recentTxs,
-		GovernanceVotes: governanceVotes,
-		DividendHistory: dividendHistory,
-		TradingHistory:  tradingHistory,
-		TotalDividends:  totalDividends,
-		TotalTrades:     totalTrades,
-		TradingVolume:   tradingVolume,
+		Address:       address,
+		Balance:       allBalances,
+		HODLBalance:   hodlBalance,
+		IsValidator:   isValidator,
+		ValidatorTier: validatorTier,
 	}
 }
 
@@ -275,38 +238,15 @@ func (k Keeper) GetCompanyInfo(ctx sdk.Context, companyID uint64) (types.Company
 		return types.CompanyInfo{}, false
 	}
 
-	// Get share classes
-	shareClasses := k.getCompanyShareClasses(ctx, companyID)
-
-	// Calculate market metrics
-	marketCap, lastPrice := k.calculateMarketMetrics(ctx, companyID)
-	volume24h := k.getCompany24hVolume(ctx, companyID)
-	priceChange24h := k.getCompanyPriceChange24h(ctx, companyID)
-
-	// Get shareholders count
-	shareholders := k.getShareholdersCount(ctx, companyID)
-
-	// Get recent dividends and trades
-	recentDividends := k.getCompanyDividends(ctx, companyID, 5)
-	recentTrades := k.getCompanyTrades(ctx, companyID, 10)
-
 	return types.CompanyInfo{
-		ID:              companyID,
-		Name:            company.Name,
-		Symbol:          company.Symbol,
-		BusinessType:    company.BusinessType,
-		Jurisdiction:    company.Jurisdiction,
-		ListingDate:     company.ListingDate,
-		Status:          string(company.Status),
-		TotalShares:     company.TotalShares,
-		ShareClasses:    shareClasses,
-		MarketCap:       marketCap,
-		LastPrice:       lastPrice,
-		Volume24h:       volume24h,
-		PriceChange24h:  priceChange24h,
-		Shareholders:    shareholders,
-		RecentDividends: recentDividends,
-		RecentTrades:    recentTrades,
+		ID:           companyID,
+		Name:         company.Name,
+		Symbol:       company.Symbol,
+		BusinessType: company.Industry,    // Use Industry as BusinessType
+		Jurisdiction: company.Country,     // Use Country as Jurisdiction
+		ListingDate:  company.CreatedAt,   // Use CreatedAt as ListingDate
+		Status:       string(company.Status),
+		TotalShares:  company.TotalShares,
 	}, true
 }
 
@@ -333,49 +273,20 @@ func (k Keeper) GetGovernanceProposalInfo(ctx sdk.Context, proposalID uint64) (t
 		return types.GovernanceProposalInfo{}, false
 	}
 
-	// Get deposits, votes, and tally
-	deposits := k.getProposalDeposits(ctx, proposalID)
-	votes := k.getProposalVotes(ctx, proposalID)
-	tally, _ := k.governanceKeeper.GetTallyResult(ctx, proposalID)
-
-	// Convert tally to explorer format
-	tallyInfo := types.TallyInfo{
-		ProposalID:         proposalID,
-		YesVotes:          tally.YesVotes,
-		NoVotes:           tally.NoVotes,
-		AbstainVotes:      tally.AbstainVotes,
-		VetoVotes:         tally.VetoVotes,
-		TotalVotes:        tally.TotalVotes,
-		TotalEligibleVotes: tally.TotalEligibleVotes,
-		ParticipationRate: tally.ParticipationRate,
-		YesPercentage:     tally.YesPercentage,
-		NoPercentage:      tally.NoPercentage,
-		AbstainPercentage: tally.AbstainPercentage,
-		VetoPercentage:    tally.VetoPercentage,
-		Outcome:           string(tally.Outcome),
-		QuorumMet:         tally.ParticipationRate.GTE(proposal.QuorumRequired),
-		ThresholdMet:      tally.YesPercentage.GTE(proposal.ThresholdRequired),
-	}
-
 	return types.GovernanceProposalInfo{
 		ID:                proposal.ID,
 		Type:              string(proposal.Type),
 		Title:             proposal.Title,
 		Description:       proposal.Description,
-		Submitter:         proposal.Submitter,
-		Status:            string(proposal.Status),
-		SubmissionTime:    proposal.SubmissionTime,
+		Submitter:         proposal.Proposer,
+		Status:            proposal.Status.String(),
+		SubmissionTime:    proposal.VotingStartTime, // Use VotingStartTime as submission
 		DepositEndTime:    proposal.DepositEndTime,
 		VotingStartTime:   proposal.VotingStartTime,
 		VotingEndTime:     proposal.VotingEndTime,
 		TotalDeposit:      proposal.TotalDeposit,
-		Deposits:          deposits,
-		Votes:             votes,
-		TallyResult:       tallyInfo,
-		QuorumRequired:    proposal.QuorumRequired,
-		ThresholdRequired: proposal.ThresholdRequired,
-		Outcome:           string(tally.Outcome),
-		ExecutionResult:   "", // Would be extracted from execution events
+		QuorumRequired:    proposal.Quorum,
+		ThresholdRequired: proposal.Threshold,
 	}, true
 }
 
@@ -389,8 +300,8 @@ func (k Keeper) GetNetworkStats(ctx sdk.Context) types.NetworkStats {
 
 	// Get cached stats or calculate
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	statsStore := prefix.NewStore(store, types.NetworkStatsPrefix)
-	
+	statsStore := storetypes.NewStore(store, types.NetworkStatsPrefix)
+
 	statsBytes := statsStore.Get([]byte("current"))
 	var stats types.NetworkStats
 	if statsBytes != nil {
@@ -408,14 +319,14 @@ func (k Keeper) GetNetworkStats(ctx sdk.Context) types.NetworkStats {
 // GetAnalytics retrieves time-series analytics data
 func (k Keeper) GetAnalytics(ctx sdk.Context, timeFrame string, startTime, endTime time.Time) types.Analytics {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	analyticsStore := prefix.NewStore(store, types.AnalyticsPrefix)
+	analyticsStore := storetypes.NewStore(store, types.AnalyticsPrefix)
 
 	dataPoints := make([]types.AnalyticsDataPoint, 0)
 
 	// Iterate through time range
 	startKey := sdk.Uint64ToBigEndian(uint64(startTime.Unix()))
 	endKey := sdk.Uint64ToBigEndian(uint64(endTime.Unix()))
-	
+
 	iterator := analyticsStore.Iterator(startKey, endKey)
 	defer iterator.Close()
 
@@ -441,10 +352,10 @@ func (k Keeper) GetAnalytics(ctx sdk.Context, timeFrame string, startTime, endTi
 // Search performs comprehensive search across all indexed data
 func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.SearchResult {
 	results := make([]types.SearchResult, 0)
-	
+
 	// Convert query to lowercase for case-insensitive search
 	query = strings.ToLower(query)
-	
+
 	// Search blocks by height
 	if height, err := strconv.ParseInt(query, 10, 64); err == nil {
 		if blockInfo, found := k.GetBlockInfo(ctx, height); found {
@@ -460,7 +371,7 @@ func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.Sear
 			})
 		}
 	}
-	
+
 	// Search transactions by hash
 	if txInfo, found := k.GetTransactionInfo(ctx, query); found {
 		results = append(results, types.SearchResult{
@@ -474,7 +385,7 @@ func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.Sear
 			Data:        txInfo,
 		})
 	}
-	
+
 	// Search accounts by address
 	if _, err := sdk.AccAddressFromBech32(query); err == nil {
 		accountInfo := k.GetAccountInfo(ctx, query)
@@ -489,17 +400,17 @@ func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.Sear
 			Data:        accountInfo,
 		})
 	}
-	
+
 	// Search companies by symbol or name
 	companies := k.GetCompanies(ctx)
 	for _, company := range companies {
 		if strings.Contains(strings.ToLower(company.Symbol), query) ||
-		   strings.Contains(strings.ToLower(company.Name), query) {
+			strings.Contains(strings.ToLower(company.Name), query) {
 			results = append(results, types.SearchResult{
 				Type:        "company",
 				ID:          strconv.FormatUint(company.ID, 10),
 				Title:       company.Name + " (" + company.Symbol + ")",
-				Description: company.BusinessType + " company with market cap " + company.MarketCap.String(),
+				Description: company.BusinessType + " company",
 				URL:         "/company/" + strconv.FormatUint(company.ID, 10),
 				Timestamp:   company.ListingDate,
 				Relevance:   0.8,
@@ -507,7 +418,7 @@ func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.Sear
 			})
 		}
 	}
-	
+
 	// Sort results by relevance and timestamp
 	sort.Slice(results, func(i, j int) bool {
 		if results[i].Relevance == results[j].Relevance {
@@ -515,12 +426,12 @@ func (k Keeper) Search(ctx sdk.Context, query string, limit uint32) []types.Sear
 		}
 		return results[i].Relevance > results[j].Relevance
 	})
-	
+
 	// Limit results
 	if uint32(len(results)) > limit {
 		results = results[:limit]
 	}
-	
+
 	return results
 }
 
@@ -531,10 +442,10 @@ func (k Keeper) GetLiveMetrics(ctx sdk.Context) types.LiveMetrics {
 	return types.LiveMetrics{
 		CurrentBlock:      ctx.BlockHeight(),
 		BlockTime:         time.Second * 6, // Average block time
-		TPS:               math.LegacyZeroDec(), // Would calculate from recent blocks
-		PendingTxs:        0, // Would get from mempool
-		MemPoolSize:       0, // Would get from mempool
-		ActiveConnections: 0, // Would get from network stats
+		TPS:               math.LegacyZeroDec(),
+		PendingTxs:        0,
+		MemPoolSize:       0,
+		ActiveConnections: 0,
 		NodeVersion:       "ShareHODL v1.0.0",
 		ChainID:           ctx.ChainID(),
 		LastUpdate:        ctx.BlockTime(),
@@ -544,11 +455,11 @@ func (k Keeper) GetLiveMetrics(ctx sdk.Context) types.LiveMetrics {
 // SubscribeToNotifications subscribes an address to notifications
 func (k Keeper) SubscribeToNotifications(ctx sdk.Context, subscriber string, notificationType string) error {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	subscriptionStore := prefix.NewStore(store, types.SubscriptionPrefix)
-	
+	subscriptionStore := storetypes.NewStore(store, types.SubscriptionPrefix)
+
 	key := types.SubscriptionKey(subscriber, notificationType)
 	subscriptionStore.Set(key, []byte{})
-	
+
 	return nil
 }
 
@@ -577,18 +488,18 @@ func (k Keeper) calculateNetworkStats(ctx sdk.Context) types.NetworkStats {
 	// This would calculate comprehensive network statistics
 	// For now, return basic structure
 	return types.NetworkStats{
-		TotalBlocks:     uint64(ctx.BlockHeight()),
-		TotalAccounts:   0, // Would count unique addresses
-		TotalCompanies:  0, // Would count from equity module
+		TotalBlocks:      uint64(ctx.BlockHeight()),
+		TotalAccounts:    0, // Would count unique addresses
+		TotalCompanies:   0, // Would count from equity module
 		AverageBlockTime: time.Second * 6,
-		TPS:             math.LegacyZeroDec(),
+		TPS:              math.LegacyZeroDec(),
 	}
 }
 
 func (k Keeper) updateLiveMetrics(ctx sdk.Context) {
 	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
-	metricsStore := prefix.NewStore(store, types.LiveMetricsPrefix)
-	
+	metricsStore := storetypes.NewStore(store, types.LiveMetricsPrefix)
+
 	metrics := k.GetLiveMetrics(ctx)
 	metricsBytes, _ := json.Marshal(metrics)
 	metricsStore.Set([]byte("current"), metricsBytes)

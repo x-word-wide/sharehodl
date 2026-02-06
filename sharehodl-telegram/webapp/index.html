@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0D1117" />
+    <meta name="description" content="ShareHODL - Tokenized Equity Trading Platform" />
+
+    <!-- Telegram Web App Script -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <title>ShareHODL Wallet</title>
+
+    <style>
+      /* Prevent overscroll/bounce on iOS */
+      html, body {
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      /* Loading state */
+      #root {
+        min-height: 100vh;
+        background: #0D1117;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <!-- Fallback loading state if JS fails -->
+      <div id="loading-fallback" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0D1117;">
+        <div style="width: 80px; height: 80px; border-radius: 50%; background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%); display: flex; align-items: center; justify-content: center; margin-bottom: 24px;">
+          <span style="font-size: 24px; font-weight: bold; color: white;">SH</span>
+        </div>
+        <h1 style="color: white; font-size: 24px; margin-bottom: 8px;">ShareHODL</h1>
+        <p style="color: #8b949e; font-size: 14px;">Loading...</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -32,26 +32,16 @@ type AccountKeeper interface {
 	GetModuleAddress(string) sdk.AccAddress
 }
 
-// ValidatorInfo represents validator information for business listing
-type ValidatorInfo struct {
-	Address string
-	Active  bool
-	Tier    int
-}
-
-type ValidatorKeeper interface {
-	GetValidator(ctx sdk.Context, address string) (interface{}, bool)
-	GetAllValidators(ctx sdk.Context) []interface{}
-}
-
 // Keeper of the equity store
 type Keeper struct {
-	cdc        codec.BinaryCodec
-	storeKey   storetypes.StoreKey
-	memKey     storetypes.StoreKey
+	cdc             codec.BinaryCodec
+	storeKey        storetypes.StoreKey
+	memKey          storetypes.StoreKey
 	bankKeeper      BankKeeper
 	accountKeeper   AccountKeeper
-	validatorKeeper ValidatorKeeper
+	stakingKeeper   types.UniversalStakingKeeper // For tier checks and stake locks
+	validatorKeeper types.ValidatorKeeper        // For validator authorization checks
+	authority       string                       // Governance module address for privileged operations
 }
 
 // NewKeeper creates a new equity Keeper instance
@@ -61,16 +51,32 @@ func NewKeeper(
 	memKey storetypes.StoreKey,
 	bankKeeper BankKeeper,
 	accountKeeper AccountKeeper,
-	validatorKeeper ValidatorKeeper,
+	authority string,
 ) *Keeper {
 	return &Keeper{
-		cdc:             cdc,
-		storeKey:        storeKey,
-		memKey:          memKey,
-		bankKeeper:      bankKeeper,
-		accountKeeper:   accountKeeper,
-		validatorKeeper: validatorKeeper,
+		cdc:           cdc,
+		storeKey:      storeKey,
+		memKey:        memKey,
+		bankKeeper:    bankKeeper,
+		accountKeeper: accountKeeper,
+		stakingKeeper: nil, // Set later via SetStakingKeeper
+		authority:     authority,
 	}
+}
+
+// GetAuthority returns the governance authority address
+func (k Keeper) GetAuthority() string {
+	return k.authority
+}
+
+// SetStakingKeeper sets the staking keeper (for late binding during app initialization)
+func (k *Keeper) SetStakingKeeper(stakingKeeper types.UniversalStakingKeeper) {
+	k.stakingKeeper = stakingKeeper
+}
+
+// SetValidatorKeeper sets the validator keeper (for late binding during app initialization)
+func (k *Keeper) SetValidatorKeeper(validatorKeeper types.ValidatorKeeper) {
+	k.validatorKeeper = validatorKeeper
 }
 
 // Logger returns a module-specific logger
@@ -118,14 +124,15 @@ func (k Keeper) getCompany(ctx sdk.Context, companyID uint64) (types.Company, bo
 }
 
 // SetCompany stores a company
-func (k Keeper) SetCompany(ctx sdk.Context, company types.Company) {
+func (k Keeper) SetCompany(ctx sdk.Context, company types.Company) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetCompanyKey(company.ID)
 	bz, err := json.Marshal(company)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal company: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // DeleteCompany removes a company
@@ -133,6 +140,43 @@ func (k Keeper) DeleteCompany(ctx sdk.Context, companyID uint64) {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetCompanyKey(companyID)
 	store.Delete(key)
+}
+
+// DelistCompany delists a company and unlocks the founder's stake
+func (k Keeper) DelistCompany(ctx sdk.Context, companyID uint64, authority string, reason string) error {
+	company, found := k.getCompany(ctx, companyID)
+	if !found {
+		return types.ErrCompanyNotFound
+	}
+
+	// Update company status to delisted
+	company.Status = types.CompanyStatusDelisted
+	company.Description = company.Description + " [DELISTED: " + reason + "]"
+	if err := k.SetCompany(ctx, company); err != nil {
+		return err
+	}
+
+	// UNLOCK STAKE: Remove company listing lock so founder can unstake
+	if k.stakingKeeper != nil {
+		founderAddr, err := sdk.AccAddressFromBech32(company.Founder)
+		if err == nil {
+			companyIDStr := fmt.Sprintf("%d", companyID)
+			if err := k.stakingKeeper.UnlockCompanyListing(ctx, founderAddr, companyIDStr); err != nil {
+				k.Logger(ctx).Error("failed to unlock company listing",
+					"company_id", companyID,
+					"founder", company.Founder,
+					"error", err,
+				)
+			} else {
+				k.Logger(ctx).Info("company delisted, stake unlocked",
+					"company_id", companyID,
+					"founder", company.Founder,
+				)
+			}
+		}
+	}
+
+	return nil
 }
 
 // IsSymbolTaken checks if a company symbol is already taken
@@ -151,25 +195,73 @@ func (k Keeper) isSymbolTaken(ctx sdk.Context, symbol string) bool {
 	return false
 }
 
-// GetAllCompanies returns all companies - simplified approach
+// GetAllCompanies returns all companies
 func (k Keeper) GetAllCompanies(ctx sdk.Context) []types.Company {
-	// For now, return empty list - would need to iterate through all keys
-	// This is a simplified implementation
-	return []types.Company{}
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.CompanyPrefix)
+	defer iterator.Close()
+
+	var companies []types.Company
+	for ; iterator.Valid(); iterator.Next() {
+		var company types.Company
+		if err := json.Unmarshal(iterator.Value(), &company); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal company", "error", err)
+			continue
+		}
+		companies = append(companies, company)
+	}
+	return companies
+}
+
+// IterateCompanies iterates through all companies and calls the callback function
+func (k Keeper) IterateCompanies(ctx sdk.Context, cb func(company types.Company) (stop bool)) {
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.CompanyPrefix)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		var company types.Company
+		if err := json.Unmarshal(iterator.Value(), &company); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal company", "error", err)
+			continue
+		}
+		if cb(company) {
+			break
+		}
+	}
+}
+
+// GetCompanyBySymbol returns company ID for a trading symbol
+// Used by DEX to map equity symbols to company IDs for beneficial owner tracking
+func (k Keeper) GetCompanyBySymbol(ctx sdk.Context, symbol string) (uint64, bool) {
+	var foundID uint64
+	var found bool
+
+	k.IterateCompanies(ctx, func(company types.Company) bool {
+		if company.Symbol == symbol {
+			foundID = company.ID
+			found = true
+			return true // stop iteration
+		}
+		return false
+	})
+
+	return foundID, found
 }
 
 // Share class management methods
 
 
 // SetShareClass stores a share class
-func (k Keeper) SetShareClass(ctx sdk.Context, shareClass types.ShareClass) {
+func (k Keeper) SetShareClass(ctx sdk.Context, shareClass types.ShareClass) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetShareClassKey(shareClass.CompanyID, shareClass.ClassID)
 	bz, err := json.Marshal(shareClass)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal share class: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // DeleteShareClass removes a share class
@@ -179,25 +271,39 @@ func (k Keeper) DeleteShareClass(ctx sdk.Context, companyID uint64, classID stri
 	store.Delete(key)
 }
 
-// GetCompanyShareClasses returns all share classes for a company - simplified
+// GetCompanyShareClasses returns all share classes for a company
 func (k Keeper) GetCompanyShareClasses(ctx sdk.Context, companyID uint64) []types.ShareClass {
-	// For now, return empty list - would need proper iteration
-	// This is a simplified implementation  
-	return []types.ShareClass{}
+	store := ctx.KVStore(k.storeKey)
+	// Construct prefix for company's share classes
+	prefix := append(types.ShareClassPrefix, sdk.Uint64ToBigEndian(companyID)...)
+	iterator := storetypes.KVStorePrefixIterator(store, prefix)
+	defer iterator.Close()
+
+	var shareClasses []types.ShareClass
+	for ; iterator.Valid(); iterator.Next() {
+		var shareClass types.ShareClass
+		if err := json.Unmarshal(iterator.Value(), &shareClass); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal share class", "error", err)
+			continue
+		}
+		shareClasses = append(shareClasses, shareClass)
+	}
+	return shareClasses
 }
 
 // Shareholding management methods
 
 
 // SetShareholding stores a shareholding
-func (k Keeper) SetShareholding(ctx sdk.Context, shareholding types.Shareholding) {
+func (k Keeper) SetShareholding(ctx sdk.Context, shareholding types.Shareholding) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetShareholdingKey(shareholding.CompanyID, shareholding.ClassID, shareholding.Owner)
 	bz, err := json.Marshal(shareholding)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal shareholding: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // DeleteShareholding removes a shareholding
@@ -207,18 +313,46 @@ func (k Keeper) DeleteShareholding(ctx sdk.Context, companyID uint64, classID, o
 	store.Delete(key)
 }
 
-// GetOwnerShareholdings returns all shareholdings for an owner - simplified
+// GetOwnerShareholdings returns all shareholdings for an owner
 func (k Keeper) GetOwnerShareholdings(ctx sdk.Context, owner string) []types.Shareholding {
-	// For now, return empty list - would need proper iteration
-	// This is a simplified implementation
-	return []types.Shareholding{}
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.ShareholdingPrefix)
+	defer iterator.Close()
+
+	var shareholdings []types.Shareholding
+	for ; iterator.Valid(); iterator.Next() {
+		var shareholding types.Shareholding
+		if err := json.Unmarshal(iterator.Value(), &shareholding); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal shareholding", "error", err)
+			continue
+		}
+		// Filter by owner
+		if shareholding.Owner == owner {
+			shareholdings = append(shareholdings, shareholding)
+		}
+	}
+	return shareholdings
 }
 
-// GetCompanyShareholdings returns all shareholdings for a company and share class - simplified
+// GetCompanyShareholdings returns all shareholdings for a company and share class
 func (k Keeper) GetCompanyShareholdings(ctx sdk.Context, companyID uint64, classID string) []types.Shareholding {
-	// For now, return empty list - would need proper iteration
-	// This is a simplified implementation
-	return []types.Shareholding{}
+	store := ctx.KVStore(k.storeKey)
+	// Construct prefix for company's shareholdings with classID
+	prefix := append(types.ShareholdingPrefix, sdk.Uint64ToBigEndian(companyID)...)
+	prefix = append(prefix, []byte(classID)...)
+	iterator := storetypes.KVStorePrefixIterator(store, prefix)
+	defer iterator.Close()
+
+	var shareholdings []types.Shareholding
+	for ; iterator.Valid(); iterator.Next() {
+		var shareholding types.Shareholding
+		if err := json.Unmarshal(iterator.Value(), &shareholding); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal shareholding", "error", err)
+			continue
+		}
+		shareholdings = append(shareholdings, shareholding)
+	}
+	return shareholdings
 }
 
 // Business logic methods
@@ -270,9 +404,13 @@ func (k Keeper) IssueShares(
 	shareClass.OutstandingShares = shareClass.OutstandingShares.Add(shares)
 	
 	// Save updates
-	k.SetShareholding(ctx, shareholding)
-	k.SetShareClass(ctx, shareClass)
-	
+	if err := k.SetShareholding(ctx, shareholding); err != nil {
+		return err
+	}
+	if err := k.SetShareClass(ctx, shareClass); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -284,6 +422,16 @@ func (k Keeper) TransferShares(
 	from, to string,
 	shares math.Int,
 ) error {
+	// SECURITY: Validate share amount is positive
+	if shares.IsNil() || !shares.IsPositive() {
+		return types.ErrInsufficientShares
+	}
+
+	// SECURITY: Validate addresses are different
+	if from == to {
+		return types.ErrTransferRestricted
+	}
+
 	// Get share class to check transferability
 	shareClass, found := k.getShareClass(ctx, companyID, classID)
 	if !found {
@@ -331,10 +479,14 @@ func (k Keeper) TransferShares(
 	if fromHolding.Shares.IsZero() {
 		k.DeleteShareholding(ctx, companyID, classID, from)
 	} else {
-		k.SetShareholding(ctx, fromHolding)
+		if err := k.SetShareholding(ctx, fromHolding); err != nil {
+			return err
+		}
 	}
-	k.SetShareholding(ctx, toHolding)
-	
+	if err := k.SetShareholding(ctx, toHolding); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -383,12 +535,63 @@ func (k Keeper) getShareholding(ctx sdk.Context, companyID uint64, classID, owne
 	if bz == nil {
 		return types.Shareholding{}, false
 	}
-	
+
 	var shareholding types.Shareholding
 	if err := json.Unmarshal(bz, &shareholding); err != nil {
 		return types.Shareholding{}, false
 	}
 	return shareholding, true
+}
+
+// GetVotingSharesForCompany returns total voting shares for a voter in a specific company
+// This includes:
+// 1. Direct shareholdings (shares held directly by the voter)
+// 2. Beneficial ownership (shares locked in DEX/escrow/lending but still owned by voter)
+// Used by governance module for company proposal voting power
+func (k Keeper) GetVotingSharesForCompany(ctx sdk.Context, companyID uint64, voter string) math.Int {
+	totalShares := math.ZeroInt()
+
+	// 1. Get direct shareholdings across all share classes
+	shareholdings := k.GetOwnerShareholdings(ctx, voter)
+	for _, sh := range shareholdings {
+		if sh.CompanyID == companyID {
+			totalShares = totalShares.Add(sh.Shares)
+		}
+	}
+
+	// 2. Get beneficial ownership (shares locked in module accounts)
+	// These are shares the voter owns but are locked in DEX pools, escrow, or lending
+	beneficialOwnerships := k.GetAllBeneficialOwnershipsByOwner(ctx, voter)
+	for _, bo := range beneficialOwnerships {
+		if bo.CompanyID == companyID {
+			totalShares = totalShares.Add(bo.Shares)
+		}
+	}
+
+	return totalShares
+}
+
+// GetAllBeneficialOwnershipsByOwner returns all beneficial ownership records for an owner
+// across all companies and share classes
+func (k Keeper) GetAllBeneficialOwnershipsByOwner(ctx sdk.Context, owner string) []types.BeneficialOwnership {
+	var ownerships []types.BeneficialOwnership
+
+	// Iterate through all beneficial ownership records
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.BeneficialOwnerPrefix)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		var bo types.BeneficialOwnership
+		if err := json.Unmarshal(iterator.Value(), &bo); err != nil {
+			continue
+		}
+		if bo.BeneficialOwner == owner {
+			ownerships = append(ownerships, bo)
+		}
+	}
+
+	return ownerships
 }
 
 // CreateCompany creates a new company - business logic version
@@ -424,8 +627,10 @@ func (k Keeper) CreateCompany(
 	if err := company.Validate(); err != nil {
 		return 0, err
 	}
-	
-	k.SetCompany(ctx, company)
+
+	if err := k.SetCompany(ctx, company); err != nil {
+		return 0, err
+	}
 	return companyID, nil
 }
 
@@ -478,7 +683,40 @@ func (k Keeper) CreateShareClass(
 	if err := shareClass.Validate(); err != nil {
 		return err
 	}
-	
-	k.SetShareClass(ctx, shareClass)
+
+	if err := k.SetShareClass(ctx, shareClass); err != nil {
+		return err
+	}
 	return nil
+}
+
+// GetAllHoldingsByAddress returns all shareholdings for a given address
+// Used by inheritance module to transfer equity during inheritance
+// Returns []interface{} to avoid import cycles with inheritance module
+func (k Keeper) GetAllHoldingsByAddress(ctx sdk.Context, owner string) []interface{} {
+	var holdings []interface{}
+
+	// Iterate through all shareholdings
+	store := ctx.KVStore(k.storeKey)
+	iterator := storetypes.KVStorePrefixIterator(store, types.ShareholdingPrefix)
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		var shareholding types.Shareholding
+		if err := json.Unmarshal(iterator.Value(), &shareholding); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal shareholding", "error", err)
+			continue
+		}
+
+		// Filter by owner
+		if shareholding.Owner == owner {
+			holdings = append(holdings, types.AddressHolding{
+				CompanyID: shareholding.CompanyID,
+				ClassID:   shareholding.ClassID,
+				Shares:    shareholding.Shares,
+			})
+		}
+	}
+
+	return holdings
 }

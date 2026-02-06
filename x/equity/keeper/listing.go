@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"cosmossdk.io/math"
@@ -45,14 +46,15 @@ func (k Keeper) GetBusinessListing(ctx sdk.Context, listingID uint64) (types.Bus
 }
 
 // SetBusinessListing stores a business listing
-func (k Keeper) SetBusinessListing(ctx sdk.Context, listing types.BusinessListing) {
+func (k Keeper) SetBusinessListing(ctx sdk.Context, listing types.BusinessListing) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetBusinessListingKey(listing.ID)
 	bz, err := json.Marshal(listing)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal business listing: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // DeleteBusinessListing removes a business listing
@@ -80,13 +82,14 @@ func (k Keeper) GetListingRequirements(ctx sdk.Context) types.ListingRequirement
 }
 
 // SetListingRequirements stores the listing requirements
-func (k Keeper) SetListingRequirements(ctx sdk.Context, requirements types.ListingRequirements) {
+func (k Keeper) SetListingRequirements(ctx sdk.Context, requirements types.ListingRequirements) error {
 	store := ctx.KVStore(k.storeKey)
 	bz, err := json.Marshal(requirements)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal listing requirements: %w", err)
 	}
 	store.Set(types.ListingRequirementsKey, bz)
+	return nil
 }
 
 // SubmitBusinessListing submits a new business listing application
@@ -101,20 +104,27 @@ func (k Keeper) SubmitBusinessListing(
 	listingFee math.Int,
 	documents []types.BusinessDocumentUpload,
 ) (uint64, error) {
-	// Get listing requirements
-	requirements := k.GetListingRequirements(ctx)
-	
-	// Validate listing meets requirements
-	if err := k.validateListingRequirements(ctx, companyName, tokenSymbol, jurisdiction, industry, totalShares, initialPrice, listingFee, foundedDate, requirements); err != nil {
-		return 0, err
-	}
-	
 	// Check creator address
 	creatorAddr, err := sdk.AccAddressFromBech32(creator)
 	if err != nil {
 		return 0, types.ErrUnauthorized
 	}
-	
+
+	// TIER CHECK: Must be Keeper+ tier (10K HODL staked) to submit listing
+	if k.stakingKeeper != nil {
+		if !k.stakingKeeper.CanSubmitListing(ctx, creatorAddr) {
+			return 0, types.ErrInsufficientTierForListing
+		}
+	}
+
+	// Get listing requirements
+	requirements := k.GetListingRequirements(ctx)
+
+	// Validate listing meets requirements
+	if err := k.validateListingRequirements(ctx, companyName, tokenSymbol, jurisdiction, industry, totalShares, initialPrice, listingFee, foundedDate, requirements); err != nil {
+		return 0, err
+	}
+
 	// Check if creator has sufficient funds for listing fee
 	balance := k.bankKeeper.GetBalance(ctx, creatorAddr, "uhodl")
 	if balance.Amount.LT(listingFee) {
@@ -149,21 +159,37 @@ func (k Keeper) SubmitBusinessListing(
 		creator,
 	)
 	listing.Documents = businessDocs
-	
+
 	// Store listing
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return 0, err
+	}
+
 	// Transfer listing fee to module account
 	fee := sdk.NewCoins(sdk.NewCoin("uhodl", listingFee))
 	if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, creatorAddr, types.ModuleName, fee); err != nil {
 		return 0, err
 	}
-	
+
+	// LOCK STAKE: Lock creator's stake while listing is pending review
+	// This prevents unstaking while the listing is under review
+	if k.stakingKeeper != nil {
+		listingIDStr := fmt.Sprintf("%d", listingID)
+		if err := k.stakingKeeper.LockForPendingListing(ctx, creatorAddr, listingIDStr); err != nil {
+			// Log but don't fail - stake locking is supplementary protection
+			k.Logger(ctx).Error("failed to lock stake for pending listing",
+				"listing_id", listingID,
+				"creator", creator,
+				"error", err,
+			)
+		}
+	}
+
 	// Assign validators for review
 	if err := k.assignValidatorsForReview(ctx, listingID, requirements.RequiredValidators); err != nil {
 		return 0, err
 	}
-	
+
 	return listingID, nil
 }
 
@@ -201,9 +227,16 @@ func (k Keeper) ReviewBusinessListing(
 		}
 	}
 	
-	// Get validator info to check tier
-	if _, found := k.validatorKeeper.GetValidator(ctx, validator); !found {
-		return types.ErrUnauthorized
+	// Check if user has required tier using staking keeper
+	if k.stakingKeeper != nil {
+		validatorAddr, err := sdk.AccAddressFromBech32(validator)
+		if err != nil {
+			return types.ErrUnauthorized
+		}
+		tier := k.stakingKeeper.GetUserTierInt(ctx, validatorAddr)
+		if tier < types.StakeTierKeeper { // Requires at least Keeper tier
+			return types.ErrUnauthorized
+		}
 	}
 	
 	// Add verification result
@@ -220,10 +253,12 @@ func (k Keeper) ReviewBusinessListing(
 	listing.VerificationResults = append(listing.VerificationResults, result)
 	listing.Status = types.ListingStatusUnderReview
 	listing.UpdatedAt = time.Now()
-	
+
 	// Update listing
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -294,8 +329,39 @@ func (k Keeper) ApproveListing(ctx sdk.Context, listingID uint64, authority stri
 	listing.Status = types.ListingStatusApproved
 	listing.ReviewCompletedAt = time.Now()
 	listing.UpdatedAt = time.Now()
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return 0, err
+	}
+
+	// STAKE LOCK TRANSITION: Pending listing -> Company listing
+	// 1. Remove pending listing lock
+	// 2. Add company listing lock (stays until company is delisted)
+	if k.stakingKeeper != nil {
+		applicantAddr, err := sdk.AccAddressFromBech32(listing.Applicant)
+		if err == nil {
+			listingIDStr := fmt.Sprintf("%d", listingID)
+			companyIDStr := fmt.Sprintf("%d", companyID)
+
+			// Remove pending listing lock
+			if err := k.stakingKeeper.UnlockPendingListing(ctx, applicantAddr, listingIDStr); err != nil {
+				k.Logger(ctx).Error("failed to unlock pending listing",
+					"listing_id", listingID,
+					"applicant", listing.Applicant,
+					"error", err,
+				)
+			}
+
+			// Add company listing lock (permanent until delisting)
+			if err := k.stakingKeeper.LockForCompanyListing(ctx, applicantAddr, companyIDStr); err != nil {
+				k.Logger(ctx).Error("failed to lock stake for company listing",
+					"company_id", companyID,
+					"applicant", listing.Applicant,
+					"error", err,
+				)
+			}
+		}
+	}
+
 	return companyID, nil
 }
 
@@ -306,25 +372,43 @@ func (k Keeper) RejectListing(ctx sdk.Context, listingID uint64, authority strin
 	if !found {
 		return types.ErrListingNotFound
 	}
-	
+
 	// Update listing status
 	listing.Status = types.ListingStatusRejected
 	listing.RejectionReason = reason
 	listing.ReviewCompletedAt = time.Now()
 	listing.UpdatedAt = time.Now()
-	
+
 	// Store updated listing
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return err
+	}
+
 	// Refund listing fee to applicant
 	applicantAddr, err := sdk.AccAddressFromBech32(listing.Applicant)
 	if err != nil {
 		return err
 	}
-	
+
 	fee := sdk.NewCoins(sdk.NewCoin("uhodl", listing.ListingFee))
-	
-	return k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, applicantAddr, fee)
+
+	if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, applicantAddr, fee); err != nil {
+		return err
+	}
+
+	// UNLOCK STAKE: Remove pending listing lock (applicant can now unstake)
+	if k.stakingKeeper != nil {
+		listingIDStr := fmt.Sprintf("%d", listingID)
+		if err := k.stakingKeeper.UnlockPendingListing(ctx, applicantAddr, listingIDStr); err != nil {
+			k.Logger(ctx).Error("failed to unlock pending listing",
+				"listing_id", listingID,
+				"applicant", listing.Applicant,
+				"error", err,
+			)
+		}
+	}
+
+	return nil
 }
 
 // SuspendListing suspends a business listing
@@ -339,10 +423,12 @@ func (k Keeper) SuspendListing(ctx sdk.Context, listingID uint64, authority stri
 	listing.Status = types.ListingStatusSuspended
 	listing.Notes = reason
 	listing.UpdatedAt = time.Now()
-	
+
 	// Store updated listing
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -407,29 +493,20 @@ func (k Keeper) validateListingRequirements(
 }
 
 // assignValidatorsForReview assigns validators to review a listing
+// Note: This is a placeholder implementation - in production, validators would be selected
+// based on their tier and availability from the universal staking module
 func (k Keeper) assignValidatorsForReview(ctx sdk.Context, listingID uint64, requiredCount int) error {
-	// Get available validators
-	validators := k.validatorKeeper.GetAllValidators(ctx)
-	
-	// Filter for business verification validators (simplified)
-	eligibleValidators := []ValidatorInfo{}
-	for _, validator := range validators {
-		// Simplified check - assume all validators can review listings
-		if validatorInfo, ok := validator.(ValidatorInfo); ok {
-			eligibleValidators = append(eligibleValidators, validatorInfo)
-		}
-	}
-	
-	if len(eligibleValidators) < requiredCount {
-		return types.ErrInsufficientValidators
-	}
-	
-	// Simple assignment - take first N validators
-	// In production, would use more sophisticated assignment logic
+	// Note: With the unified staking system, validator selection for listing review
+	// should be done through the staking keeper's tier-based selection.
+	// This placeholder implementation logs a warning and succeeds.
+	k.Logger(ctx).Info("assignValidatorsForReview: validator selection placeholder",
+		"listing_id", listingID,
+		"required_count", requiredCount,
+	)
+
+	// For now, listings proceed without pre-assigned validators
+	// Validators with appropriate tier can submit reviews directly
 	assigned := []string{}
-	for i := 0; i < requiredCount && i < len(eligibleValidators); i++ {
-		assigned = append(assigned, eligibleValidators[i].Address)
-	}
 	
 	// Update listing with assigned validators
 	listing, found := k.GetBusinessListing(ctx, listingID)
@@ -439,8 +516,10 @@ func (k Keeper) assignValidatorsForReview(ctx sdk.Context, listingID uint64, req
 	
 	listing.AssignedValidators = assigned
 	listing.ReviewStartedAt = time.Now()
-	k.SetBusinessListing(ctx, listing)
-	
+	if err := k.SetBusinessListing(ctx, listing); err != nil {
+		return err
+	}
+
 	return nil
 }
 

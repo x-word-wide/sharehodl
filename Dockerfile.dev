@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install dependencies
 RUN apk add --no-cache git build-base linux-headers
@@ -39,5 +39,5 @@ RUN chmod +x /scripts/*.sh
 # Expose ports
 EXPOSE 26656 26657 1317 9090 9091
 
-# Default command
-CMD ["sharehodld", "start"]
+# Use entrypoint script for initialization
+ENTRYPOINT ["/scripts/docker-entrypoint.sh"]

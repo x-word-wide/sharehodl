@@ -5,3 +5,5 @@ export * from "./components/Card";
 export * from "./components/Header";
 export * from "./components/TestHeader";
 export * from "./components/Navigation";
+export * from "./components/WalletButton";
+export * from "./hooks";

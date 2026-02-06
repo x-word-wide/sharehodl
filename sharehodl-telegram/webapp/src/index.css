@@ -1,0 +1,334 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Root variables from Telegram theme */
+:root {
+  --tg-theme-bg-color: #0D1117;
+  --tg-theme-text-color: #ffffff;
+  --tg-theme-hint-color: #8b949e;
+  --tg-theme-link-color: #1E40AF;
+  --tg-theme-button-color: #1E40AF;
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #161B22;
+
+  /* Glassmorphism variables */
+  --glass-bg: rgba(22, 27, 34, 0.75);
+  --glass-bg-light: rgba(22, 27, 34, 0.5);
+  --glass-border: rgba(48, 54, 61, 0.6);
+  --glass-blur: 16px;
+  --glass-blur-heavy: 24px;
+
+  /* Glow effects */
+  --glow-primary: 0 0 40px rgba(30, 64, 175, 0.25);
+  --glow-primary-strong: 0 0 60px rgba(30, 64, 175, 0.4);
+  --glow-success: 0 0 40px rgba(16, 185, 129, 0.25);
+  --glow-warning: 0 0 40px rgba(245, 158, 11, 0.25);
+
+  /* Enhanced shadows */
+  --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 16px 48px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* Base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--tg-theme-bg-color, #0D1117);
+  color: var(--tg-theme-text-color, #ffffff);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Prevent text selection */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #30363D;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Safe area padding for iOS */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+/* Gradient backgrounds */
+.gradient-primary {
+  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+}
+
+.gradient-green {
+  background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+}
+
+.gradient-orange {
+  background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+}
+
+.gradient-blue {
+  background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+}
+
+/* Card styles */
+.card {
+  @apply bg-dark-card rounded-2xl p-4;
+}
+
+.card-gradient {
+  background: linear-gradient(180deg, rgba(30, 64, 175, 0.1) 0%, #161B22 100%);
+}
+
+/* Button styles */
+.btn-primary {
+  @apply bg-primary text-white font-semibold py-3 px-6 rounded-xl
+         active:scale-95 transition-transform duration-150;
+}
+
+.btn-secondary {
+  @apply bg-dark-surface text-white font-semibold py-3 px-6 rounded-xl
+         border border-dark-border active:scale-95 transition-transform duration-150;
+}
+
+/* Input styles */
+.input {
+  @apply w-full bg-dark-surface border border-dark-border rounded-xl px-4 py-3
+         text-white placeholder-gray-500 focus:outline-none focus:border-primary
+         transition-colors duration-200;
+}
+
+/* Badge styles */
+.badge {
+  @apply px-2 py-1 rounded-md text-xs font-medium;
+}
+
+.badge-green {
+  @apply bg-accent-green/20 text-accent-green;
+}
+
+.badge-red {
+  @apply bg-accent-red/20 text-accent-red;
+}
+
+.badge-blue {
+  @apply bg-accent-blue/20 text-accent-blue;
+}
+
+.badge-purple {
+  @apply bg-primary/20 text-primary;
+}
+
+/* Animation classes */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin;
+}
+
+/* ============================================
+   Glassmorphism Utilities
+   ============================================ */
+
+/* Glass card - primary glassmorphic container */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+}
+
+/* Glass card light - more transparent */
+.glass-card-light {
+  background: var(--glass-bg-light);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid rgba(48, 54, 61, 0.4);
+  border-radius: 16px;
+}
+
+/* Glass surface - subtle glass effect */
+.glass-surface {
+  background: rgba(22, 27, 34, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+/* Glow effects */
+.glow-primary {
+  box-shadow: var(--glow-primary);
+}
+
+.glow-primary-strong {
+  box-shadow: var(--glow-primary-strong);
+}
+
+.glow-success {
+  box-shadow: var(--glow-success);
+}
+
+/* Mesh gradient backgrounds */
+.mesh-gradient {
+  background:
+    radial-gradient(at 20% 80%, rgba(30, 64, 175, 0.15) 0px, transparent 50%),
+    radial-gradient(at 80% 20%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+    radial-gradient(at 40% 40%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+}
+
+.mesh-gradient-blue {
+  background:
+    radial-gradient(at 0% 100%, rgba(30, 64, 175, 0.2) 0px, transparent 40%),
+    radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 40%);
+}
+
+/* Animated gradient border */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.gradient-border-animated {
+  position: relative;
+}
+
+.gradient-border-animated::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(30, 64, 175, 0.6),
+    rgba(59, 130, 246, 0.4),
+    rgba(16, 185, 129, 0.4),
+    rgba(30, 64, 175, 0.6)
+  );
+  background-size: 200% 200%;
+  animation: gradient-shift 4s ease infinite;
+  z-index: -1;
+  opacity: 0.6;
+}
+
+/* Icon glow effect */
+.icon-glow {
+  position: relative;
+}
+
+.icon-glow::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: inherit;
+  opacity: 0.25;
+  filter: blur(10px);
+  z-index: -1;
+}
+
+/* Subtle hover lift */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+}
+
+/* Active press effect */
+.press-effect {
+  transition: transform 0.15s ease;
+}
+
+.press-effect:active {
+  transform: scale(0.97);
+}
+
+/* Frosted navigation */
+.frosted-nav {
+  background: rgba(13, 17, 23, 0.85);
+  backdrop-filter: blur(var(--glass-blur-heavy));
+  -webkit-backdrop-filter: blur(var(--glass-blur-heavy));
+  border-top: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+/* Modern chip/badge */
+.modern-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #8b949e;
+  transition: background 0.2s ease;
+}
+
+.modern-chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+}

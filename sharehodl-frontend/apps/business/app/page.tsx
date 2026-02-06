@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import CapTableView from "./components/CapTableView";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedService, setSelectedService] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
 
   const listedCompanies = [
     { symbol: "AAPL", name: "Apple Inc.", marketCap: "2.8T", shares: "15.7B", price: "$185.25", status: "Active" },
@@ -111,7 +113,8 @@ export default function Home() {
               { id: "services", label: "Services", fullLabel: "Business Services", icon: "" },
               { id: "ipo", label: "IPO", fullLabel: "IPO Application", icon: "" },
               { id: "validator", label: "Validator", fullLabel: "Validator Registration", icon: "" },
-              { id: "companies", label: "Companies", fullLabel: "Listed Companies", icon: "" }
+              { id: "companies", label: "Companies", fullLabel: "Listed Companies", icon: "" },
+              { id: "captable", label: "Cap Table", fullLabel: "Cap Table & Anti-Dilution", icon: "" }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -469,7 +472,7 @@ export default function Home() {
                 Apply for Listing
               </button>
             </div>
-            
+
             <div className="grid gap-4">
               {listedCompanies.map((company) => (
                 <div key={company.symbol} className="border rounded-lg p-6 hover:shadow-lg transition-shadow">
@@ -496,6 +499,20 @@ export default function Home() {
                       <span className="text-gray-500">24h Volume:</span>
                       <div className="font-semibold">$45.2M</div>
                     </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t flex justify-end">
+                    <button
+                      onClick={() => {
+                        setSelectedCompany(company.symbol);
+                        setActiveTab("captable");
+                      }}
+                      className="text-blue-600 hover:text-blue-800 font-medium text-sm flex items-center gap-1"
+                    >
+                      View Cap Table & Anti-Dilution
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -530,6 +547,73 @@ export default function Home() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "captable" && (
+          <div className="space-y-6">
+            {/* Company Selector */}
+            <div className="flex items-center gap-4 mb-6">
+              <label className="font-semibold">Select Company:</label>
+              <select
+                className="border rounded p-2 min-w-[200px]"
+                value={selectedCompany || ""}
+                onChange={(e) => setSelectedCompany(e.target.value)}
+              >
+                <option value="">Choose a company...</option>
+                {listedCompanies.map((company) => (
+                  <option key={company.symbol} value={company.symbol}>
+                    {company.name} ({company.symbol})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedCompany ? (
+              <CapTableView
+                companyId={selectedCompany}
+                companyName={listedCompanies.find((c) => c.symbol === selectedCompany)?.name || selectedCompany}
+                companySymbol={selectedCompany}
+                isFounder={true} // In production, check if connected wallet is founder
+              />
+            ) : (
+              <div className="text-center py-16 border rounded-lg bg-gray-50">
+                <div className="text-6xl mb-4">&#128200;</div>
+                <h3 className="text-xl font-bold mb-2">Cap Table & Anti-Dilution Tracking</h3>
+                <p className="text-gray-600 mb-6 max-w-lg mx-auto">
+                  View detailed cap tables, shareholding breakdowns, and anti-dilution protection status
+                  for any listed company. Track issuance history and adjustment records.
+                </p>
+                <p className="text-sm text-gray-500">Select a company above to view its cap table</p>
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+              <h3 className="font-bold text-blue-800 mb-3">About Cap Tables & Anti-Dilution</h3>
+              <div className="grid md:grid-cols-2 gap-6 text-sm text-blue-700">
+                <div>
+                  <h4 className="font-semibold mb-2">Cap Table Features</h4>
+                  <ul className="space-y-1">
+                    <li>&#8226; Real-time shareholding data from blockchain</li>
+                    <li>&#8226; Share class breakdown and utilization</li>
+                    <li>&#8226; Top shareholders and ownership percentages</li>
+                    <li>&#8226; Issuance history and capital raised</li>
+                    <li>&#8226; Voting power distribution</li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-2">Anti-Dilution Protection</h4>
+                  <ul className="space-y-1">
+                    <li>&#8226; Full Ratchet - Maximum investor protection</li>
+                    <li>&#8226; Weighted Average - Balanced approach</li>
+                    <li>&#8226; Broad-Based Weighted Average - Most common</li>
+                    <li>&#8226; Automatic adjustment on down rounds</li>
+                    <li>&#8226; Simulation tools for impact analysis</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>

@@ -1,13 +1,55 @@
 package keeper
 
 import (
-	"cosmossdk.io/math"
-	sdk "github.com/cosmos/cosmos-sdk/types"
-	"github.com/sharehodl/sharehodl-blockchain/x/governance/types"
-	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
+	"encoding/json"
 	"fmt"
 	"time"
+
+	"cosmossdk.io/math"
+	"github.com/cosmos/cosmos-sdk/runtime"
+	sdk "github.com/cosmos/cosmos-sdk/types"
+	equitytypes "github.com/sharehodl/sharehodl-blockchain/x/equity/types"
+	"github.com/sharehodl/sharehodl-blockchain/x/governance/types"
 )
+
+// companyInfo helper struct to extract company info from interface{}
+type companyInfo struct {
+	ID     uint64
+	Symbol string
+}
+
+// extractCompanyInfo extracts company info from interface{}
+func extractCompanyInfo(company interface{}) companyInfo {
+	if c, ok := company.(equitytypes.Company); ok {
+		return companyInfo{ID: c.ID, Symbol: c.Symbol}
+	}
+	// Handle map-like interface for JSON decoded data
+	if m, ok := company.(map[string]interface{}); ok {
+		info := companyInfo{}
+		if id, ok := m["id"].(uint64); ok {
+			info.ID = id
+		}
+		if sym, ok := m["symbol"].(string); ok {
+			info.Symbol = sym
+		}
+		return info
+	}
+	return companyInfo{}
+}
+
+// shareholdingInfo helper struct to extract shareholding info from interface{}
+type shareholdingInfo struct {
+	ClassID string
+	Shares  math.Int
+}
+
+// extractShareholdingInfo extracts shareholding info from interface{}
+func extractShareholdingInfo(shareholding interface{}) shareholdingInfo {
+	if s, ok := shareholding.(equitytypes.Shareholding); ok {
+		return shareholdingInfo{ClassID: s.ClassID, Shares: s.Shares}
+	}
+	return shareholdingInfo{ClassID: "common", Shares: math.ZeroInt()}
+}
 
 // SubmitCompanyProposal submits a company-specific governance proposal
 func (k Keeper) SubmitCompanyProposal(
@@ -33,8 +75,11 @@ func (k Keeper) SubmitCompanyProposal(
 		return 0, types.ErrCompanyNotFound
 	}
 
+	// Extract company info
+	compInfo := extractCompanyInfo(company)
+
 	// Validate submitter eligibility
-	if err := k.validateCompanyProposalSubmission(ctx, submitterAddr, company, proposalType); err != nil {
+	if err := k.validateCompanyProposalSubmission(ctx, submitterAddr, compInfo, proposalType); err != nil {
 		return 0, err
 	}
 
@@ -58,12 +103,12 @@ func (k Keeper) SubmitCompanyProposal(
 	companyProposal := types.CompanyGovernanceProposal{
 		ProposalID:        proposalID,
 		CompanyID:         companyID,
-		CompanySymbol:     company.Symbol,
+		CompanySymbol:     compInfo.Symbol,
 		Type:              proposalType,
 		Title:             title,
 		Description:       description,
 		Proposer:          submitter,
-		ShareClassVoting:  k.getShareClassVotingWeights(ctx, company),
+		ShareClassVoting:  k.getShareClassVotingWeights(ctx, compInfo),
 		RequiredApproval:  thresholdRequirement,
 		BoardApprovalReq:  k.requiresBoardApproval(proposalType),
 		QuorumRequirement: quorumRequirement,
@@ -78,7 +123,7 @@ func (k Keeper) SubmitCompanyProposal(
 	proposal := types.Proposal{
 		ID:                proposalID,
 		Type:              types.ProposalTypeCompanyGovernance,
-		Title:             fmt.Sprintf("[%s] %s", company.Symbol, title),
+		Title:             fmt.Sprintf("[%s] %s", compInfo.Symbol, title),
 		Description:       description,
 		Proposer:          submitter,
 		Status:            types.ProposalStatusVotingPeriod, // Skip deposit period for company proposals
@@ -112,9 +157,9 @@ func (k Keeper) SubmitCompanyProposal(
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"submit_company_proposal",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
-			sdk.NewAttribute("company_id", sdk.Uint64ToBigEndian(companyID).String()),
-			sdk.NewAttribute("company_symbol", company.Symbol),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", companyID)),
+			sdk.NewAttribute("company_symbol", compInfo.Symbol),
 			sdk.NewAttribute("proposal_type", proposalType.String()),
 			sdk.NewAttribute("submitter", submitter),
 			sdk.NewAttribute("title", title),
@@ -173,7 +218,7 @@ func (k Keeper) VoteOnCompanyProposal(
 		ProposalID:  proposalID,
 		Voter:       voter,
 		Option:      option,
-		VotingPower: votingPower,
+		VotingPower: votingPower.TruncateInt(),
 		Weight:      math.LegacyOneDec(),
 		CompanyID:   companyProposal.CompanyID,
 		Justification: reason,
@@ -190,8 +235,8 @@ func (k Keeper) VoteOnCompanyProposal(
 	ctx.EventManager().EmitEvent(
 		sdk.NewEvent(
 			"vote_company_proposal",
-			sdk.NewAttribute("proposal_id", sdk.Uint64ToBigEndian(proposalID).String()),
-			sdk.NewAttribute("company_id", sdk.Uint64ToBigEndian(companyProposal.CompanyID).String()),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", companyProposal.CompanyID)),
 			sdk.NewAttribute("voter", voter),
 			sdk.NewAttribute("option", option.String()),
 			sdk.NewAttribute("voting_power", votingPower.String()),
@@ -205,22 +250,24 @@ func (k Keeper) VoteOnCompanyProposal(
 func (k Keeper) validateCompanyProposalSubmission(
 	ctx sdk.Context,
 	submitter sdk.AccAddress,
-	company equitytypes.Company,
+	compInfo companyInfo,
 	proposalType types.CompanyProposalType,
 ) error {
 	// Check if submitter is a shareholder
-	shareholding, found := k.equityKeeper.GetShareholding(ctx, company.ID, submitter.String())
+	shareholdingIface, found := k.equityKeeper.GetShareholding(ctx, compInfo.ID, "common", submitter.String())
 	if !found {
 		return types.ErrNotAuthorized
 	}
 
+	sh := extractShareholdingInfo(shareholdingIface)
+
 	// Calculate ownership percentage
-	totalShares := k.equityKeeper.GetTotalShares(ctx, company.ID, shareholding.ClassID)
+	totalShares := k.equityKeeper.GetTotalShares(ctx, compInfo.ID, sh.ClassID)
 	if totalShares.IsZero() {
 		return types.ErrInvalidState
 	}
 
-	ownershipPercent := math.LegacyNewDecFromInt(shareholding.Shares).Quo(math.LegacyNewDecFromInt(totalShares))
+	ownershipPercent := math.LegacyNewDecFromInt(sh.Shares).Quo(math.LegacyNewDecFromInt(totalShares))
 
 	// Check minimum ownership requirements based on proposal type
 	minOwnership := k.getMinOwnershipForProposalType(proposalType)
@@ -232,13 +279,13 @@ func (k Keeper) validateCompanyProposalSubmission(
 	switch proposalType {
 	case types.CompanyProposalTypeMergerAcquisition:
 		// Requires board member or 10%+ ownership
-		if !k.isBoardMember(ctx, company, submitter) && ownershipPercent.LT(math.LegacyNewDecWithPrec(1, 1)) {
+		if !k.isBoardMember(ctx, compInfo, submitter) && ownershipPercent.LT(math.LegacyNewDecWithPrec(1, 1)) {
 			return types.ErrInsufficientPermissions
 		}
-		
+
 	case types.CompanyProposalTypeExecutiveComp:
 		// Requires independent board member or 5%+ ownership
-		if !k.isIndependentBoardMember(ctx, company, submitter) && ownershipPercent.LT(math.LegacyNewDecWithPrec(5, 2)) {
+		if !k.isIndependentBoardMember(ctx, compInfo, submitter) && ownershipPercent.LT(math.LegacyNewDecWithPrec(5, 2)) {
 			return types.ErrInsufficientPermissions
 		}
 	}
@@ -263,9 +310,26 @@ func (k Keeper) validateCompanyVoting(
 		return types.ErrVotingPeriodEnded
 	}
 
-	// Check if voter is a shareholder
-	_, found := k.equityKeeper.GetShareholding(ctx, companyProposal.CompanyID, voter.String())
-	if !found {
+	// Check if voter is a shareholder OR has beneficial ownership (LP positions)
+	hasDirectShares := false
+	hasBeneficialOwnership := false
+
+	// 1. Check direct shareholding
+	_, found := k.equityKeeper.GetShareholding(ctx, companyProposal.CompanyID, "common", voter.String())
+	if found {
+		hasDirectShares = true
+	}
+
+	// 2. Check beneficial ownership (shares in LP pools, escrow, etc.)
+	if !hasDirectShares {
+		ownerships, err := k.equityKeeper.GetBeneficialOwnershipsByOwner(ctx, companyProposal.CompanyID, "common", voter.String())
+		if err == nil && len(ownerships) > 0 {
+			hasBeneficialOwnership = true
+		}
+	}
+
+	// Voter must have either direct shares or beneficial ownership
+	if !hasDirectShares && !hasBeneficialOwnership {
 		return types.ErrInsufficientVotingPower
 	}
 
@@ -273,25 +337,48 @@ func (k Keeper) validateCompanyVoting(
 }
 
 // calculateShareholderVotingPower calculates voting power for shareholders
+// This includes BOTH direct holdings AND beneficial ownership (LP positions, escrow, etc.)
+// Equity holders can vote even when their shares are in liquidity pools or escrow
 func (k Keeper) calculateShareholderVotingPower(
 	ctx sdk.Context,
 	companyProposal types.CompanyGovernanceProposal,
 	voter sdk.AccAddress,
 ) (math.LegacyDec, error) {
-	// Get shareholder's holdings
-	shareholding, found := k.equityKeeper.GetShareholding(ctx, companyProposal.CompanyID, voter.String())
-	if !found {
+	totalShares := math.ZeroInt()
+	classID := "common"
+
+	// 1. Get shareholder's DIRECT holdings
+	shareholdingIface, found := k.equityKeeper.GetShareholding(ctx, companyProposal.CompanyID, classID, voter.String())
+	if found {
+		sh := extractShareholdingInfo(shareholdingIface)
+		totalShares = totalShares.Add(sh.Shares)
+		if sh.ClassID != "" {
+			classID = sh.ClassID
+		}
+	}
+
+	// 2. Get shareholder's BENEFICIAL OWNERSHIP (shares in LP pools, escrow, etc.)
+	// This ensures LP providers can still vote on company matters
+	beneficialOwnerships, err := k.equityKeeper.GetBeneficialOwnershipsByOwner(ctx, companyProposal.CompanyID, classID, voter.String())
+	if err == nil {
+		for _, ownership := range beneficialOwnerships {
+			totalShares = totalShares.Add(ownership.Shares)
+		}
+	}
+
+	// If no shares found (direct or beneficial), return zero voting power
+	if totalShares.IsZero() {
 		return math.LegacyZeroDec(), nil
 	}
 
 	// Get voting weight for this share class
-	classWeight, exists := companyProposal.ShareClassVoting[shareholding.ClassID]
+	classWeight, exists := companyProposal.ShareClassVoting[classID]
 	if !exists {
 		classWeight = math.LegacyOneDec() // Default voting weight
 	}
 
-	// Calculate voting power based on shares and class weight
-	votingPower := math.LegacyNewDecFromInt(shareholding.Shares).Mul(classWeight)
+	// Calculate voting power based on TOTAL shares (direct + beneficial) and class weight
+	votingPower := math.LegacyNewDecFromInt(totalShares).Mul(classWeight)
 
 	// Apply any voting caps or restrictions
 	maxVotingPower := k.getMaxVotingPowerPerShareholder(ctx, companyProposal)
@@ -394,9 +481,9 @@ func (k Keeper) getExecutionDelay(proposalType types.CompanyProposalType) time.D
 	}
 }
 
-func (k Keeper) getShareClassVotingWeights(ctx sdk.Context, company equitytypes.Company) map[string]math.LegacyDec {
+func (k Keeper) getShareClassVotingWeights(ctx sdk.Context, compInfo companyInfo) map[string]math.LegacyDec {
 	weights := make(map[string]math.LegacyDec)
-	
+
 	// Default implementation - would be enhanced based on actual share class structure
 	weights["common"] = math.LegacyOneDec()
 	weights["preferred"] = math.LegacyNewDec(2) // Preferred shares get 2x voting power
@@ -409,48 +496,55 @@ func (k Keeper) getMaxVotingPowerPerShareholder(ctx sdk.Context, companyProposal
 	return math.LegacyNewDecWithPrec(25, 2)
 }
 
-func (k Keeper) isBoardMember(ctx sdk.Context, company equitytypes.Company, addr sdk.AccAddress) bool {
+func (k Keeper) isBoardMember(ctx sdk.Context, compInfo companyInfo, addr sdk.AccAddress) bool {
 	// Implementation would check if address is a board member
 	// This would integrate with equity module's board tracking
+	_ = compInfo // avoid unused warning
 	return false
 }
 
-func (k Keeper) isIndependentBoardMember(ctx sdk.Context, company equitytypes.Company, addr sdk.AccAddress) bool {
+func (k Keeper) isIndependentBoardMember(ctx sdk.Context, compInfo companyInfo, addr sdk.AccAddress) bool {
 	// Implementation would check if address is an independent board member
+	_ = compInfo // avoid unused warning
 	return false
 }
 
 // Storage functions for company proposals
 
 func (k Keeper) setCompanyProposal(ctx sdk.Context, proposal types.CompanyGovernanceProposal) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	key := types.CompanyProposalKey(proposal.ProposalID)
-	value := k.cdc.MustMarshal(&proposal)
+	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
+	key := types.CompanyProposalKey(proposal.CompanyID, proposal.ProposalID)
+	value, _ := json.Marshal(proposal)
 	store.Set(key, value)
 }
 
 func (k Keeper) GetCompanyProposal(ctx sdk.Context, proposalID uint64) (types.CompanyGovernanceProposal, bool) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	key := types.CompanyProposalKey(proposalID)
-	
-	value := store.Get(key)
-	if value == nil {
-		return types.CompanyGovernanceProposal{}, false
+	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
+
+	// We need to iterate to find by proposalID since we don't have companyID
+	iterator := store.Iterator(types.CompanyProposalPrefix, types.PrefixEndBytes(types.CompanyProposalPrefix))
+	defer iterator.Close()
+
+	for ; iterator.Valid(); iterator.Next() {
+		var proposal types.CompanyGovernanceProposal
+		if err := json.Unmarshal(iterator.Value(), &proposal); err == nil {
+			if proposal.ProposalID == proposalID {
+				return proposal, true
+			}
+		}
 	}
 
-	var proposal types.CompanyGovernanceProposal
-	k.cdc.MustUnmarshal(value, &proposal)
-	return proposal, true
+	return types.CompanyGovernanceProposal{}, false
 }
 
 func (k Keeper) indexCompanyProposal(ctx sdk.Context, proposal types.CompanyGovernanceProposal) {
-	store := ctx.KVStore(k.storeService.OpenKVStore(ctx))
-	
+	store := runtime.KVStoreAdapter(k.storeService.OpenKVStore(ctx))
+
 	// Index by company
 	companyKey := types.CompanyProposalIndexKey(proposal.CompanyID)
 	companyIndexKey := append(companyKey, sdk.Uint64ToBigEndian(proposal.ProposalID)...)
 	store.Set(companyIndexKey, []byte{})
-	
+
 	// Index by type
 	typeKey := types.CompanyProposalTypeIndexKey(proposal.Type)
 	typeIndexKey := append(typeKey, sdk.Uint64ToBigEndian(proposal.ProposalID)...)

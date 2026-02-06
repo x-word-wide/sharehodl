@@ -2,6 +2,9 @@ package keeper
 
 import (
 	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
 
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
@@ -74,14 +77,15 @@ func (k Keeper) GetDividend(ctx sdk.Context, dividendID uint64) (types.Dividend,
 }
 
 // SetDividend stores a dividend
-func (k Keeper) SetDividend(ctx sdk.Context, dividend types.Dividend) {
+func (k Keeper) SetDividend(ctx sdk.Context, dividend types.Dividend) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetDividendKey(dividend.ID)
 	bz, err := json.Marshal(dividend)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal dividend: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // DeleteDividend removes a dividend
@@ -108,14 +112,15 @@ func (k Keeper) GetDividendPayment(ctx sdk.Context, paymentID uint64) (types.Div
 }
 
 // SetDividendPayment stores a dividend payment
-func (k Keeper) SetDividendPayment(ctx sdk.Context, payment types.DividendPayment) {
+func (k Keeper) SetDividendPayment(ctx sdk.Context, payment types.DividendPayment) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetDividendPaymentKey(payment.ID)
 	bz, err := json.Marshal(payment)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal dividend payment: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // GetDividendSnapshot returns a dividend snapshot
@@ -135,14 +140,15 @@ func (k Keeper) GetDividendSnapshot(ctx sdk.Context, dividendID uint64) (types.D
 }
 
 // SetDividendSnapshot stores a dividend snapshot
-func (k Keeper) SetDividendSnapshot(ctx sdk.Context, snapshot types.DividendSnapshot) {
+func (k Keeper) SetDividendSnapshot(ctx sdk.Context, snapshot types.DividendSnapshot) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetDividendSnapshotKey(snapshot.DividendID)
 	bz, err := json.Marshal(snapshot)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal dividend snapshot: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // GetShareholderSnapshot returns a shareholder snapshot
@@ -162,14 +168,15 @@ func (k Keeper) GetShareholderSnapshot(ctx sdk.Context, dividendID uint64, share
 }
 
 // SetShareholderSnapshot stores a shareholder snapshot
-func (k Keeper) SetShareholderSnapshot(ctx sdk.Context, snapshot types.ShareholderSnapshot) {
+func (k Keeper) SetShareholderSnapshot(ctx sdk.Context, snapshot types.ShareholderSnapshot) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetShareholderSnapshotKey(snapshot.DividendID, snapshot.Shareholder)
 	bz, err := json.Marshal(snapshot)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal shareholder snapshot: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // GetDividendPolicy returns the dividend policy for a company
@@ -189,19 +196,20 @@ func (k Keeper) GetDividendPolicy(ctx sdk.Context, companyID uint64) (types.Divi
 }
 
 // StoreDividendPolicy stores a dividend policy
-func (k Keeper) StoreDividendPolicy(ctx sdk.Context, policy types.DividendPolicy) {
+func (k Keeper) StoreDividendPolicy(ctx sdk.Context, policy types.DividendPolicy) error {
 	store := ctx.KVStore(k.storeKey)
 	key := types.GetDividendPolicyKey(policy.CompanyID)
 	bz, err := json.Marshal(policy)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal dividend policy: %w", err)
 	}
 	store.Set(key, bz)
+	return nil
 }
 
 // Business logic methods
 
-// DeclareDividend declares a new dividend
+// DeclareDividend declares a new dividend with mandatory audit document
 func (k Keeper) DeclareDividend(
 	ctx sdk.Context,
 	creator string,
@@ -215,21 +223,27 @@ func (k Keeper) DeclareDividend(
 	description string,
 	paymentMethod string,
 	stockRatio math.LegacyDec,
+	auditInfo types.AuditInfo, // MANDATORY audit document
 ) (uint64, error) {
 	// Get company to verify creator is authorized
 	company, found := k.getCompany(ctx, companyID)
 	if !found {
 		return 0, types.ErrCompanyNotFound
 	}
-	
-	// Only company founder can declare dividends (could add board governance later)
-	if company.Founder != creator {
-		return 0, types.ErrUnauthorized
+
+	// Use authorization system: founder OR authorized proposer can declare dividends
+	if !k.CanProposeForCompany(ctx, companyID, creator) {
+		return 0, types.ErrNotAuthorizedProposer
 	}
-	
+
 	// Company must be active
 	if company.Status != types.CompanyStatusActive {
 		return 0, types.ErrCompanyNotActive
+	}
+
+	// Validate audit document (MANDATORY for dividend declaration)
+	if err := auditInfo.Validate(); err != nil {
+		return 0, err
 	}
 	
 	// Calculate dividend dates
@@ -284,50 +298,88 @@ func (k Keeper) DeclareDividend(
 	dividend.TotalAmount = amountPerShare.MulInt(totalShares)
 	dividend.RemainingAmount = dividend.TotalAmount
 	dividend.EligibleShares = totalShares
-	
-	// For cash dividends, verify founder has sufficient funds
+
+	// For cash dividends, verify TREASURY has sufficient funds (NOT founder)
 	if dividendType == types.DividendTypeCash {
-		creatorAddr, err := sdk.AccAddressFromBech32(creator)
-		if err != nil {
-			return 0, types.ErrUnauthorized
+		treasury, found := k.GetCompanyTreasury(ctx, companyID)
+		if !found {
+			return 0, types.ErrTreasuryNotFound
 		}
-		
-		requiredPayment := sdk.NewCoins(sdk.NewCoin(currency, dividend.TotalAmount.TruncateInt()))
-		balance := k.bankKeeper.GetAllBalances(ctx, creatorAddr)
-		if !balance.IsAllGTE(requiredPayment) {
-			return 0, types.ErrInsufficientDividendFunds
+
+		// Check treasury isn't frozen
+		if k.IsTreasuryFrozen(ctx, companyID) {
+			return 0, types.ErrTreasuryFrozenForInvestigation
 		}
-		
-		// Transfer funds to module account for dividend distribution
-		if err := k.bankKeeper.SendCoinsFromAccountToModule(ctx, creatorAddr, types.ModuleName, requiredPayment); err != nil {
-			return 0, types.ErrInsufficientDividendFunds
+
+		requiredAmount := dividend.TotalAmount.TruncateInt()
+		treasuryBalance := treasury.Balance.AmountOf(currency)
+
+		if treasuryBalance.LT(requiredAmount) {
+			return 0, fmt.Errorf("%w: need %s %s, treasury has %s",
+				types.ErrInsufficientTreasuryBalance,
+				requiredAmount.String(), currency,
+				treasuryBalance.String())
 		}
+
+		// Lock dividend amount in treasury (deduct from available balance)
+		// The funds are already in the module account, just track the allocation
+		lockedCoins := sdk.NewCoins(sdk.NewCoin(currency, requiredAmount))
+		treasury.Balance = treasury.Balance.Sub(lockedCoins...)
+		treasury.UpdatedAt = ctx.BlockTime()
+		if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
+			return 0, err
+		}
+
+		// Note: Funds are already in equity module account from treasury deposits
+		// We just deducted from treasury tracking, funds will be distributed from module
 	}
 	
+	// Create audit record for this dividend (MANDATORY)
+	auditID, err := k.CreateAuditForDividend(ctx, dividendID, companyID, creator, auditInfo)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create audit record: %w", err)
+	}
+
+	// Link audit to dividend
+	dividend.AuditID = auditID
+	dividend.AuditHash = auditInfo.ContentHash
+
 	// Store dividend
-	k.SetDividend(ctx, dividend)
-	
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return 0, err
+	}
+
+	k.Logger(ctx).Info("dividend declared with audit",
+		"dividend_id", dividendID,
+		"company_id", companyID,
+		"audit_id", auditID,
+		"audit_hash", auditInfo.ContentHash,
+		"amount_per_share", amountPerShare.String(),
+	)
+
 	return dividendID, nil
 }
 
 // CreateRecordSnapshot creates a snapshot of shareholders at the record date
+// This now uses the beneficial owner registry to ensure dividends go to the TRUE owners
+// even when shares are held in escrow, lending, or DEX module accounts
 func (k Keeper) CreateRecordSnapshot(ctx sdk.Context, dividendID uint64) error {
 	// Get dividend
 	dividend, found := k.GetDividend(ctx, dividendID)
 	if !found {
 		return types.ErrDividendNotFound
 	}
-	
+
 	// Check if record date has been reached
 	if !dividend.IsRecordDateReached(ctx.BlockTime()) {
 		return types.ErrDividendSnapshotNotReady
 	}
-	
+
 	// Check if snapshot already exists
 	if _, exists := k.GetDividendSnapshot(ctx, dividendID); exists {
 		return types.ErrDividendSnapshotExists
 	}
-	
+
 	// Create dividend snapshot
 	snapshot := types.NewDividendSnapshot(
 		dividendID,
@@ -335,95 +387,141 @@ func (k Keeper) CreateRecordSnapshot(ctx sdk.Context, dividendID uint64) error {
 		dividend.ClassID,
 		dividend.RecordDate,
 	)
-	
-	// Get all shareholdings for the company/class
+
+	// Get all dividend recipients (includes beneficial owners from module accounts)
+	recipients := k.GetBeneficialOwnersForDividend(ctx, dividend.CompanyID, dividend.ClassID)
+
 	var totalShares math.Int
 	var totalShareholders uint64
-	
-	// Simplified: Get all shareholdings for the company
-	// In a full implementation, would iterate through all shareholdings
-	shareholdings := k.GetCompanyShareholdings(ctx, dividend.CompanyID, dividend.ClassID)
-	
-	for _, shareholding := range shareholdings {
-		if shareholding.VestedShares.GT(math.ZeroInt()) {
+
+	// Create shareholder snapshots for each recipient
+	for _, recipient := range recipients {
+		if recipient.Shares.GT(math.ZeroInt()) {
 			// Create shareholder snapshot
 			shareholderSnapshot := types.NewShareholderSnapshot(
 				dividendID,
 				dividend.CompanyID,
 				dividend.ClassID,
-				shareholding.Owner,
-				shareholding.VestedShares, // Use vested shares for dividends
+				recipient.Address,
+				recipient.Shares,
 				dividend.RecordDate,
 			)
-			k.SetShareholderSnapshot(ctx, shareholderSnapshot)
-			
-			totalShares = totalShares.Add(shareholding.VestedShares)
+			if err := k.SetShareholderSnapshot(ctx, shareholderSnapshot); err != nil {
+				return err
+			}
+
+			totalShares = totalShares.Add(recipient.Shares)
 			totalShareholders++
+
+			k.Logger(ctx).Debug("created shareholder snapshot for dividend",
+				"dividend_id", dividendID,
+				"shareholder", recipient.Address,
+				"shares", recipient.Shares.String(),
+			)
 		}
 	}
-	
+
 	// Update snapshot totals
 	snapshot.TotalShares = totalShares
 	snapshot.TotalShareholders = totalShareholders
 	snapshot.SnapshotTaken = true
-	
+
 	// Store snapshot
-	k.SetDividendSnapshot(ctx, snapshot)
-	
+	if err := k.SetDividendSnapshot(ctx, snapshot); err != nil {
+		return err
+	}
+
 	// Update dividend with eligible shareholders count
 	dividend.EligibleShares = totalShares
 	dividend.ShareholdersEligible = totalShareholders
 	dividend.Status = types.DividendStatusRecorded
 	dividend.UpdatedAt = ctx.BlockTime()
-	k.SetDividend(ctx, dividend)
-	
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return err
+	}
+
+	k.Logger(ctx).Info("dividend snapshot created with beneficial owners",
+		"dividend_id", dividendID,
+		"company_id", dividend.CompanyID,
+		"class_id", dividend.ClassID,
+		"total_shareholders", totalShareholders,
+		"total_shares", totalShares.String(),
+	)
+
 	return nil
 }
 
 // ProcessDividendPayments processes dividend payments in batches
+// PERFORMANCE FIX: Uses iterator with limits instead of loading all shareholders
 func (k Keeper) ProcessDividendPayments(ctx sdk.Context, dividendID uint64, batchSize uint32) (uint32, math.LegacyDec, bool, error) {
 	// Get dividend
 	dividend, found := k.GetDividend(ctx, dividendID)
 	if !found {
 		return 0, math.LegacyZeroDec(), false, types.ErrDividendNotFound
 	}
-	
+
+	// CRITICAL: Check audit verification status before processing payments
+	if dividend.AuditID > 0 {
+		audit, found := k.GetDividendAudit(ctx, dividend.AuditID)
+		if !found {
+			return 0, math.LegacyZeroDec(), false, types.ErrAuditNotFound
+		}
+
+		// Audit must be verified before dividends can be paid
+		if audit.Status != types.AuditStatusVerified {
+			return 0, math.LegacyZeroDec(), false, types.ErrAuditNotVerified
+		}
+	} else {
+		// No audit linked - this should not happen for new dividends
+		k.Logger(ctx).Warn("dividend has no audit linked - old dividend or missing audit",
+			"dividend_id", dividendID,
+		)
+	}
+
 	// Check if dividend is ready for payment
 	if !dividend.IsReadyForPayment(ctx.BlockTime()) {
 		return 0, math.LegacyZeroDec(), false, types.ErrDividendNotProcessable
 	}
-	
+
 	// Get dividend snapshot
 	if _, found := k.GetDividendSnapshot(ctx, dividendID); !found {
 		return 0, math.LegacyZeroDec(), false, types.ErrDividendSnapshotNotReady
 	}
-	
+
 	// Process payments in batches
 	paymentsProcessed := uint32(0)
 	totalPaid := math.LegacyZeroDec()
-	
-	// Get shareholder snapshots (simplified - would use pagination in production)
-	shareholderSnapshots := k.GetShareholderSnapshotsByDividend(ctx, dividendID)
-	
-	startIndex := dividend.ShareholdersPaid
-	endIndex := startIndex + uint64(batchSize)
-	if endIndex > uint64(len(shareholderSnapshots)) {
-		endIndex = uint64(len(shareholderSnapshots))
+
+	// PERFORMANCE FIX: Use iterator with limits instead of loading all shareholders
+	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.ShareholderSnapshotPrefix)
+	prefixBytes := sdk.Uint64ToBigEndian(dividendID)
+	iterator := store.Iterator(prefixBytes, append(prefixBytes, 0xFF))
+	defer iterator.Close()
+
+	// Skip already processed shareholders
+	var skipped uint64
+	for ; iterator.Valid() && skipped < dividend.ShareholdersPaid; iterator.Next() {
+		skipped++
 	}
-	
-	for i := startIndex; i < endIndex; i++ {
-		shareholderSnapshot := shareholderSnapshots[i]
-		
+
+	// Process up to batchSize shareholders
+	for ; iterator.Valid() && paymentsProcessed < batchSize; iterator.Next() {
+		var shareholderSnapshot types.ShareholderSnapshot
+		if err := json.Unmarshal(iterator.Value(), &shareholderSnapshot); err != nil {
+			k.Logger(ctx).Error("failed to unmarshal shareholder snapshot", "error", err)
+			continue
+		}
+
 		// Check if already paid
 		if _, exists := k.GetDividendPaymentForShareholder(ctx, dividendID, shareholderSnapshot.Shareholder); exists {
 			continue
 		}
-		
+
 		// Calculate payment
 		grossAmount := dividend.CalculatePayment(shareholderSnapshot.SharesHeld)
 		taxWithheld := dividend.CalculateWithholding(grossAmount)
 		netAmount := grossAmount.Sub(taxWithheld)
-		
+
 		// Create payment record
 		paymentID := k.GetNextDividendPaymentID(ctx)
 		payment := types.NewDividendPayment(
@@ -438,52 +536,146 @@ func (k Keeper) ProcessDividendPayments(ctx sdk.Context, dividendID uint64, batc
 		)
 		payment.TaxWithheld = taxWithheld
 		payment.NetAmount = netAmount
-		
+
+		// Check if this is a treasury dividend recipient (cross-company investment)
+		// Format: "treasury_dividend:ownerCompanyID"
+		if strings.HasPrefix(shareholderSnapshot.Shareholder, "treasury_dividend:") {
+			// Parse treasury owner company ID
+			parts := strings.Split(shareholderSnapshot.Shareholder, ":")
+			if len(parts) == 2 {
+				ownerCompanyID, err := strconv.ParseUint(parts[1], 10, 64)
+				if err == nil {
+					// Credit dividend to treasury balance instead of sending to address
+					if dividend.Type == types.DividendTypeCash {
+						paymentCoins := sdk.NewCoins(sdk.NewCoin(dividend.Currency, netAmount.TruncateInt()))
+						if err := k.CreditTreasuryDividend(ctx, ownerCompanyID, dividend.CompanyID, paymentCoins); err != nil {
+							payment.Status = "failed"
+							payment.FailureReason = fmt.Sprintf("treasury credit failed: %v", err)
+						} else {
+							payment.Status = "paid_to_treasury"
+							payment.PaidAt = ctx.BlockTime()
+							totalPaid = totalPaid.Add(grossAmount)
+							paymentsProcessed++
+
+							k.Logger(ctx).Info("dividend paid to treasury",
+								"dividend_id", dividendID,
+								"recipient_treasury", ownerCompanyID,
+								"amount", netAmount.String(),
+							)
+						}
+					} else {
+						// Stock dividends to treasuries - add to investment holdings
+						payment.Status = "skipped"
+						payment.FailureReason = "stock_dividend_to_treasury_not_supported"
+					}
+					if err := k.SetDividendPayment(ctx, payment); err != nil {
+						k.Logger(ctx).Error("failed to set dividend payment", "error", err)
+					}
+					continue
+				}
+			}
+		}
+
+		// Check if shareholder is blacklisted
+		var recipientAddr sdk.AccAddress
+		var recipientAddrStr string
+		var isRedirected bool
+
+		if k.IsShareholderBlacklisted(ctx, dividend.CompanyID, shareholderSnapshot.Shareholder) {
+			// Get redirection settings
+			redirect, hasRedirect := k.GetDividendRedirection(ctx, dividend.CompanyID)
+
+			if hasRedirect && redirect.CharityWallet != "" {
+				recipientAddrStr = redirect.CharityWallet
+			} else {
+				// Use default charity wallet or fallback
+				recipientAddrStr = k.GetDefaultCharityWallet(ctx)
+				if recipientAddrStr == "" {
+					// Final fallback: community pool via governance module
+					recipientAddrStr = k.GetCommunityPoolAddress(ctx)
+				}
+			}
+
+			isRedirected = true
+			payment.Status = "redirected"
+			payment.FailureReason = "shareholder_blacklisted"
+		} else {
+			recipientAddrStr = shareholderSnapshot.Shareholder
+			isRedirected = false
+		}
+
 		// Process payment based on dividend type
 		if dividend.Type == types.DividendTypeCash {
-			// Transfer funds from module to shareholder
-			shareholderAddr, err := sdk.AccAddressFromBech32(shareholderSnapshot.Shareholder)
+			// Transfer funds from module to recipient (shareholder or charity)
+			var err error
+			recipientAddr, err = sdk.AccAddressFromBech32(recipientAddrStr)
 			if err != nil {
 				payment.Status = "failed"
 				payment.FailureReason = "invalid address"
 			} else {
 				paymentCoins := sdk.NewCoins(sdk.NewCoin(dividend.Currency, netAmount.TruncateInt()))
-				if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, shareholderAddr, paymentCoins); err != nil {
+				if err := k.bankKeeper.SendCoinsFromModuleToAccount(ctx, types.ModuleName, recipientAddr, paymentCoins); err != nil {
+					payment.Status = "failed"
+					payment.FailureReason = err.Error()
+				} else {
+					if !isRedirected {
+						payment.Status = "paid"
+					}
+					payment.PaidAt = ctx.BlockTime()
+					totalPaid = totalPaid.Add(grossAmount)
+					paymentsProcessed++
+
+					// Emit redirection event if applicable
+					if isRedirected {
+						ctx.EventManager().EmitEvent(
+							sdk.NewEvent(
+								types.EventTypeDividendRedirected,
+								sdk.NewAttribute(types.AttributeKeyCompanyID, fmt.Sprintf("%d", dividend.CompanyID)),
+								sdk.NewAttribute(types.AttributeKeyShareholder, shareholderSnapshot.Shareholder),
+								sdk.NewAttribute(types.AttributeKeyRedirectTo, recipientAddrStr),
+								sdk.NewAttribute(types.AttributeKeyRedirectAmount, netAmount.String()),
+								sdk.NewAttribute(types.AttributeKeyRedirectReason, "shareholder_blacklisted"),
+							),
+						)
+					}
+				}
+			}
+		} else if dividend.Type == types.DividendTypeStock {
+			// For stock dividends, issue to original shareholder or skip if blacklisted
+			// (Stock dividends cannot be easily redirected to charity)
+			if isRedirected {
+				payment.Status = "skipped"
+				payment.FailureReason = "blacklisted_shareholder_stock_dividend"
+			} else {
+				// Issue new shares based on stock ratio
+				newShares := dividend.StockRatio.MulInt(shareholderSnapshot.SharesHeld).TruncateInt()
+				if err := k.IssueShares(
+					ctx,
+					dividend.CompanyID,
+					dividend.ClassID,
+					shareholderSnapshot.Shareholder,
+					newShares,
+					math.LegacyZeroDec(), // No cost for stock dividends
+					"",
+				); err != nil {
 					payment.Status = "failed"
 					payment.FailureReason = err.Error()
 				} else {
 					payment.Status = "paid"
 					payment.PaidAt = ctx.BlockTime()
-					totalPaid = totalPaid.Add(grossAmount)
+					dividend.NewSharesIssued = dividend.NewSharesIssued.Add(newShares)
 					paymentsProcessed++
 				}
 			}
-		} else if dividend.Type == types.DividendTypeStock {
-			// Issue new shares based on stock ratio
-			newShares := dividend.StockRatio.MulInt(shareholderSnapshot.SharesHeld).TruncateInt()
-			if err := k.IssueShares(
-				ctx,
-				dividend.CompanyID,
-				dividend.ClassID,
-				shareholderSnapshot.Shareholder,
-				newShares,
-				math.LegacyZeroDec(), // No cost for stock dividends
-				"",
-			); err != nil {
-				payment.Status = "failed"
-				payment.FailureReason = err.Error()
-			} else {
-				payment.Status = "paid"
-				payment.PaidAt = ctx.BlockTime()
-				dividend.NewSharesIssued = dividend.NewSharesIssued.Add(newShares)
-				paymentsProcessed++
-			}
 		}
-		
+
 		// Store payment record
-		k.SetDividendPayment(ctx, payment)
+		if err := k.SetDividendPayment(ctx, payment); err != nil {
+			k.Logger(ctx).Error("failed to set dividend payment", "error", err)
+			continue
+		}
 	}
-	
+
 	// Update dividend progress
 	dividend.ShareholdersPaid += uint64(paymentsProcessed)
 	dividend.SharesProcessed = dividend.SharesProcessed.Add(math.NewInt(int64(paymentsProcessed)))
@@ -499,9 +691,11 @@ func (k Keeper) ProcessDividendPayments(ctx sdk.Context, dividendID uint64, batc
 	} else {
 		dividend.Status = types.DividendStatusProcessing
 	}
-	
-	k.SetDividend(ctx, dividend)
-	
+
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return 0, math.LegacyZeroDec(), false, err
+	}
+
 	return paymentsProcessed, totalPaid, isComplete, nil
 }
 
@@ -512,7 +706,25 @@ func (k Keeper) ClaimDividend(ctx sdk.Context, claimant string, dividendID uint6
 	if !found {
 		return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), types.ErrDividendNotFound
 	}
-	
+
+	// CRITICAL: Check audit verification status before allowing claims
+	if dividend.AuditID > 0 {
+		audit, found := k.GetDividendAudit(ctx, dividend.AuditID)
+		if !found {
+			return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), types.ErrAuditNotFound
+		}
+
+		// Audit must be verified before dividends can be claimed
+		if audit.Status != types.AuditStatusVerified {
+			return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), types.ErrAuditNotVerified
+		}
+	} else {
+		// No audit linked - this should not happen for new dividends
+		k.Logger(ctx).Warn("dividend has no audit linked - old dividend or missing audit",
+			"dividend_id", dividendID,
+		)
+	}
+
 	// Check if dividend is ready for claims
 	if !dividend.IsReadyForPayment(ctx.BlockTime()) {
 		return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), types.ErrDividendNotProcessable
@@ -567,16 +779,20 @@ func (k Keeper) ClaimDividend(ctx sdk.Context, claimant string, dividendID uint6
 	} else {
 		return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), types.ErrInvalidPaymentMethod
 	}
-	
+
 	// Store payment record
-	k.SetDividendPayment(ctx, payment)
-	
+	if err := k.SetDividendPayment(ctx, payment); err != nil {
+		return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), err
+	}
+
 	// Update dividend totals
 	dividend.PaidAmount = dividend.PaidAmount.Add(grossAmount)
 	dividend.RemainingAmount = dividend.TotalAmount.Sub(dividend.PaidAmount)
 	dividend.ShareholdersPaid++
 	dividend.UpdatedAt = ctx.BlockTime()
-	k.SetDividend(ctx, dividend)
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return math.LegacyZeroDec(), "", math.LegacyZeroDec(), math.LegacyZeroDec(), err
+	}
 	
 	return grossAmount, dividend.Currency, taxWithheld, netAmount, nil
 }
@@ -636,7 +852,7 @@ func (k Keeper) GetDividendsByCompany(ctx sdk.Context, companyID uint64) []types
 	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.DividendPrefix)
 	iterator := store.Iterator(nil, nil)
 	defer iterator.Close()
-	
+
 	dividends := []types.Dividend{}
 	for ; iterator.Valid(); iterator.Next() {
 		var dividend types.Dividend
@@ -644,6 +860,40 @@ func (k Keeper) GetDividendsByCompany(ctx sdk.Context, companyID uint64) []types
 			dividends = append(dividends, dividend)
 		}
 	}
-	
+
+	return dividends
+}
+
+// GetAllDividendsByStatus returns all dividends with a specific status
+func (k Keeper) GetAllDividendsByStatus(ctx sdk.Context, status types.DividendStatus) []types.Dividend {
+	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.DividendPrefix)
+	iterator := store.Iterator(nil, nil)
+	defer iterator.Close()
+
+	dividends := []types.Dividend{}
+	for ; iterator.Valid(); iterator.Next() {
+		var dividend types.Dividend
+		if err := json.Unmarshal(iterator.Value(), &dividend); err == nil && dividend.Status == status {
+			dividends = append(dividends, dividend)
+		}
+	}
+
+	return dividends
+}
+
+// GetAllDividends returns all dividends
+func (k Keeper) GetAllDividends(ctx sdk.Context) []types.Dividend {
+	store := prefix.NewStore(ctx.KVStore(k.storeKey), types.DividendPrefix)
+	iterator := store.Iterator(nil, nil)
+	defer iterator.Close()
+
+	dividends := []types.Dividend{}
+	for ; iterator.Valid(); iterator.Next() {
+		var dividend types.Dividend
+		if err := json.Unmarshal(iterator.Value(), &dividend); err == nil {
+			dividends = append(dividends, dividend)
+		}
+	}
+
 	return dividends
 }
