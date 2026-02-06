@@ -66,7 +66,7 @@ export function SettingsScreen() {
   const [biometricEnabled, setBiometricEnabled] = useState(() => {
     return localStorage.getItem(BIOMETRIC_ENABLED_KEY) === 'true';
   });
-  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [_biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricType, setBiometricType] = useState<string>('Biometric');
 
   const [notifications, setNotifications] = useState(true);
