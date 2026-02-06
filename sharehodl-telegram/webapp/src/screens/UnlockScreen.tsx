@@ -158,30 +158,52 @@ export function UnlockScreen() {
           clearTimeout(timeout);
 
           if (success) {
+            // Try multiple methods to get the PIN
+            let pinToUse: string | null = null;
+
+            // Method 1: Use token from Telegram if available
             if (token && token.length > 0) {
+              pinToUse = token;
+            }
+
+            // Method 2: Try localStorage backup (base64 encoded PIN)
+            if (!pinToUse) {
+              const encodedPin = localStorage.getItem('sh_bio_pin');
+              if (encodedPin) {
+                try {
+                  pinToUse = atob(encodedPin);
+                } catch {
+                  // Invalid base64
+                }
+              }
+            }
+
+            // Method 3: Try decrypting from encrypted storage
+            if (!pinToUse && token) {
               try {
-                // The token returned from Telegram IS the PIN itself
-                await unlockWallet(token);
+                const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
+                if (encryptedPin) {
+                  pinToUse = await decryptData(encryptedPin, token);
+                }
+              } catch {
+                // Decryption failed
+              }
+            }
+
+            if (pinToUse) {
+              try {
+                await unlockWallet(pinToUse);
                 tg?.HapticFeedback?.notificationOccurred('success');
               } catch {
-                // If direct token fails, try decrypting from local storage
-                try {
-                  const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
-                  if (encryptedPin) {
-                    const decryptedPin = await decryptData(encryptedPin, token);
-                    await unlockWallet(decryptedPin);
-                    tg?.HapticFeedback?.notificationOccurred('success');
-                  } else {
-                    throw new Error('No encrypted PIN');
-                  }
-                } catch {
-                  tg?.HapticFeedback?.notificationOccurred('error');
-                  tg?.showAlert(`${biometricType} failed. Please use PIN.`);
-                }
+                tg?.HapticFeedback?.notificationOccurred('error');
+                tg?.showAlert(`${biometricType} failed. Please use PIN.`);
               }
             } else {
               tg?.HapticFeedback?.notificationOccurred('error');
-              tg?.showAlert(`${biometricType} verified but no data. Please use PIN.`);
+              tg?.showAlert(`${biometricType} not configured. Please re-enable in Settings.`);
+              // Reset biometric
+              localStorage.setItem(BIOMETRIC_ENABLED_KEY, 'false');
+              setBiometricEnabled(false);
             }
           } else {
             tg?.HapticFeedback?.notificationOccurred('error');
