@@ -131,13 +131,25 @@ export function SettingsScreen() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const biometricManager = (tg as any)?.BiometricManager;
     if (biometricManager) {
-      biometricManager.init(() => {
-        setBiometricAvailable(biometricManager.isAccessGranted || biometricManager.isBiometricAvailable);
-        if (biometricManager.biometricType) {
-          const type = biometricManager.biometricType;
-          setBiometricType(type === 'face' ? 'Face ID' : type === 'finger' ? 'Touch ID' : 'Biometric');
-        }
-      });
+      // If BiometricManager exists, assume biometric is available
+      // We'll check properly when user tries to enable it
+      setBiometricAvailable(true);
+
+      // Try to get more info, but don't block on it
+      try {
+        biometricManager.init(() => {
+          // Update with actual values if init completes
+          if (biometricManager.isBiometricAvailable !== undefined) {
+            setBiometricAvailable(biometricManager.isAccessGranted || biometricManager.isBiometricAvailable);
+          }
+          if (biometricManager.biometricType) {
+            const type = biometricManager.biometricType;
+            setBiometricType(type === 'face' ? 'Face ID' : type === 'finger' ? 'Touch ID' : 'Biometric');
+          }
+        });
+      } catch {
+        // init failed, but we still allow trying biometric
+      }
     }
   }, [tg]);
 
