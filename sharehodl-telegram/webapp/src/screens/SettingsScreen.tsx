@@ -33,7 +33,6 @@ import {
   CheckCircle
 } from 'lucide-react';
 import { useWalletStore } from '../services/walletStore';
-import { decryptData } from '../utils/crypto';
 
 // Theme storage key
 const THEME_KEY = 'sh_theme';
@@ -213,6 +212,8 @@ export function SettingsScreen() {
   const handleThemeChange = (newTheme: Theme) => {
     tg?.HapticFeedback?.selectionChanged();
     setTheme(newTheme);
+    // Dispatch custom event to notify App.tsx
+    window.dispatchEvent(new Event('themechange'));
   };
 
   // Reset modal state
@@ -291,6 +292,7 @@ export function SettingsScreen() {
   };
 
   // Biometric authentication for viewing recovery phrase
+  // SECURITY: Uses Telegram's secure biometric storage - token IS the PIN
   const handleBiometricAuth = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const biometricManager = (tg as any)?.BiometricManager;
@@ -302,37 +304,45 @@ export function SettingsScreen() {
     setBiometricAttempted(true);
     setIsLoading(true);
 
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      setError(`${biometricType} timed out. Please use PIN.`);
+      setUsePinFallback(true);
+    }, 30000);
+
     biometricManager.authenticate(
       { reason: 'Verify your identity to view recovery phrase' },
       async (success: boolean, token?: string) => {
-        if (success && token) {
-          try {
-            // Token is used to decrypt the stored PIN
-            const BIOMETRIC_TOKEN_KEY = 'sh_biometric_token';
-            const encryptedPin = localStorage.getItem(BIOMETRIC_TOKEN_KEY);
+        clearTimeout(timeout);
 
-            if (encryptedPin) {
-              const decryptedPin = await decryptData(encryptedPin, token);
-              const phrase = await getRecoveryPhrase(decryptedPin);
-              setRecoveryPhrase(phrase.split(' '));
-              tg?.HapticFeedback?.notificationOccurred('success');
-            } else {
-              throw new Error('Biometric not configured');
-            }
+        if (success && token && token.length > 0) {
+          try {
+            // SECURITY: The token from Telegram's secure storage IS the PIN
+            // This was stored when user enabled biometrics via updateBiometricToken(pin)
+            const phrase = await getRecoveryPhrase(token);
+            setRecoveryPhrase(phrase.split(' '));
+            tg?.HapticFeedback?.notificationOccurred('success');
           } catch {
             tg?.HapticFeedback?.notificationOccurred('error');
-            setError('Biometric authentication failed. Please use PIN.');
+            setError('Invalid credentials. Please use PIN.');
             setUsePinFallback(true);
           }
-        } else {
+        } else if (success && (!token || token.length === 0)) {
+          // Biometric verified but no token - biometrics not properly configured
           tg?.HapticFeedback?.notificationOccurred('error');
-          setError('Biometric authentication cancelled');
+          setError(`${biometricType} not configured. Please re-enable in Settings or use PIN.`);
+          setUsePinFallback(true);
+        } else {
+          // User cancelled or biometric failed
+          tg?.HapticFeedback?.notificationOccurred('error');
+          setError(`${biometricType} cancelled`);
           setUsePinFallback(true);
         }
         setIsLoading(false);
       }
     );
-  }, [tg, getRecoveryPhrase]);
+  }, [tg, getRecoveryPhrase, biometricType]);
 
   // Trigger biometric when modal opens (if enabled)
   useEffect(() => {

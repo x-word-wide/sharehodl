@@ -448,6 +448,7 @@ export function PortfolioScreen() {
         .portfolio-screen {
           min-height: 100vh;
           padding-bottom: 100px;
+          background-color: var(--tg-theme-bg-color);
         }
 
         .portfolio-header {
@@ -460,7 +461,7 @@ export function PortfolioScreen() {
         .greeting {
           font-size: 20px;
           font-weight: 700;
-          color: white;
+          color: var(--text-primary);
           margin: 0;
         }
 
@@ -496,7 +497,7 @@ export function PortfolioScreen() {
 
         .greeting-sub {
           font-size: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 4px 0 0;
         }
 
@@ -504,10 +505,10 @@ export function PortfolioScreen() {
           width: 44px;
           height: 44px;
           border-radius: 50%;
-          background: rgba(22, 27, 34, 0.6);
+          background: var(--surface-bg);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(48, 54, 61, 0.4);
+          border: 1px solid var(--border-color);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -517,13 +518,12 @@ export function PortfolioScreen() {
 
         .refresh-btn:active {
           transform: scale(0.95);
-          background: rgba(22, 27, 34, 0.8);
         }
 
         .refresh-btn svg {
           width: 20px;
           height: 20px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .refresh-btn.spinning svg {
@@ -539,11 +539,11 @@ export function PortfolioScreen() {
           margin: 0 16px 20px;
           padding: 24px;
           border-radius: 20px;
-          background: rgba(22, 27, 34, 0.75);
+          background: var(--glass-bg);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
-          border: 1px solid rgba(48, 54, 61, 0.6);
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+          border: 1px solid var(--glass-border);
+          box-shadow: var(--shadow-card);
           position: relative;
           overflow: hidden;
         }
@@ -565,7 +565,7 @@ export function PortfolioScreen() {
 
         .balance-label {
           font-size: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0 0 8px;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -574,7 +574,7 @@ export function PortfolioScreen() {
         .balance-amount {
           font-size: 44px;
           font-weight: 800;
-          color: white;
+          color: var(--text-primary);
           margin: 0;
           line-height: 1;
           letter-spacing: -1px;
@@ -599,10 +599,10 @@ export function PortfolioScreen() {
           align-items: center;
           gap: 6px;
           padding: 6px 12px;
-          background: rgba(255, 255, 255, 0.06);
+          background: var(--input-bg);
           border-radius: 20px;
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
           transition: background 0.2s ease;
         }
 
@@ -625,10 +625,10 @@ export function PortfolioScreen() {
           align-items: center;
           gap: 8px;
           padding: 16px 14px;
-          background: rgba(48, 54, 61, 0.4);
+          background: var(--input-bg);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          border: 1px solid var(--border-color);
           border-radius: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -670,12 +670,17 @@ export function PortfolioScreen() {
         .action-icon svg {
           width: 24px;
           height: 24px;
-          color: white;
+          color: var(--text-primary);
         }
 
         .action-label {
           font-size: 13px;
           font-weight: 600;
+          color: var(--text-primary);
+        }
+
+        .action-btn.primary .action-icon svg,
+        .action-btn.primary .action-label {
           color: white;
         }
 
@@ -714,7 +719,7 @@ export function PortfolioScreen() {
 
         .staking-label {
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .multiplier-badge {
@@ -727,7 +732,7 @@ export function PortfolioScreen() {
         .staking-amount {
           font-size: 20px;
           font-weight: 700;
-          color: white;
+          color: var(--text-primary);
         }
 
         .pending-rewards {
@@ -738,7 +743,7 @@ export function PortfolioScreen() {
         .staking-arrow {
           width: 24px;
           height: 24px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .staking-arrow svg {
@@ -754,7 +759,7 @@ export function PortfolioScreen() {
         .section-title {
           font-size: 16px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
           margin: 0 0 12px;
         }
 
@@ -777,10 +782,10 @@ export function PortfolioScreen() {
           align-items: center;
           min-width: 78px;
           padding: 14px 10px;
-          background: rgba(22, 27, 34, 0.6);
+          background: var(--surface-bg);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
-          border: 1px solid rgba(48, 54, 61, 0.5);
+          border: 1px solid var(--border-color);
           border-radius: 16px;
           cursor: pointer;
           transition: all 0.25s ease;
@@ -789,7 +794,6 @@ export function PortfolioScreen() {
 
         .service-card:active {
           transform: scale(0.95);
-          background: rgba(22, 27, 34, 0.8);
         }
 
         .service-icon {
@@ -818,13 +822,13 @@ export function PortfolioScreen() {
         .service-title {
           font-size: 12px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
           text-align: center;
         }
 
         .service-desc {
           font-size: 10px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin-top: 2px;
         }
 
@@ -836,10 +840,10 @@ export function PortfolioScreen() {
           display: flex;
           gap: 6px;
           padding: 5px;
-          background: rgba(22, 27, 34, 0.6);
+          background: var(--surface-bg);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(48, 54, 61, 0.4);
+          border: 1px solid var(--border-color);
           border-radius: 14px;
           margin-bottom: 16px;
         }
@@ -851,7 +855,7 @@ export function PortfolioScreen() {
           border-radius: 10px;
           font-size: 14px;
           font-weight: 600;
-          color: #8b949e;
+          color: var(--text-secondary);
           background: transparent;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -874,10 +878,10 @@ export function PortfolioScreen() {
           align-items: center;
           gap: 14px;
           padding: 16px;
-          background: rgba(22, 27, 34, 0.5);
+          background: var(--surface-bg);
           backdrop-filter: blur(8px);
           -webkit-backdrop-filter: blur(8px);
-          border: 1px solid rgba(48, 54, 61, 0.4);
+          border: 1px solid var(--border-color);
           border-radius: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -887,8 +891,6 @@ export function PortfolioScreen() {
 
         .asset-item:active {
           transform: scale(0.98);
-          background: rgba(22, 27, 34, 0.7);
-          border-color: rgba(48, 54, 61, 0.6);
         }
 
         .asset-icon {
@@ -919,7 +921,7 @@ export function PortfolioScreen() {
         .asset-symbol {
           font-size: 16px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
         }
 
         .asset-symbol.equity-name {
@@ -946,7 +948,7 @@ export function PortfolioScreen() {
 
         .asset-price {
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .price-change {
@@ -964,7 +966,7 @@ export function PortfolioScreen() {
 
         .asset-name {
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .asset-balance {
@@ -976,13 +978,13 @@ export function PortfolioScreen() {
           display: block;
           font-size: 16px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
         }
 
         .balance-usd-value {
           display: block;
           font-size: 13px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .add-token-btn {
@@ -994,9 +996,9 @@ export function PortfolioScreen() {
           padding: 14px;
           margin-top: 12px;
           background: transparent;
-          border: 1px dashed #30363d;
+          border: 1px dashed var(--border-color);
           border-radius: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           font-size: 14px;
           font-weight: 500;
           cursor: pointer;
@@ -1004,7 +1006,7 @@ export function PortfolioScreen() {
         }
 
         .add-token-btn:active {
-          background: rgba(48, 54, 61, 0.3);
+          background: var(--input-bg);
         }
 
         .add-token-btn svg {
@@ -1019,13 +1021,13 @@ export function PortfolioScreen() {
           justify-content: center;
           padding: 40px 20px;
           gap: 16px;
-          color: #8b949e;
+          color: var(--text-secondary);
         }
 
         .loading-state .spinner {
           width: 32px;
           height: 32px;
-          border: 2px solid #30363d;
+          border: 2px solid var(--pin-dot-bg);
           border-top-color: #1E40AF;
           border-radius: 50%;
           animation: spin 1s linear infinite;
@@ -1045,13 +1047,13 @@ export function PortfolioScreen() {
         .empty-title {
           font-size: 18px;
           font-weight: 600;
-          color: white;
+          color: var(--text-primary);
           margin: 0 0 8px;
         }
 
         .empty-desc {
           font-size: 14px;
-          color: #8b949e;
+          color: var(--text-secondary);
           margin: 0 0 20px;
         }
 

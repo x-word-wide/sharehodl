@@ -87,10 +87,10 @@ export function BottomNav() {
         .nav-glass-bg {
           position: absolute;
           inset: 0;
-          background: rgba(13, 17, 23, 0.85);
+          background: var(--glass-bg);
           backdrop-filter: blur(24px);
           -webkit-backdrop-filter: blur(24px);
-          border-top: 1px solid rgba(48, 54, 61, 0.5);
+          border-top: 1px solid var(--glass-border);
         }
 
         .nav-container {
@@ -153,7 +153,7 @@ export function BottomNav() {
           display: flex;
           align-items: center;
           justify-content: center;
-          color: #8b949e;
+          color: var(--text-secondary);
           transition: all 0.25s ease;
         }
 
@@ -170,7 +170,7 @@ export function BottomNav() {
         .nav-label {
           font-size: 11px;
           font-weight: 500;
-          color: #6b7280;
+          color: var(--text-muted);
           margin-top: 4px;
           transition: all 0.25s ease;
         }

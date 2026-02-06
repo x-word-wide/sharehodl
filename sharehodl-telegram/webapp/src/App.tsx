@@ -8,6 +8,79 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useWalletStore } from './services/walletStore';
 
+// Theme storage key
+const THEME_KEY = 'sh_theme';
+type Theme = 'dark' | 'light' | 'system';
+
+// Global theme hook - applies theme to document
+function useGlobalTheme() {
+  useEffect(() => {
+    const applyTheme = () => {
+      const saved = localStorage.getItem(THEME_KEY) as Theme | null;
+      const theme = saved || 'system';
+      const root = document.documentElement;
+      const tg = window.Telegram?.WebApp;
+
+      let isDark: boolean;
+      if (theme === 'dark') {
+        isDark = true;
+      } else if (theme === 'light') {
+        isDark = false;
+      } else {
+        // System theme - check Telegram first, then browser preference
+        if (tg?.colorScheme) {
+          isDark = tg.colorScheme === 'dark';
+        } else {
+          isDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true;
+        }
+      }
+
+      if (isDark) {
+        root.setAttribute('data-theme', 'dark');
+        root.style.setProperty('--tg-theme-bg-color', '#0D1117');
+        root.style.setProperty('--tg-theme-text-color', '#ffffff');
+        root.style.setProperty('--tg-theme-secondary-bg-color', '#161B22');
+      } else {
+        root.setAttribute('data-theme', 'light');
+        root.style.setProperty('--tg-theme-bg-color', '#ffffff');
+        root.style.setProperty('--tg-theme-text-color', '#1a1a1a');
+        root.style.setProperty('--tg-theme-secondary-bg-color', '#f5f5f5');
+      }
+    };
+
+    // Apply on mount
+    applyTheme();
+
+    // Listen for localStorage changes (when settings change theme)
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === THEME_KEY) {
+        applyTheme();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Also listen for custom theme change event
+    const handleThemeChange = () => applyTheme();
+    window.addEventListener('themechange', handleThemeChange);
+
+    // Listen for system theme changes
+    const mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+    const handleMediaChange = () => {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (!saved || saved === 'system') {
+        applyTheme();
+      }
+    };
+    mediaQuery?.addEventListener('change', handleMediaChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('themechange', handleThemeChange);
+      mediaQuery?.removeEventListener('change', handleMediaChange);
+    };
+  }, []);
+}
+
 // Screens
 import { WelcomeScreen } from './screens/WelcomeScreen';
 import { CreateWalletScreen } from './screens/CreateWalletScreen';
@@ -42,6 +115,9 @@ function AppContent() {
   const { isInitialized, isLocked, initialize } = useWalletStore();
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState<string | null>(null);
+
+  // Apply global theme
+  useGlobalTheme();
 
   // Initialize wallet on mount
   useEffect(() => {
