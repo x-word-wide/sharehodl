@@ -24,9 +24,12 @@ export function generateMnemonic(strength: 128 | 256 = 256): string {
 
 /**
  * Validate a mnemonic phrase
+ * Normalizes input by lowercasing and fixing whitespace
  */
 export function validateMnemonic(mnemonic: string): boolean {
-  return bip39.validateMnemonic(mnemonic);
+  // Normalize: lowercase, trim, collapse multiple spaces to single space
+  const normalized = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
+  return bip39.validateMnemonic(normalized);
 }
 
 /**

@@ -616,8 +616,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      // Clean and normalize the mnemonic first (lowercase for BIP39 validation)
-      const cleanMnemonic = mnemonic.trim().toLowerCase();
+      // Clean and normalize the mnemonic (lowercase, collapse whitespace for BIP39 validation)
+      const cleanMnemonic = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
 
       if (!validateMnemonic(cleanMnemonic)) {
         throw new Error('Invalid mnemonic phrase');
