@@ -616,11 +616,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      if (!validateMnemonic(mnemonic.trim())) {
+      // Clean and normalize the mnemonic first (lowercase for BIP39 validation)
+      const cleanMnemonic = mnemonic.trim().toLowerCase();
+
+      if (!validateMnemonic(cleanMnemonic)) {
         throw new Error('Invalid mnemonic phrase');
       }
-
-      const cleanMnemonic = mnemonic.trim().toLowerCase();
       const walletId = `wallet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
       // Encrypt and store
