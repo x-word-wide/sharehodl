@@ -8,7 +8,7 @@
  * - Biometric authentication
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Shield,
   Key,
@@ -92,6 +92,9 @@ export function SettingsScreen() {
   const [addWalletUsePinFallback, setAddWalletUsePinFallback] = useState(false);
   // Track if user has confirmed mnemonic input (clicked Continue)
   const [importMnemonicConfirmed, setImportMnemonicConfirmed] = useState(false);
+
+  // Ref for scrolling to continue button when pasting mnemonic
+  const importContinueRef = useRef<HTMLButtonElement>(null);
 
   // Load wallets on mount
   useEffect(() => {
@@ -518,6 +521,12 @@ export function SettingsScreen() {
   const handleAddWalletPinSubmit = async (enteredPin: string) => {
     setIsLoading(true);
     try {
+      // SECURITY: Verify PIN first before allowing wallet creation
+      const isValidPin = await verifyPin(enteredPin);
+      if (!isValidPin) {
+        throw new Error('Invalid PIN');
+      }
+
       const mnemonic = await addWallet(newWalletName || `Wallet ${wallets.length + 1}`, enteredPin);
       setWalletMnemonic(mnemonic);
       tg?.HapticFeedback?.notificationOccurred('success');
@@ -537,6 +546,12 @@ export function SettingsScreen() {
   const handleImportWalletPinSubmit = async (enteredPin: string) => {
     setIsLoading(true);
     try {
+      // SECURITY: Verify PIN first before allowing wallet import
+      const isValidPin = await verifyPin(enteredPin);
+      if (!isValidPin) {
+        throw new Error('Invalid PIN');
+      }
+
       await importNewWallet(newWalletName || `Imported Wallet ${wallets.length + 1}`, importMnemonic, enteredPin);
       tg?.HapticFeedback?.notificationOccurred('success');
       setSuccess('Wallet imported successfully!');
@@ -1412,7 +1427,19 @@ export function SettingsScreen() {
                     <label>Recovery Phrase ({importMnemonic.trim() ? importMnemonic.trim().split(/\s+/).length : 0} words)</label>
                     <textarea
                       value={importMnemonic}
-                      onChange={(e) => setImportMnemonic(e.target.value.toLowerCase())}
+                      onChange={(e) => {
+                        // Clean hidden characters: newlines, tabs, carriage returns -> single space
+                        // Also collapse multiple spaces into one
+                        const cleaned = e.target.value
+                          .toLowerCase()
+                          .replace(/[\r\n\t]+/g, ' ')
+                          .replace(/\s+/g, ' ');
+                        setImportMnemonic(cleaned);
+                        // Auto-scroll to show Continue button after paste
+                        setTimeout(() => {
+                          importContinueRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
                       placeholder="Enter your recovery phrase, separated by spaces..."
                       className="text-input mnemonic-input"
                       rows={4}
@@ -1430,6 +1457,7 @@ export function SettingsScreen() {
                   )}
 
                   <button
+                    ref={importContinueRef}
                     className="modal-button primary"
                     onClick={() => {
                       const words = importMnemonic.trim().split(/\s+/);
