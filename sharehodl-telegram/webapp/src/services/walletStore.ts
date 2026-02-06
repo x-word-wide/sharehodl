@@ -15,6 +15,7 @@ import {
   TOKENS,
   TokenType
 } from '../types';
+import { logger } from '../utils/logger';
 import {
   generateMnemonic,
   validateMnemonic,
@@ -178,7 +179,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       const initialized = localStorage.getItem(STORAGE_KEYS.WALLET_INITIALIZED);
       set({ isInitialized: initialized === 'true' });
     } catch (error) {
-      console.error('Failed to initialize wallet:', error);
+      logger.error('Failed to initialize wallet:', error);
     }
   },
 
@@ -405,7 +406,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(updatedAccounts));
       localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify(updatedAssets));
     } catch (error) {
-      console.error('Failed to refresh balances:', error);
+      logger.error('Failed to refresh balances:', error);
     }
   },
 
@@ -931,7 +932,7 @@ async function fetchBalance(chain: Chain, address: string): Promise<string> {
       const balanceNum = parseFloat(result.balance) / Math.pow(10, config.decimals);
       return balanceNum.toString();
     } catch (error) {
-      console.error('Failed to fetch ShareHODL balance:', error);
+      logger.error('Failed to fetch ShareHODL balance:', error);
       // Fallback to demo balance on error
       return getDemoBalance(chain);
     }

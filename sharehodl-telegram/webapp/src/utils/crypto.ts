@@ -7,6 +7,7 @@
 import * as bip39 from 'bip39';
 import { ethers } from 'ethers';
 import { Chain } from '../types';
+import { logger } from './logger';
 
 // ============================================
 // Mnemonic Generation & Validation
@@ -332,7 +333,8 @@ export async function encryptData(data: string, pin: string): Promise<string> {
 
     return btoa(String.fromCharCode(...result));
   } catch (error) {
-    console.error('Encryption failed:', error);
+    // SECURITY: Don't log sensitive details in production
+    logger.error('Encryption operation failed');
     throw new Error('Failed to encrypt wallet data. Please try again.');
   }
 }

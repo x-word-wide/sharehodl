@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useWalletStore } from './services/walletStore';
+import { logger } from './utils/logger';
 
 // Theme storage key
 const THEME_KEY = 'sh_theme';
@@ -106,10 +107,10 @@ import { EquityProfileScreen } from './screens/EquityProfileScreen';
 import { BottomNav } from './components/BottomNav';
 import { LoadingScreen } from './components/LoadingScreen';
 
-console.log('[ShareHODL] App.tsx loaded');
+logger.debug('App.tsx loaded');
 
 function AppContent() {
-  console.log('[ShareHODL] AppContent rendering...');
+  logger.debug('AppContent rendering...');
   const navigate = useNavigate();
   const location = useLocation();
   const { isInitialized, isLocked, initialize } = useWalletStore();
@@ -123,12 +124,12 @@ function AppContent() {
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('[ShareHODL] Initializing wallet...');
+        logger.debug('Initializing wallet...');
         await initialize();
-        console.log('[ShareHODL] Wallet initialized');
+        logger.debug('Wallet initialized');
         setLoading(false);
       } catch (error) {
-        console.error('[ShareHODL] Initialization error:', error);
+        logger.error('Initialization error:', error);
         setInitError(error instanceof Error ? error.message : 'Failed to initialize');
         setLoading(false);
       }

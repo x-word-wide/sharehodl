@@ -36,6 +36,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useWalletStore } from '../services/walletStore';
+import { SecureMnemonic, scheduleSecureCleanup } from '../utils/secureMemory';
 
 // Theme storage key
 const THEME_KEY = 'sh_theme';
@@ -71,7 +72,10 @@ export function SettingsScreen() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [pinStep, setPinStep] = useState<'current' | 'new' | 'confirm'>('current');
-  const [recoveryPhrase, setRecoveryPhrase] = useState<string[]>([]);
+  // SECURITY: Use SecureMnemonic instead of plain React state for recovery phrase
+  const secureRecoveryPhraseRef = useRef(new SecureMnemonic());
+  const [recoveryPhraseLoaded, setRecoveryPhraseLoaded] = useState(false);
+  const recoveryPhraseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPhrase, setShowPhrase] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -104,6 +108,48 @@ export function SettingsScreen() {
       // This is handled by the store
     }
   }, [getWallets]);
+
+  // SECURITY: Cleanup SecureMnemonic on unmount
+  useEffect(() => {
+    const securePhrase = secureRecoveryPhraseRef.current;
+    return scheduleSecureCleanup(securePhrase, {
+      clear: () => {
+        setPin('');
+        setNewPin('');
+        setConfirmPin('');
+        if (recoveryPhraseTimeoutRef.current) {
+          clearTimeout(recoveryPhraseTimeoutRef.current);
+        }
+      }
+    });
+  }, []);
+
+  // SECURITY: Clear recovery phrase securely
+  const clearRecoveryPhrase = useCallback(() => {
+    secureRecoveryPhraseRef.current.clear();
+    setRecoveryPhraseLoaded(false);
+    setShowPhrase(false);
+    if (recoveryPhraseTimeoutRef.current) {
+      clearTimeout(recoveryPhraseTimeoutRef.current);
+      recoveryPhraseTimeoutRef.current = null;
+    }
+  }, []);
+
+  // SECURITY: Auto-hide recovery phrase after 60 seconds
+  useEffect(() => {
+    if (recoveryPhraseLoaded) {
+      recoveryPhraseTimeoutRef.current = setTimeout(() => {
+        clearRecoveryPhrase();
+        tg?.HapticFeedback?.notificationOccurred('warning');
+      }, 60000); // 60 seconds
+
+      return () => {
+        if (recoveryPhraseTimeoutRef.current) {
+          clearTimeout(recoveryPhraseTimeoutRef.current);
+        }
+      };
+    }
+  }, [recoveryPhraseLoaded, clearRecoveryPhrase, tg]);
 
   // Helper functions for alerts/confirms with fallbacks
   const showAlert = useCallback((message: string) => {
@@ -238,13 +284,13 @@ export function SettingsScreen() {
   };
 
   // Reset modal state
-  const resetModalState = () => {
+  const resetModalState = useCallback(() => {
     setPin('');
     setNewPin('');
     setConfirmPin('');
     setPinStep('current');
-    setRecoveryPhrase([]);
-    setShowPhrase(false);
+    // SECURITY: Use secure clear for recovery phrase
+    clearRecoveryPhrase();
     setError('');
     setSuccess('');
     setIsLoading(false);
@@ -263,7 +309,7 @@ export function SettingsScreen() {
     setAddWalletBiometricAttempted(false);
     setAddWalletUsePinFallback(false);
     setImportMnemonicConfirmed(false);
-  };
+  }, [clearRecoveryPhrase]);
 
   const closeModal = () => {
     resetModalState();
@@ -314,7 +360,9 @@ export function SettingsScreen() {
     setIsLoading(true);
     try {
       const phrase = await getRecoveryPhrase(enteredPin);
-      setRecoveryPhrase(phrase.split(' '));
+      // SECURITY: Store in SecureMnemonic container instead of plain React state
+      secureRecoveryPhraseRef.current.set(phrase);
+      setRecoveryPhraseLoaded(true);
       tg?.HapticFeedback?.notificationOccurred('success');
     } catch {
       tg?.HapticFeedback?.notificationOccurred('error');
@@ -358,7 +406,9 @@ export function SettingsScreen() {
             // SECURITY: The token from Telegram's secure storage IS the PIN
             // This was stored when user enabled biometrics via updateBiometricToken(pin)
             const phrase = await getRecoveryPhrase(token);
-            setRecoveryPhrase(phrase.split(' '));
+            // SECURITY: Store in SecureMnemonic container instead of plain React state
+            secureRecoveryPhraseRef.current.set(phrase);
+            setRecoveryPhraseLoaded(true);
             tg?.HapticFeedback?.notificationOccurred('success');
           } catch {
             tg?.HapticFeedback?.notificationOccurred('error');
@@ -383,14 +433,14 @@ export function SettingsScreen() {
 
   // Trigger biometric when modal opens (if enabled)
   useEffect(() => {
-    if (activeModal === 'view-phrase' && biometricEnabled && !biometricAttempted && !usePinFallback && recoveryPhrase.length === 0) {
+    if (activeModal === 'view-phrase' && biometricEnabled && !biometricAttempted && !usePinFallback && !recoveryPhraseLoaded) {
       // Small delay to allow modal animation
       const timer = setTimeout(() => {
         handleBiometricAuth();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [activeModal, biometricEnabled, biometricAttempted, usePinFallback, recoveryPhrase.length, handleBiometricAuth]);
+  }, [activeModal, biometricEnabled, biometricAttempted, usePinFallback, recoveryPhraseLoaded, handleBiometricAuth]);
 
   // Biometric authentication for add/import wallet
   const handleAddWalletBiometricAuth = useCallback(() => {
@@ -731,15 +781,16 @@ export function SettingsScreen() {
   };
 
   const handleCopyPhrase = () => {
-    const phrase = recoveryPhrase.join(' ');
+    // SECURITY: Get phrase from SecureMnemonic container
+    const phrase = secureRecoveryPhraseRef.current.get();
     navigator.clipboard.writeText(phrase);
     tg?.HapticFeedback?.notificationOccurred('success');
-    showAlert('Recovery phrase copied! Clear clipboard after use.');
+    showAlert('Recovery phrase copied! Clipboard will be cleared in 15 seconds.');
 
-    // Auto-clear clipboard after 30 seconds
+    // SECURITY: Auto-clear clipboard after 15 seconds (reduced from 30)
     setTimeout(() => {
       navigator.clipboard.writeText('').catch(() => {});
-    }, 30000);
+    }, 15000);
   };
 
   // Render numpad
@@ -930,7 +981,7 @@ export function SettingsScreen() {
               <X size={24} />
             </button>
 
-            {recoveryPhrase.length === 0 ? (
+            {!recoveryPhraseLoaded ? (
               <>
                 {/* Show biometric option if enabled and not using PIN fallback */}
                 {biometricEnabled && !usePinFallback ? (
@@ -1024,7 +1075,8 @@ export function SettingsScreen() {
 
                 <div className="phrase-container">
                   <div className={`phrase-grid ${showPhrase ? '' : 'blurred'}`}>
-                    {recoveryPhrase.map((word, i) => (
+                    {/* SECURITY: Get words from SecureMnemonic container */}
+                    {secureRecoveryPhraseRef.current.getWords().map((word, i) => (
                       <div key={i} className="phrase-word">
                         <span className="word-number">{i + 1}</span>
                         <span className="word-text">{word}</span>

@@ -170,14 +170,14 @@ export function CreateWalletScreen() {
         setCopied(true);
         tg?.HapticFeedback?.notificationOccurred('success');
 
-        // SECURITY: Auto-clear clipboard after 30 seconds
+        // SECURITY: Auto-clear clipboard after 15 seconds (reduced for better security)
         setTimeout(async () => {
           try {
             await navigator.clipboard.writeText('');
           } catch {
             // Clipboard clear failed, acceptable fallback
           }
-        }, 30000);
+        }, 15000);
 
         setTimeout(() => setCopied(false), 2000);
       } catch {
@@ -188,7 +188,7 @@ export function CreateWalletScreen() {
     // Show warning on first copy
     if (tg?.showConfirm) {
       tg.showConfirm(
-        'Clipboard data can be accessed by other apps. The clipboard will be cleared after 30 seconds. Continue?',
+        'Clipboard data can be accessed by other apps. The clipboard will be cleared after 15 seconds. Continue?',
         (confirmed) => {
           if (confirmed) doCopy();
         }

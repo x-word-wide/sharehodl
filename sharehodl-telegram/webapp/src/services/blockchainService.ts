@@ -8,6 +8,7 @@
 import { SigningStargateClient, StargateClient, GasPrice } from '@cosmjs/stargate';
 import { DirectSecp256k1HdWallet } from '@cosmjs/proto-signing';
 import { Chain, CHAIN_CONFIGS } from '../types';
+import { logger } from '../utils/logger';
 
 // Chain configuration
 const SHAREHODL_CONFIG = CHAIN_CONFIGS[Chain.SHAREHODL];
@@ -107,7 +108,7 @@ export async function fetchBalance(address: string): Promise<BalanceResult> {
         denom: DENOM,
       };
     } catch (restError) {
-      console.error('Failed to fetch balance:', restError);
+      logger.error('Failed to fetch balance:', restError);
       return { balance: '0', denom: DENOM };
     }
   }
@@ -130,7 +131,7 @@ export async function getAccountInfo(address: string): Promise<AccountInfo> {
       sequence: account?.sequence,
     };
   } catch (error) {
-    console.error('Failed to get account info:', error);
+    logger.error('Failed to get account info:', error);
     return {
       address,
       balance: '0',
@@ -226,7 +227,7 @@ export async function sendTokens(
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Send transaction failed:', errorMessage);
+    logger.error('Send transaction failed:', errorMessage);
 
     // Provide user-friendly error messages
     if (errorMessage.includes('insufficient funds')) {

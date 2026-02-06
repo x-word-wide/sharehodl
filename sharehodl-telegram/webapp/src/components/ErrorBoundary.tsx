@@ -4,6 +4,7 @@
  */
 
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { logger } from '../utils/logger';
 
 interface Props {
   children: ReactNode;
@@ -27,7 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({ error, errorInfo });
   }
 
@@ -36,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
     try {
       localStorage.clear();
     } catch (e) {
-      console.error('Failed to clear localStorage:', e);
+      logger.error('Failed to clear localStorage:', e);
     }
     window.location.reload();
   };

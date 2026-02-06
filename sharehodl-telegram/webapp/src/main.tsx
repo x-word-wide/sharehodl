@@ -10,8 +10,9 @@ import '@telegram-apps/telegram-ui/dist/styles.css';
 import App from './App';
 import './index.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { logger } from './utils/logger';
 
-console.log('[ShareHODL] main.tsx loaded');
+logger.debug('main.tsx loaded');
 
 // Initialize Telegram Web App
 declare global {
@@ -156,10 +157,10 @@ if (tg) {
   tg.enableClosingConfirmation();
 }
 
-console.log('[ShareHODL] Starting app render...');
+logger.debug('Starting app render...');
 
 const rootElement = document.getElementById('root');
-console.log('[ShareHODL] Root element:', rootElement);
+logger.debug('Root element:', rootElement);
 
 if (rootElement) {
   try {
@@ -170,11 +171,11 @@ if (rootElement) {
         </ErrorBoundary>
       </React.StrictMode>
     );
-    console.log('[ShareHODL] App rendered successfully');
+    logger.debug('App rendered successfully');
   } catch (error) {
-    console.error('[ShareHODL] Error rendering app:', error);
+    logger.error('Error rendering app:', error);
     rootElement.innerHTML = `<div style="color: white; padding: 20px;">Error: ${error}</div>`;
   }
 } else {
-  console.error('[ShareHODL] Root element not found!');
+  logger.error('Root element not found!');
 }
