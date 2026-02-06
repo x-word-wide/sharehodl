@@ -1545,6 +1545,9 @@ export function SettingsScreen() {
                         return;
                       }
                       setError('');
+                      // SECURITY: Explicitly update ref before triggering biometric
+                      importMnemonicRef.current = importMnemonic;
+                      console.log('[DEBUG] Continue clicked, setting ref to:', importMnemonic.split(' ').length, 'words');
                       // Move to verification step
                       setImportMnemonicConfirmed(true);
                     }}
