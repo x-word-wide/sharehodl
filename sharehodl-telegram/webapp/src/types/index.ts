@@ -35,6 +35,11 @@ export interface ChainConfig {
   isTestnet?: boolean;
 }
 
+// Environment-based configuration - use production URLs from .env or fallback to defaults
+const SHAREHODL_RPC = import.meta.env.VITE_SHAREHODL_RPC || 'https://rpc.sharehodl.com';
+const SHAREHODL_REST = import.meta.env.VITE_SHAREHODL_REST || 'https://api.sharehodl.com';
+const SHAREHODL_EXPLORER = import.meta.env.VITE_SHAREHODL_EXPLORER || 'https://explorer.sharehodl.com';
+
 export const CHAIN_CONFIGS: Record<Chain, ChainConfig> = {
   [Chain.SHAREHODL]: {
     chain: Chain.SHAREHODL,
@@ -43,9 +48,9 @@ export const CHAIN_CONFIGS: Record<Chain, ChainConfig> = {
     decimals: 6,
     color: '#1E40AF',
     coinType: 118,  // Cosmos
-    rpcUrl: 'https://rpc.sharehodl.network',
-    restUrl: 'https://api.sharehodl.network',
-    explorerUrl: 'https://explorer.sharehodl.network'
+    rpcUrl: SHAREHODL_RPC,
+    restUrl: SHAREHODL_REST,
+    explorerUrl: SHAREHODL_EXPLORER
   },
   [Chain.ETHEREUM]: {
     chain: Chain.ETHEREUM,

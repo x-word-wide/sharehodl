@@ -413,10 +413,7 @@ export function PortfolioScreen() {
                   <TokenIcon symbol={equity.symbol} color={equity.color} />
                   <div className="asset-info">
                     <div className="asset-name-row">
-                      <span className="asset-symbol">{equity.symbol}</span>
-                      <span className="chain-badge" style={{ color: '#8b949e' }}>
-                        Equity
-                      </span>
+                      <span className="asset-symbol equity-name">{equity.name}</span>
                     </div>
                     <div className="asset-price-row">
                       <span className="asset-price">${equity.pricePerShare.toFixed(2)}/share</span>
@@ -426,7 +423,7 @@ export function PortfolioScreen() {
                     </div>
                   </div>
                   <div className="asset-balance">
-                    <span className="balance-amount">{equity.shares.toLocaleString()} shares</span>
+                    <span className="balance-amount">{equity.shares.toLocaleString()}</span>
                     <span className="balance-usd-value">${totalValue.toLocaleString()}</span>
                   </div>
                 </button>
@@ -923,6 +920,14 @@ export function PortfolioScreen() {
           font-size: 16px;
           font-weight: 600;
           color: white;
+        }
+
+        .asset-symbol.equity-name {
+          font-size: 14px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 160px;
         }
 
         .chain-badge {

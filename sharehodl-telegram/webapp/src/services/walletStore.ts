@@ -22,6 +22,7 @@ import {
   encryptData,
   decryptData
 } from '../utils/crypto';
+import { fetchBalance as fetchSharehodlBalance } from './blockchainService';
 import {
   isLockedOut,
   getLockoutRemaining,
@@ -42,8 +43,21 @@ const STORAGE_KEYS = {
   WALLET_INITIALIZED: 'sh_wallet_init',
   ACCOUNTS: 'sh_accounts',
   ASSETS: 'sh_assets',
-  ENABLED_TOKENS: 'sh_enabled_tokens'
+  ENABLED_TOKENS: 'sh_enabled_tokens',
+  // Multi-wallet support
+  WALLETS: 'sh_wallets',
+  ACTIVE_WALLET_ID: 'sh_active_wallet',
+  // Biometric
+  BIOMETRIC_TOKEN: 'sh_biometric_token'
 };
+
+// Wallet metadata for multi-wallet support
+export interface WalletMetadata {
+  id: string;
+  name: string;
+  createdAt: number;
+  sharehodlAddress: string;
+}
 
 interface WalletStore {
   // State
@@ -59,6 +73,9 @@ interface WalletStore {
   // Security state
   securityState: SecurityState;
   remainingAttempts: number;
+
+  // Cached PIN for transaction signing (cleared on lock)
+  _cachedPin: string | null;
 
   // Actions
   initialize: () => Promise<void>;
@@ -78,6 +95,30 @@ interface WalletStore {
   enableToken: (tokenId: string) => void;
   disableToken: (tokenId: string) => void;
   getAssetByTokenId: (tokenId: string) => AssetHolding | undefined;
+
+  // Transaction signing
+  getMnemonicForSigning: (pin: string) => Promise<string>;
+  getSharehodlAddress: () => string | undefined;
+
+  // Multi-wallet support
+  wallets: WalletMetadata[];
+  activeWalletId: string | null;
+  getWallets: () => WalletMetadata[];
+  switchWallet: (walletId: string, pin: string) => Promise<void>;
+  addWallet: (name: string, pin: string) => Promise<string>;
+  importNewWallet: (name: string, mnemonic: string, pin: string) => Promise<void>;
+  renameWallet: (walletId: string, newName: string) => void;
+  deleteWallet: (walletId: string, pin: string) => Promise<void>;
+
+  // Security settings
+  verifyPin: (pin: string) => Promise<boolean>;
+  changePin: (currentPin: string, newPin: string) => Promise<void>;
+  getRecoveryPhrase: (pin: string) => Promise<string>;
+
+  // Biometric
+  setBiometricToken: (pin: string) => Promise<void>;
+  unlockWithBiometric: (token: string) => Promise<void>;
+  clearBiometricToken: () => void;
 }
 
 // Supported chains for initial account generation
@@ -123,6 +164,13 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // Security state
   securityState: getSecurityState(),
   remainingAttempts: getRemainingAttempts(),
+
+  // Cached PIN for transaction signing (cleared on lock)
+  _cachedPin: null,
+
+  // Multi-wallet support
+  wallets: [],
+  activeWalletId: null,
 
   // Initialize - check if wallet exists
   initialize: async () => {
@@ -282,7 +330,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         assets,
         enabledTokenIds,
         securityState: getSecurityState(),
-        remainingAttempts: getRemainingAttempts()
+        remainingAttempts: getRemainingAttempts(),
+        _cachedPin: pin  // Cache PIN for transaction signing
       });
 
       // Refresh balances in background
@@ -311,7 +360,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
   // Lock wallet
   lockWallet: () => {
-    set({ isLocked: true });
+    set({ isLocked: true, _cachedPin: null });  // Clear cached PIN on lock
   },
 
   // Refresh all balances
@@ -441,6 +490,311 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // Get asset by token ID
   getAssetByTokenId: (tokenId: string) => {
     return get().assets.find(a => a.token.id === tokenId);
+  },
+
+  // Get mnemonic for transaction signing
+  // SECURITY: This should only be called when needed for signing
+  getMnemonicForSigning: async (pin: string): Promise<string> => {
+    const encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    if (!encrypted) {
+      throw new Error('No wallet found');
+    }
+
+    try {
+      const mnemonic = await decryptData(encrypted, pin);
+      return mnemonic;
+    } catch (error) {
+      throw new Error('Invalid PIN');
+    }
+  },
+
+  // Get the ShareHODL address from accounts
+  getSharehodlAddress: (): string | undefined => {
+    const { accounts } = get();
+    const sharehodlAccount = accounts.find(a => a.chain === Chain.SHAREHODL);
+    return sharehodlAccount?.address;
+  },
+
+  // ============================================
+  // Multi-Wallet Support
+  // ============================================
+
+  getWallets: (): WalletMetadata[] => {
+    try {
+      const walletsJson = localStorage.getItem(STORAGE_KEYS.WALLETS);
+      return walletsJson ? JSON.parse(walletsJson) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  switchWallet: async (walletId: string, pin: string): Promise<void> => {
+    const wallets = get().getWallets();
+    const wallet = wallets.find(w => w.id === walletId);
+    if (!wallet) throw new Error('Wallet not found');
+
+    // Get encrypted mnemonic for this wallet
+    const encryptedKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`;
+    const encrypted = localStorage.getItem(encryptedKey);
+    if (!encrypted) throw new Error('Wallet data not found');
+
+    try {
+      const mnemonic = await decryptData(encrypted, pin);
+      const accounts = generateAccounts(mnemonic);
+      const enabledTokenIds = DEFAULT_ENABLED_TOKENS;
+      const assets = generateAssets(accounts, enabledTokenIds);
+
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
+      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+      localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify(assets));
+
+      set({
+        activeWalletId: walletId,
+        accounts,
+        assets,
+        enabledTokenIds,
+        _cachedPin: pin
+      });
+
+      get().refreshBalances();
+    } catch {
+      throw new Error('Invalid PIN');
+    }
+  },
+
+  addWallet: async (name: string, pin: string): Promise<string> => {
+    set({ isLoading: true, error: null });
+
+    try {
+      // Generate new mnemonic
+      const mnemonic = generateMnemonic(256);
+      const walletId = `wallet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Encrypt and store
+      const encrypted = await encryptData(mnemonic, pin);
+      const encryptedKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`;
+      localStorage.setItem(encryptedKey, encrypted);
+
+      // Generate accounts to get address
+      const accounts = generateAccounts(mnemonic);
+      const sharehodlAddress = accounts.find(a => a.chain === Chain.SHAREHODL)?.address || '';
+
+      // Add to wallets list
+      const wallets = get().getWallets();
+      const newWallet: WalletMetadata = {
+        id: walletId,
+        name: name || `Wallet ${wallets.length + 1}`,
+        createdAt: Date.now(),
+        sharehodlAddress
+      };
+      wallets.push(newWallet);
+      localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
+
+      // If this is the first wallet, also set as primary
+      if (wallets.length === 1) {
+        localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
+        localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
+      }
+
+      set({
+        isLoading: false,
+        wallets,
+        activeWalletId: wallets.length === 1 ? walletId : get().activeWalletId
+      });
+
+      return mnemonic;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create wallet';
+      set({ isLoading: false, error: message });
+      throw error;
+    }
+  },
+
+  importNewWallet: async (name: string, mnemonic: string, pin: string): Promise<void> => {
+    set({ isLoading: true, error: null });
+
+    try {
+      if (!validateMnemonic(mnemonic.trim())) {
+        throw new Error('Invalid mnemonic phrase');
+      }
+
+      const cleanMnemonic = mnemonic.trim().toLowerCase();
+      const walletId = `wallet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Encrypt and store
+      const encrypted = await encryptData(cleanMnemonic, pin);
+      const encryptedKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`;
+      localStorage.setItem(encryptedKey, encrypted);
+
+      // Generate accounts
+      const accounts = generateAccounts(cleanMnemonic);
+      const sharehodlAddress = accounts.find(a => a.chain === Chain.SHAREHODL)?.address || '';
+
+      // Add to wallets list
+      const wallets = get().getWallets();
+      const newWallet: WalletMetadata = {
+        id: walletId,
+        name: name || `Imported Wallet ${wallets.length + 1}`,
+        createdAt: Date.now(),
+        sharehodlAddress
+      };
+      wallets.push(newWallet);
+      localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
+
+      // If this is the first wallet, set as primary
+      if (wallets.length === 1) {
+        localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
+        localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
+      }
+
+      set({
+        isLoading: false,
+        wallets,
+        activeWalletId: wallets.length === 1 ? walletId : get().activeWalletId
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to import wallet';
+      set({ isLoading: false, error: message });
+      throw error;
+    }
+  },
+
+  renameWallet: (walletId: string, newName: string): void => {
+    const wallets = get().getWallets();
+    const walletIndex = wallets.findIndex(w => w.id === walletId);
+    if (walletIndex === -1) return;
+
+    wallets[walletIndex].name = newName;
+    localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
+    set({ wallets });
+  },
+
+  deleteWallet: async (walletId: string, pin: string): Promise<void> => {
+    // Verify PIN first
+    const isValid = await get().verifyPin(pin);
+    if (!isValid) throw new Error('Invalid PIN');
+
+    const wallets = get().getWallets();
+    if (wallets.length <= 1) {
+      throw new Error('Cannot delete the only wallet');
+    }
+
+    // Remove wallet encrypted data
+    const encryptedKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`;
+    localStorage.removeItem(encryptedKey);
+
+    // Remove from wallets list
+    const newWallets = wallets.filter(w => w.id !== walletId);
+    localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(newWallets));
+
+    // If this was the active wallet, switch to first available
+    if (get().activeWalletId === walletId && newWallets.length > 0) {
+      await get().switchWallet(newWallets[0].id, pin);
+    }
+
+    set({ wallets: newWallets });
+  },
+
+  // ============================================
+  // Security Settings
+  // ============================================
+
+  verifyPin: async (pin: string): Promise<boolean> => {
+    const encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    if (!encrypted) return false;
+
+    try {
+      await decryptData(encrypted, pin);
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  changePin: async (currentPin: string, newPin: string): Promise<void> => {
+    // Verify current PIN
+    const isValid = await get().verifyPin(currentPin);
+    if (!isValid) throw new Error('Current PIN is incorrect');
+
+    // Get and re-encrypt main mnemonic
+    const encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    if (!encrypted) throw new Error('No wallet found');
+
+    const mnemonic = await decryptData(encrypted, currentPin);
+    const newEncrypted = await encryptData(mnemonic, newPin);
+    localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, newEncrypted);
+
+    // Re-encrypt all wallet mnemonics
+    const wallets = get().getWallets();
+    for (const wallet of wallets) {
+      const walletKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${wallet.id}`;
+      const walletEncrypted = localStorage.getItem(walletKey);
+      if (walletEncrypted) {
+        try {
+          const walletMnemonic = await decryptData(walletEncrypted, currentPin);
+          const newWalletEncrypted = await encryptData(walletMnemonic, newPin);
+          localStorage.setItem(walletKey, newWalletEncrypted);
+        } catch {
+          // Skip if can't decrypt (might be corrupted)
+        }
+      }
+    }
+
+    // Clear biometric token since PIN changed
+    localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
+
+    // Update cached PIN
+    set({ _cachedPin: newPin });
+  },
+
+  getRecoveryPhrase: async (pin: string): Promise<string> => {
+    const encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    if (!encrypted) throw new Error('No wallet found');
+
+    try {
+      return await decryptData(encrypted, pin);
+    } catch {
+      throw new Error('Invalid PIN');
+    }
+  },
+
+  // ============================================
+  // Biometric Authentication
+  // ============================================
+
+  setBiometricToken: async (pin: string): Promise<void> => {
+    // Verify PIN first
+    const isValid = await get().verifyPin(pin);
+    if (!isValid) throw new Error('Invalid PIN');
+
+    // Generate a secure random token
+    const tokenBytes = new Uint8Array(32);
+    crypto.getRandomValues(tokenBytes);
+    const token = btoa(String.fromCharCode(...tokenBytes));
+
+    // Encrypt the PIN with the token for later retrieval
+    const encryptedPin = await encryptData(pin, token);
+    localStorage.setItem(STORAGE_KEYS.BIOMETRIC_TOKEN, encryptedPin);
+  },
+
+  unlockWithBiometric: async (token: string): Promise<void> => {
+    const encryptedPin = localStorage.getItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
+    if (!encryptedPin) throw new Error('Biometric not set up');
+
+    try {
+      // Decrypt the PIN using the biometric token
+      const pin = await decryptData(encryptedPin, token);
+      // Use the PIN to unlock normally
+      await get().unlockWallet(pin);
+    } catch {
+      throw new Error('Biometric authentication failed');
+    }
+  },
+
+  clearBiometricToken: (): void => {
+    localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
   }
 }));
 
@@ -570,7 +924,20 @@ function formatBalance(balance: string, _decimals: number): string {
 async function fetchBalance(chain: Chain, address: string): Promise<string> {
   const config = CHAIN_CONFIGS[chain];
 
-  // ShareHODL and Cosmos chains
+  // Use blockchain service for ShareHODL chain (real RPC connection)
+  if (chain === Chain.SHAREHODL) {
+    try {
+      const result = await fetchSharehodlBalance(address);
+      const balanceNum = parseFloat(result.balance) / Math.pow(10, config.decimals);
+      return balanceNum.toString();
+    } catch (error) {
+      console.error('Failed to fetch ShareHODL balance:', error);
+      // Fallback to demo balance on error
+      return getDemoBalance(chain);
+    }
+  }
+
+  // Other Cosmos chains - use REST API
   if (config.restUrl) {
     try {
       const response = await fetch(
@@ -578,7 +945,7 @@ async function fetchBalance(chain: Chain, address: string): Promise<string> {
       );
       const data = await response.json();
       const balance = data.balances?.find((b: { denom: string }) =>
-        b.denom === 'uhodl' || b.denom === 'uatom' || b.denom === 'uosmo'
+        b.denom === 'uatom' || b.denom === 'uosmo'
       );
       if (balance) {
         return (parseFloat(balance.amount) / Math.pow(10, config.decimals)).toString();
@@ -588,7 +955,7 @@ async function fetchBalance(chain: Chain, address: string): Promise<string> {
     }
   }
 
-  // Return demo balance for now
+  // Return demo balance for now (for chains without real integration)
   return getDemoBalance(chain);
 }
 

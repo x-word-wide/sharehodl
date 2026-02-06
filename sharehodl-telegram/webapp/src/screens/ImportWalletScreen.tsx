@@ -3,12 +3,13 @@
  * Professional PIN entry with numpad like CreateWalletScreen
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { useWalletStore } from '../services/walletStore';
 import { validateMnemonic } from '../utils/crypto';
 import { validatePinComplexity, type PinValidationResult } from '../utils/security';
+import { SecureMnemonic } from '../utils/secureMemory';
 
 type Step = 'mnemonic' | 'pin' | 'confirm-pin';
 const PIN_LENGTH = 6;
@@ -19,13 +20,23 @@ export function ImportWalletScreen() {
   const tg = window.Telegram?.WebApp;
 
   const [step, setStep] = useState<Step>('mnemonic');
-  const [mnemonic, setMnemonic] = useState('');
+  // SECURITY: Use SecureMnemonic for secure memory handling instead of plain useState
+  const secureMnemonicRef = useRef<SecureMnemonic>(new SecureMnemonic());
+  const [mnemonicInput, setMnemonicInput] = useState('');  // Only for display in input field
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [mnemonicError, setMnemonicError] = useState('');
   const [shake, setShake] = useState(false);
   const [pinValidation, setPinValidation] = useState<PinValidationResult | null>(null);
   const [showPinError, setShowPinError] = useState(false);
+
+  // SECURITY: Clean up secure mnemonic on unmount
+  useEffect(() => {
+    const secureMnemonic = secureMnemonicRef.current;
+    return () => {
+      secureMnemonic.clear();
+    };
+  }, []);
 
   // Validate PIN as user types
   useEffect(() => {
@@ -41,7 +52,7 @@ export function ImportWalletScreen() {
     clearError();
     setMnemonicError('');
 
-    const cleanMnemonic = mnemonic.trim().toLowerCase();
+    const cleanMnemonic = mnemonicInput.trim().toLowerCase();
     const words = cleanMnemonic.split(/\s+/);
 
     if (words.length !== 12 && words.length !== 24) {
@@ -53,6 +64,10 @@ export function ImportWalletScreen() {
       setMnemonicError('Invalid recovery phrase');
       return;
     }
+
+    // SECURITY: Store in secure mnemonic and clear the input state
+    secureMnemonicRef.current.set(cleanMnemonic);
+    setMnemonicInput('');  // Clear the input display for security
 
     tg?.HapticFeedback?.impactOccurred('medium');
     setStep('pin');
@@ -96,7 +111,10 @@ export function ImportWalletScreen() {
           // PINs match, import wallet
           tg?.HapticFeedback?.notificationOccurred('success');
           try {
+            const mnemonic = secureMnemonicRef.current.get();
             await importWallet(mnemonic, newPin);
+            // SECURITY: Clear mnemonic from memory after import
+            secureMnemonicRef.current.clear();
             navigate('/portfolio');
           } catch (e) {
             tg?.HapticFeedback?.notificationOccurred('error');
@@ -112,7 +130,7 @@ export function ImportWalletScreen() {
         }
       }
     }
-  }, [currentPin, step, pin, mnemonic, importWallet, tg, setCurrentPin, isLoading, navigate]);
+  }, [currentPin, step, pin, importWallet, tg, setCurrentPin, isLoading, navigate]);
 
   return (
     <div className="import-screen">
@@ -144,9 +162,9 @@ export function ImportWalletScreen() {
 
           <div className="mnemonic-input-area">
             <textarea
-              value={mnemonic}
+              value={mnemonicInput}
               onChange={(e) => {
-                setMnemonic(e.target.value);
+                setMnemonicInput(e.target.value);
                 setMnemonicError('');
               }}
               placeholder="Enter your recovery phrase (words separated by spaces)"
@@ -176,7 +194,7 @@ export function ImportWalletScreen() {
 
           <button
             onClick={handleMnemonicSubmit}
-            disabled={!mnemonic.trim()}
+            disabled={!mnemonicInput.trim()}
             className="continue-btn"
           >
             Continue
