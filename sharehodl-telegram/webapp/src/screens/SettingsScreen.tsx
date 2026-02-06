@@ -30,7 +30,10 @@ import {
   EyeOff,
   X,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  MoreVertical,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { useWalletStore } from '../services/walletStore';
 
@@ -39,7 +42,7 @@ const THEME_KEY = 'sh_theme';
 const BIOMETRIC_ENABLED_KEY = 'sh_biometric_enabled';
 
 type Theme = 'dark' | 'light' | 'system';
-type ModalType = 'none' | 'view-phrase' | 'change-pin' | 'wallets' | 'add-wallet' | 'rename-wallet' | 'setup-biometric';
+type ModalType = 'none' | 'view-phrase' | 'change-pin' | 'wallets' | 'add-wallet' | 'edit-wallet' | 'setup-biometric';
 type AddWalletMode = 'choose' | 'create' | 'import';
 
 const PIN_LENGTH = 6;
@@ -56,6 +59,8 @@ export function SettingsScreen() {
     activeWalletId,
     addWallet,
     importNewWallet,
+    renameWallet,
+    deleteWallet,
     clearBiometricToken
   } = useWalletStore();
   const tg = window.Telegram?.WebApp;
@@ -78,6 +83,13 @@ export function SettingsScreen() {
   const [importMnemonic, setImportMnemonic] = useState('');
   const [usePinFallback, setUsePinFallback] = useState(false);
   const [biometricAttempted, setBiometricAttempted] = useState(false);
+  // Edit wallet state
+  const [editingWallet, setEditingWallet] = useState<{ id: string; name: string } | null>(null);
+  const [editWalletName, setEditWalletName] = useState('');
+  const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  // Biometric for add wallet flow
+  const [addWalletBiometricAttempted, setAddWalletBiometricAttempted] = useState(false);
+  const [addWalletUsePinFallback, setAddWalletUsePinFallback] = useState(false);
 
   // Load wallets on mount
   useEffect(() => {
@@ -238,6 +250,13 @@ export function SettingsScreen() {
     setImportMnemonic('');
     setUsePinFallback(false);
     setBiometricAttempted(false);
+    // Edit wallet state
+    setEditingWallet(null);
+    setEditWalletName('');
+    setDeleteConfirmStep(0);
+    // Add wallet biometric state
+    setAddWalletBiometricAttempted(false);
+    setAddWalletUsePinFallback(false);
   };
 
   const closeModal = () => {
@@ -278,9 +297,11 @@ export function SettingsScreen() {
         }
       } else if (activeModal === 'setup-biometric') {
         await handleBiometricSetupPin(updatedPin);
+      } else if (activeModal === 'edit-wallet' && deleteConfirmStep === 2) {
+        await handleDeleteWalletPinSubmit(updatedPin);
       }
     }
-  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, addWalletMode, tg]);
+  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, addWalletMode, deleteConfirmStep, tg]);
 
   // View Recovery Phrase
   const handleViewPhraseSubmit = async (enteredPin: string) => {
@@ -364,6 +385,82 @@ export function SettingsScreen() {
       return () => clearTimeout(timer);
     }
   }, [activeModal, biometricEnabled, biometricAttempted, usePinFallback, recoveryPhrase.length, handleBiometricAuth]);
+
+  // Biometric authentication for add/import wallet
+  const handleAddWalletBiometricAuth = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const biometricManager = (tg as any)?.BiometricManager;
+    if (!biometricManager) {
+      setAddWalletUsePinFallback(true);
+      return;
+    }
+
+    setAddWalletBiometricAttempted(true);
+    setIsLoading(true);
+
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      setIsLoading(false);
+      setError(`${biometricType} timed out. Please use PIN.`);
+      setAddWalletUsePinFallback(true);
+    }, 30000);
+
+    biometricManager.authenticate(
+      { reason: 'Verify your identity to add wallet' },
+      async (success: boolean, token?: string) => {
+        clearTimeout(timeout);
+
+        if (success && token && token.length > 0) {
+          try {
+            // Token from Telegram's secure storage IS the PIN
+            const isValid = await verifyPin(token);
+            if (!isValid) {
+              throw new Error('Invalid credentials');
+            }
+
+            // PIN verified, proceed with add/import
+            if (addWalletMode === 'create') {
+              await handleAddWalletPinSubmit(token);
+            } else if (addWalletMode === 'import') {
+              await handleImportWalletPinSubmit(token);
+            }
+            tg?.HapticFeedback?.notificationOccurred('success');
+          } catch {
+            tg?.HapticFeedback?.notificationOccurred('error');
+            setError('Invalid credentials. Please use PIN.');
+            setAddWalletUsePinFallback(true);
+          }
+        } else if (success && (!token || token.length === 0)) {
+          tg?.HapticFeedback?.notificationOccurred('error');
+          setError(`${biometricType} not configured. Please use PIN.`);
+          setAddWalletUsePinFallback(true);
+        } else {
+          tg?.HapticFeedback?.notificationOccurred('error');
+          setError(`${biometricType} cancelled`);
+          setAddWalletUsePinFallback(true);
+        }
+        setIsLoading(false);
+      }
+    );
+  }, [tg, verifyPin, biometricType, addWalletMode]);
+
+  // Trigger biometric for add wallet when reaching PIN step
+  useEffect(() => {
+    if (activeModal === 'add-wallet' && biometricEnabled && !addWalletBiometricAttempted && !addWalletUsePinFallback) {
+      // For create mode, trigger when user has entered wallet name (moved past choose)
+      // For import mode, trigger when mnemonic is valid (12+ words)
+      const shouldTrigger =
+        (addWalletMode === 'create' && !walletMnemonic && !success) ||
+        (addWalletMode === 'import' && importMnemonic.trim().split(/\s+/).length >= 12 && !success);
+
+      if (shouldTrigger && pin.length === 0 && !isLoading) {
+        const timer = setTimeout(() => {
+          handleAddWalletBiometricAuth();
+        }, 300);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [activeModal, biometricEnabled, addWalletBiometricAttempted, addWalletUsePinFallback, addWalletMode, walletMnemonic, importMnemonic, pin.length, isLoading, success, handleAddWalletBiometricAuth]);
 
   // Change PIN steps
   const handleChangePinStep = async (enteredPin: string) => {
@@ -449,6 +546,49 @@ export function SettingsScreen() {
         setPin('');
       }, 500);
       setError(err instanceof Error ? err.message : 'Failed to import wallet');
+    }
+    setIsLoading(false);
+  };
+
+  // Handle wallet rename
+  const handleRenameWallet = () => {
+    if (!editingWallet || !editWalletName.trim()) return;
+
+    try {
+      renameWallet(editingWallet.id, editWalletName.trim());
+      tg?.HapticFeedback?.notificationOccurred('success');
+      setSuccess('Wallet renamed successfully!');
+      setTimeout(() => {
+        setActiveModal('wallets');
+        resetModalState();
+      }, 1000);
+    } catch (err) {
+      tg?.HapticFeedback?.notificationOccurred('error');
+      setError(err instanceof Error ? err.message : 'Failed to rename wallet');
+    }
+  };
+
+  // Handle wallet delete with PIN verification
+  const handleDeleteWalletPinSubmit = async (enteredPin: string) => {
+    if (!editingWallet) return;
+
+    setIsLoading(true);
+    try {
+      await deleteWallet(editingWallet.id, enteredPin);
+      tg?.HapticFeedback?.notificationOccurred('success');
+      setSuccess('Wallet deleted successfully!');
+      setTimeout(() => {
+        setActiveModal('wallets');
+        resetModalState();
+      }, 1500);
+    } catch (err) {
+      tg?.HapticFeedback?.notificationOccurred('error');
+      setShake(true);
+      setTimeout(() => {
+        setShake(false);
+        setPin('');
+      }, 500);
+      setError(err instanceof Error ? err.message : 'Failed to delete wallet');
     }
     setIsLoading(false);
   };
@@ -980,9 +1120,23 @@ export function SettingsScreen() {
                       )}
                     </div>
                   </div>
-                  {wallet.id === activeWalletId && (
-                    <div className="wallet-active-badge">Active</div>
-                  )}
+                  <div className="wallet-actions">
+                    {wallet.id === activeWalletId && (
+                      <div className="wallet-active-badge">Active</div>
+                    )}
+                    <button
+                      className="wallet-edit-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        tg?.HapticFeedback?.impactOccurred('light');
+                        setEditingWallet({ id: wallet.id, name: wallet.name });
+                        setEditWalletName(wallet.name);
+                        setActiveModal('edit-wallet');
+                      }}
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1096,7 +1250,75 @@ export function SettingsScreen() {
               </>
             ) : addWalletMode === 'create' ? (
               /* Create new wallet flow */
-              pin.length < PIN_LENGTH && !isLoading ? (
+              isLoading ? (
+                <div className="loading-state">
+                  <div className="spinner" />
+                  <p>Creating wallet...</p>
+                </div>
+              ) : biometricEnabled && !addWalletUsePinFallback ? (
+                /* Biometric option for create */
+                <>
+                  <div className="modal-icon">
+                    <Plus size={32} />
+                  </div>
+                  <h2 className="modal-title">New Wallet</h2>
+
+                  <div className="input-group">
+                    <label>Wallet Name</label>
+                    <input
+                      type="text"
+                      value={newWalletName}
+                      onChange={(e) => setNewWalletName(e.target.value)}
+                      placeholder={`Wallet ${wallets.length + 1}`}
+                      className="text-input"
+                    />
+                  </div>
+
+                  <p className="modal-subtitle">Verify your identity to create wallet</p>
+
+                  <div className="biometric-prompt">
+                    <button
+                      className="biometric-button"
+                      onClick={handleAddWalletBiometricAuth}
+                      disabled={isLoading}
+                    >
+                      <Smartphone size={24} />
+                      <span>Create with {biometricType}</span>
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div className="modal-error">
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    className="pin-fallback-button"
+                    onClick={() => {
+                      setAddWalletUsePinFallback(true);
+                      setError('');
+                    }}
+                  >
+                    <Lock size={16} />
+                    <span>Use PIN instead</span>
+                  </button>
+
+                  <button
+                    className="back-button"
+                    onClick={() => {
+                      setAddWalletMode('choose');
+                      setAddWalletUsePinFallback(false);
+                      setAddWalletBiometricAttempted(false);
+                      setError('');
+                    }}
+                  >
+                    ← Back
+                  </button>
+                </>
+              ) : pin.length < PIN_LENGTH ? (
+                /* PIN entry for create */
                 <>
                   <div className="modal-icon">
                     <Plus size={32} />
@@ -1127,12 +1349,29 @@ export function SettingsScreen() {
 
                   {renderNumpad(handlePinKey)}
 
+                  {biometricEnabled && (
+                    <button
+                      className="pin-fallback-button"
+                      onClick={() => {
+                        setAddWalletUsePinFallback(false);
+                        setAddWalletBiometricAttempted(false);
+                        setPin('');
+                        setError('');
+                      }}
+                    >
+                      <Smartphone size={16} />
+                      <span>Use {biometricType} instead</span>
+                    </button>
+                  )}
+
                   <button
                     className="back-button"
                     onClick={() => {
                       setAddWalletMode('choose');
                       setPin('');
                       setError('');
+                      setAddWalletUsePinFallback(false);
+                      setAddWalletBiometricAttempted(false);
                     }}
                   >
                     ← Back
@@ -1213,7 +1452,63 @@ export function SettingsScreen() {
                     ← Back
                   </button>
                 </>
-              ) : pin.length < PIN_LENGTH && !isLoading ? (
+              ) : isLoading ? (
+                <div className="loading-state">
+                  <div className="spinner" />
+                  <p>Importing wallet...</p>
+                </div>
+              ) : biometricEnabled && !addWalletUsePinFallback ? (
+                /* Biometric option for import */
+                <>
+                  <div className="modal-icon">
+                    <Key size={32} />
+                  </div>
+                  <h2 className="modal-title">Import Wallet</h2>
+                  <p className="modal-subtitle">Verify your identity to import wallet</p>
+
+                  <div className="biometric-prompt">
+                    <button
+                      className="biometric-button"
+                      onClick={handleAddWalletBiometricAuth}
+                      disabled={isLoading}
+                    >
+                      <Smartphone size={24} />
+                      <span>Import with {biometricType}</span>
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div className="modal-error">
+                      <AlertCircle size={16} />
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    className="pin-fallback-button"
+                    onClick={() => {
+                      setAddWalletUsePinFallback(true);
+                      setError('');
+                    }}
+                  >
+                    <Lock size={16} />
+                    <span>Use PIN instead</span>
+                  </button>
+
+                  <button
+                    className="back-button"
+                    onClick={() => {
+                      setImportMnemonic('');
+                      setAddWalletUsePinFallback(false);
+                      setAddWalletBiometricAttempted(false);
+                      setError('');
+                    }}
+                  >
+                    ← Back
+                  </button>
+                </>
+              ) : pin.length < PIN_LENGTH ? (
+                /* PIN entry for import */
                 <>
                   <div className="modal-icon">
                     <Lock size={32} />
@@ -1232,13 +1527,29 @@ export function SettingsScreen() {
 
                   {renderNumpad(handlePinKey)}
 
+                  {biometricEnabled && (
+                    <button
+                      className="pin-fallback-button"
+                      onClick={() => {
+                        setAddWalletUsePinFallback(false);
+                        setAddWalletBiometricAttempted(false);
+                        setPin('');
+                        setError('');
+                      }}
+                    >
+                      <Smartphone size={16} />
+                      <span>Use {biometricType} instead</span>
+                    </button>
+                  )}
+
                   <button
                     className="back-button"
                     onClick={() => {
                       setPin('');
                       setError('');
-                      // Go back to mnemonic entry by clearing the phrase partially
                       setImportMnemonic('');
+                      setAddWalletUsePinFallback(false);
+                      setAddWalletBiometricAttempted(false);
                     }}
                   >
                     ← Back
@@ -1290,6 +1601,154 @@ export function SettingsScreen() {
                 {renderNumpad(handlePinKey)}
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Wallet Modal */}
+      {activeModal === 'edit-wallet' && editingWallet && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}>
+              <X size={24} />
+            </button>
+
+            {success ? (
+              <>
+                <div className="modal-icon success">
+                  <CheckCircle size={32} />
+                </div>
+                <h2 className="modal-title">{success}</h2>
+              </>
+            ) : deleteConfirmStep === 0 ? (
+              /* Main edit options */
+              <>
+                <div className="modal-icon">
+                  <Wallet size={32} />
+                </div>
+                <h2 className="modal-title">Edit Wallet</h2>
+                <p className="modal-subtitle">{editingWallet.name}</p>
+
+                <div className="edit-wallet-options">
+                  <div className="input-group">
+                    <label>Wallet Name</label>
+                    <input
+                      type="text"
+                      value={editWalletName}
+                      onChange={(e) => setEditWalletName(e.target.value)}
+                      placeholder="Enter wallet name"
+                      className="text-input"
+                    />
+                  </div>
+
+                  <button
+                    className="modal-button primary"
+                    onClick={handleRenameWallet}
+                    disabled={!editWalletName.trim() || editWalletName.trim() === editingWallet.name}
+                  >
+                    <Pencil size={18} />
+                    <span>Save Name</span>
+                  </button>
+
+                  {wallets.length > 1 && (
+                    <button
+                      className="modal-button danger"
+                      onClick={() => {
+                        tg?.HapticFeedback?.impactOccurred('medium');
+                        setDeleteConfirmStep(1);
+                      }}
+                    >
+                      <Trash2 size={18} />
+                      <span>Delete Wallet</span>
+                    </button>
+                  )}
+
+                  {wallets.length <= 1 && (
+                    <p className="delete-warning">Cannot delete the only wallet</p>
+                  )}
+                </div>
+
+                <button
+                  className="back-button"
+                  onClick={() => {
+                    setActiveModal('wallets');
+                    resetModalState();
+                  }}
+                >
+                  ← Back to Wallets
+                </button>
+              </>
+            ) : deleteConfirmStep === 1 ? (
+              /* Delete confirmation */
+              <>
+                <div className="modal-icon danger">
+                  <AlertCircle size={32} />
+                </div>
+                <h2 className="modal-title">Delete Wallet?</h2>
+                <p className="modal-subtitle warning">
+                  This will permanently remove "{editingWallet.name}" from this device.
+                </p>
+                <p className="modal-subtitle">
+                  Make sure you have backed up the recovery phrase!
+                </p>
+
+                {error && (
+                  <div className="modal-error">
+                    <AlertCircle size={16} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                <div className="delete-confirm-buttons">
+                  <button
+                    className="modal-button secondary"
+                    onClick={() => setDeleteConfirmStep(0)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="modal-button danger"
+                    onClick={() => {
+                      tg?.HapticFeedback?.impactOccurred('heavy');
+                      setDeleteConfirmStep(2);
+                    }}
+                  >
+                    Continue
+                  </button>
+                </div>
+              </>
+            ) : deleteConfirmStep === 2 ? (
+              /* PIN entry for delete */
+              <>
+                <div className="modal-icon danger">
+                  <Lock size={32} />
+                </div>
+                <h2 className="modal-title">Enter PIN to Delete</h2>
+                <p className="modal-subtitle">Verify your identity to delete this wallet</p>
+
+                {renderPinDots(pin.length)}
+
+                {error && (
+                  <div className="modal-error">
+                    <AlertCircle size={16} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {renderNumpad(handlePinKey)}
+
+                <button
+                  className="back-button"
+                  onClick={() => {
+                    setDeleteConfirmStep(1);
+                    setPin('');
+                    setError('');
+                  }}
+                >
+                  ← Back
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       )}
@@ -2077,6 +2536,102 @@ export function SettingsScreen() {
         .pin-fallback-button:hover {
           background: var(--input-bg);
           color: var(--text-primary);
+        }
+
+        /* Wallet Actions */
+        .wallet-actions {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .wallet-edit-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          background: transparent;
+          border: none;
+          border-radius: 8px;
+          color: var(--text-secondary);
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .wallet-edit-btn:active {
+          background: var(--input-bg);
+          color: var(--text-primary);
+        }
+
+        /* Edit Wallet Modal */
+        .edit-wallet-options {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          margin-top: 8px;
+        }
+
+        .modal-button {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 14px;
+          border: none;
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 500;
+          cursor: pointer;
+        }
+
+        .modal-button.primary {
+          background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+          color: white;
+        }
+
+        .modal-button.primary:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .modal-button.secondary {
+          background: var(--input-bg);
+          color: var(--text-primary);
+          border: 1px solid var(--border-color);
+        }
+
+        .modal-button.danger {
+          background: rgba(239, 68, 68, 0.15);
+          color: #ef4444;
+          border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .modal-button.danger:hover {
+          background: rgba(239, 68, 68, 0.25);
+        }
+
+        .modal-icon.danger {
+          background: rgba(239, 68, 68, 0.2);
+          color: #ef4444;
+        }
+
+        .delete-warning {
+          text-align: center;
+          font-size: 13px;
+          color: var(--text-secondary);
+          margin-top: 8px;
+        }
+
+        .delete-confirm-buttons {
+          display: flex;
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .delete-confirm-buttons .modal-button {
+          flex: 1;
         }
       `}</style>
     </div>
