@@ -358,7 +358,10 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         assets,
         enabledTokenIds,
         wallets: [newWallet],
-        activeWalletId: walletId
+        activeWalletId: walletId,
+        // SECURITY: Cache PIN for transaction signing after import
+        _cachedPin: pin,
+        _pinCacheTimestamp: Date.now()
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import wallet';
@@ -893,7 +896,10 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         wallets,
         activeWalletId: walletId,
         accounts,
-        assets
+        assets,
+        // SECURITY: Cache PIN for transaction signing after import
+        _cachedPin: pin,
+        _pinCacheTimestamp: Date.now()
       });
 
       // Refresh balances for new wallet
