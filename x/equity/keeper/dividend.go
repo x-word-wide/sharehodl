@@ -241,6 +241,19 @@ func (k Keeper) DeclareDividend(
 		return 0, types.ErrCompanyNotActive
 	}
 
+	// SECURITY: Check for pending dividends to prevent over-commitment of treasury funds
+	// Only one pending dividend per company/class at a time
+	existingDividends := k.GetDividendsByCompany(ctx, companyID)
+	for _, d := range existingDividends {
+		if d.Status == types.DividendStatusPendingApproval {
+			// If classID matches or either is empty (all classes), conflict exists
+			if classID == "" || d.ClassID == "" || classID == d.ClassID {
+				return 0, fmt.Errorf("%w: dividend %d is already pending approval for this company/class",
+					types.ErrDividendPending, d.ID)
+			}
+		}
+	}
+
 	// Validate audit document (MANDATORY for dividend declaration)
 	if err := auditInfo.Validate(); err != nil {
 		return 0, err
@@ -1128,9 +1141,18 @@ func (k Keeper) LockDividendFundsInEscrow(ctx sdk.Context, dividendID, companyID
 	}
 
 	if err := k.SetDividendEscrow(ctx, escrow); err != nil {
-		// Rollback treasury deduction
+		// Rollback treasury deduction - must succeed or we have inconsistent state
 		treasury.Balance = treasury.Balance.Add(deductedCoins...)
-		k.SetCompanyTreasury(ctx, treasury)
+		if rollbackErr := k.SetCompanyTreasury(ctx, treasury); rollbackErr != nil {
+			// Critical: Both escrow creation and rollback failed
+			k.Logger(ctx).Error("CRITICAL: escrow creation failed and rollback also failed",
+				"escrow_error", err,
+				"rollback_error", rollbackErr,
+				"dividend_id", dividendID,
+				"company_id", companyID,
+			)
+			return fmt.Errorf("failed to create escrow: %w (rollback also failed: %v)", err, rollbackErr)
+		}
 		return fmt.Errorf("failed to create escrow: %w", err)
 	}
 

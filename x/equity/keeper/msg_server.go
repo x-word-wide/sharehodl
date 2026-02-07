@@ -746,14 +746,20 @@ func (k msgServer) CancelDividend(goCtx context.Context, msg *types.MsgCancelDiv
 		return nil, types.ErrDividendAlreadyPaid
 	}
 
-	// Cancel dividend
-	dividend.Status = types.DividendStatusCancelled
-	dividend.UpdatedAt = ctx.BlockTime()
-	dividend.Notes = msg.Reason
-	k.SetDividend(ctx, dividend)
-
-	// If cash dividend, refund remaining funds back to treasury
-	if dividend.Type == types.DividendTypeCash && dividend.RemainingAmount.GT(math.LegacyZeroDec()) {
+	// If cash dividend with pending approval, release escrow back to treasury
+	if dividend.Type == types.DividendTypeCash && dividend.Status == types.DividendStatusPendingApproval {
+		// Use escrow system to properly return funds
+		if err := k.ReturnDividendEscrowToTreasury(ctx, msg.DividendID); err != nil {
+			k.Logger(ctx).Error("failed to return escrow to treasury on cancel", "error", err, "dividend_id", msg.DividendID)
+			// Continue with cancellation - escrow may not exist for old dividends
+		} else {
+			k.Logger(ctx).Info("dividend cancelled - escrow returned to treasury",
+				"dividend_id", msg.DividendID,
+				"company_id", dividend.CompanyID,
+			)
+		}
+	} else if dividend.Type == types.DividendTypeCash && dividend.RemainingAmount.GT(math.LegacyZeroDec()) {
+		// For partially paid dividends, refund remaining funds directly
 		refundCoins := sdk.NewCoins(sdk.NewCoin(dividend.Currency, dividend.RemainingAmount.TruncateInt()))
 
 		// Get treasury and add funds back
@@ -764,7 +770,7 @@ func (k msgServer) CancelDividend(goCtx context.Context, msg *types.MsgCancelDiv
 			if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
 				k.Logger(ctx).Error("failed to refund to treasury", "error", err)
 			} else {
-				k.Logger(ctx).Info("dividend cancelled - funds returned to treasury",
+				k.Logger(ctx).Info("dividend cancelled - remaining funds returned to treasury",
 					"dividend_id", msg.DividendID,
 					"company_id", dividend.CompanyID,
 					"refund_amount", refundCoins.String(),
@@ -772,6 +778,12 @@ func (k msgServer) CancelDividend(goCtx context.Context, msg *types.MsgCancelDiv
 			}
 		}
 	}
+
+	// Cancel dividend
+	dividend.Status = types.DividendStatusCancelled
+	dividend.UpdatedAt = ctx.BlockTime()
+	dividend.Notes = msg.Reason
+	k.SetDividend(ctx, dividend)
 
 	// Emit event
 	ctx.EventManager().EmitEvent(

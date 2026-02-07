@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"cosmossdk.io/math"
 	"cosmossdk.io/store/prefix"
@@ -217,8 +218,8 @@ func (k Keeper) CreateGrant(
 			"grant_created",
 			sdk.NewAttribute("grantee", grantee),
 			sdk.NewAttribute("allowed_amount", allowedAmount.String()),
-			sdk.NewAttribute("expiration_height", string(rune(expirationHeight))),
-			sdk.NewAttribute("proposal_id", string(rune(proposalID))),
+			sdk.NewAttribute("expiration_height", fmt.Sprintf("%d", expirationHeight)),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
 		),
 	)
 

@@ -64,6 +64,7 @@ var (
 	ErrDividendSnapshotNotReady  = errors.Register(ModuleName, 48, "dividend snapshot not ready")
 	ErrInvalidPaymentMethod      = errors.Register(ModuleName, 49, "invalid payment method")
 	ErrDividendPolicyNotSet      = errors.Register(ModuleName, 50, "dividend policy not set")
+	ErrDividendPending           = errors.Register(ModuleName, 65, "dividend already pending approval")
 
 	// Anti-dilution errors
 	ErrAntiDilutionNotFound      = errors.Register(ModuleName, 51, "anti-dilution provision not found")
