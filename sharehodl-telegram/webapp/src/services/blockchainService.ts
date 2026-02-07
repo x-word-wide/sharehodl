@@ -619,9 +619,9 @@ export async function fetchTransactionHistory(
 
     // Use Tendermint RPC tx_search - more reliable than REST API
     // Query by transfer.sender (sent transactions)
-    const sentQuery = encodeURIComponent(`transfer.sender='${address}'`);
+    const sentQuery = encodeURIComponent(`"transfer.sender='${address}'"`);
     const sentResponse = await fetch(
-      `${RPC_URL}/tx_search?query="${sentQuery}"&per_page=${limit}&order_by="desc"`
+      `${RPC_URL}/tx_search?query=${sentQuery}&per_page=${limit}&order_by="desc"`
     );
 
     if (sentResponse.ok) {
@@ -635,9 +635,9 @@ export async function fetchTransactionHistory(
     }
 
     // Query by transfer.recipient (received transactions)
-    const receivedQuery = encodeURIComponent(`transfer.recipient='${address}'`);
+    const receivedQuery = encodeURIComponent(`"transfer.recipient='${address}'"`);
     const receivedResponse = await fetch(
-      `${RPC_URL}/tx_search?query="${receivedQuery}"&per_page=${limit}&order_by="desc"`
+      `${RPC_URL}/tx_search?query=${receivedQuery}&per_page=${limit}&order_by="desc"`
     );
 
     if (receivedResponse.ok) {
@@ -654,9 +654,9 @@ export async function fetchTransactionHistory(
     }
 
     // Also query by message.sender for staking transactions
-    const msgQuery = encodeURIComponent(`message.sender='${address}'`);
+    const msgQuery = encodeURIComponent(`"message.sender='${address}'"`);
     const msgResponse = await fetch(
-      `${RPC_URL}/tx_search?query="${msgQuery}"&per_page=${limit}&order_by="desc"`
+      `${RPC_URL}/tx_search?query=${msgQuery}&per_page=${limit}&order_by="desc"`
     );
 
     if (msgResponse.ok) {
