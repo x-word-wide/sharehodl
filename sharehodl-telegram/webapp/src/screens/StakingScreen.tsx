@@ -8,20 +8,9 @@ import { useStakingStore } from '../services/stakingStore';
 import { useWalletStore } from '../services/walletStore';
 import { checkCanUnstake, formatBlockingMessage } from '../services/positionChecker';
 import { Chain, VALIDATOR_TIER_COLORS, type Validator } from '../types';
+import { TransactionConfirmation, TransactionDetails } from '../components/TransactionConfirmation';
 
 type Tab = 'stake' | 'validators' | 'rewards';
-
-// Helper to get mnemonic from wallet store with cached PIN
-async function getMnemonicForTransaction(getMnemonicForSigning: (pin: string) => Promise<string>, cachedPin: string | null): Promise<string | null> {
-  if (!cachedPin) {
-    return null;
-  }
-  try {
-    return await getMnemonicForSigning(cachedPin);
-  } catch {
-    return null;
-  }
-}
 
 export function StakingScreen() {
   const tg = window.Telegram?.WebApp;
@@ -42,7 +31,10 @@ export function StakingScreen() {
   const [showUndelegateModal, setShowUndelegateModal] = useState(false);
   const [selectedValidator, setSelectedValidator] = useState<Validator | null>(null);
   const [amount, setAmount] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Transaction confirmation state
+  const [pendingTransaction, setPendingTransaction] = useState<TransactionDetails | null>(null);
+  const [pendingAction, setPendingAction] = useState<'delegate' | 'undelegate' | 'claim' | null>(null);
 
   // Get ShareHODL address
   const sharehodlAccount = accounts.find(a => a.chain === Chain.SHAREHODL);
@@ -55,124 +47,143 @@ export function StakingScreen() {
     }
   }, [address, fetchStakingPosition, fetchValidators]);
 
-  const handleDelegate = async () => {
+  // Show transaction confirmation for delegate
+  const initiateDelegate = () => {
     if (!selectedValidator || !amount) return;
 
-    setIsProcessing(true);
-    try {
-      // Get mnemonic for signing
-      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
-      if (!mnemonic) {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert('Session expired. Please unlock your wallet again.');
-        setIsProcessing(false);
-        return;
-      }
+    const transaction: TransactionDetails = {
+      type: 'stake',
+      title: 'Stake HODL',
+      amount: amount,
+      token: 'HODL',
+      details: [
+        { label: 'Validator', value: selectedValidator.name },
+        { label: 'Commission', value: `${(selectedValidator.commission * 100).toFixed(0)}%` },
+      ],
+      fee: '~0.001 HODL',
+    };
 
-      const result = await delegate(mnemonic, selectedValidator.address, parseFloat(amount));
+    setPendingTransaction(transaction);
+    setPendingAction('delegate');
+    setShowDelegateModal(false);
+  };
 
-      if (result.success) {
-        tg?.HapticFeedback?.notificationOccurred('success');
-        tg?.showAlert(`Successfully staked ${amount} HODL!\nTx: ${result.txHash?.slice(0, 16)}...`);
-        setShowDelegateModal(false);
-        setAmount('');
-        setSelectedValidator(null);
-        // Refresh position after successful delegation
-        if (address) {
-          fetchStakingPosition(address);
-        }
-      } else {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert(`Staking failed: ${result.error || 'Unknown error'}`);
+  // Execute delegate after confirmation
+  const handleDelegate = async (mnemonic: string) => {
+    if (!selectedValidator || !amount) return;
+
+    const result = await delegate(mnemonic, selectedValidator.address, parseFloat(amount));
+
+    if (result.success) {
+      setAmount('');
+      setSelectedValidator(null);
+      // Refresh position after successful delegation
+      if (address) {
+        fetchStakingPosition(address);
       }
-    } catch (err) {
-      tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert(`Failed to delegate: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsProcessing(false);
+    } else {
+      throw new Error(result.error || 'Staking failed');
     }
   };
 
-  const handleUndelegate = async () => {
+  // Show transaction confirmation for undelegate
+  const initiateUndelegate = async () => {
     if (!selectedValidator || !amount || !address) return;
 
-    setIsProcessing(true);
-    try {
-      // Check for active positions that block unstaking
-      // (escrows, disputes, loans, P2P trades)
-      const positionCheck = await checkCanUnstake(address);
-      if (!positionCheck.canUnstake) {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert(formatBlockingMessage(positionCheck.blockedBy));
-        setIsProcessing(false);
-        return;
-      }
-
-      // Get mnemonic for signing
-      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
-      if (!mnemonic) {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert('Session expired. Please unlock your wallet again.');
-        setIsProcessing(false);
-        return;
-      }
-
-      const result = await undelegate(mnemonic, selectedValidator.address, parseFloat(amount));
-
-      if (result.success) {
-        tg?.HapticFeedback?.notificationOccurred('success');
-        tg?.showAlert(`Successfully unstaked ${amount} HODL!\nUnbonding period: 21 days`);
-        setShowUndelegateModal(false);
-        setAmount('');
-        setSelectedValidator(null);
-        // Refresh position after successful undelegation
-        if (address) {
-          fetchStakingPosition(address);
-        }
-      } else {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert(`Unstaking failed: ${result.error || 'Unknown error'}`);
-      }
-    } catch (err) {
+    // Check for active positions that block unstaking
+    // (escrows, disputes, loans, P2P trades)
+    const positionCheck = await checkCanUnstake(address);
+    if (!positionCheck.canUnstake) {
       tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert(`Failed to undelegate: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsProcessing(false);
+      tg?.showAlert(formatBlockingMessage(positionCheck.blockedBy));
+      return;
+    }
+
+    const transaction: TransactionDetails = {
+      type: 'unstake',
+      title: 'Unstake HODL',
+      amount: amount,
+      token: 'HODL',
+      details: [
+        { label: 'From Validator', value: selectedValidator.name },
+        { label: 'Unbonding Period', value: '21 days' },
+      ],
+      fee: '~0.001 HODL',
+      warning: 'Unstaking takes 21 days. You won\'t earn rewards during this period.',
+    };
+
+    setPendingTransaction(transaction);
+    setPendingAction('undelegate');
+    setShowUndelegateModal(false);
+  };
+
+  // Execute undelegate after confirmation
+  const handleUndelegate = async (mnemonic: string) => {
+    if (!selectedValidator || !amount) return;
+
+    const result = await undelegate(mnemonic, selectedValidator.address, parseFloat(amount));
+
+    if (result.success) {
+      setAmount('');
+      setSelectedValidator(null);
+      // Refresh position after successful undelegation
+      if (address) {
+        fetchStakingPosition(address);
+      }
+    } else {
+      throw new Error(result.error || 'Unstaking failed');
     }
   };
 
-  const handleClaimRewards = async () => {
+  // Show transaction confirmation for claim rewards
+  const initiateClaimRewards = () => {
     if (!position?.pendingRewards || !address) return;
 
-    setIsProcessing(true);
-    try {
-      // Get mnemonic for signing
-      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
-      if (!mnemonic) {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert('Session expired. Please unlock your wallet again.');
-        setIsProcessing(false);
-        return;
-      }
+    const transaction: TransactionDetails = {
+      type: 'claim',
+      title: 'Claim Rewards',
+      amount: position.pendingRewards.toFixed(4),
+      token: 'HODL',
+      details: [
+        { label: 'Total Validators', value: `${position.delegations.length}` },
+      ],
+      fee: '~0.001 HODL',
+    };
 
-      const results = await claimAllRewards(mnemonic, address);
-      const successCount = results.filter(r => r.success).length;
+    setPendingTransaction(transaction);
+    setPendingAction('claim');
+  };
 
-      if (successCount > 0) {
-        tg?.HapticFeedback?.notificationOccurred('success');
-        tg?.showAlert(`Claimed ${position.pendingRewards.toFixed(2)} HODL rewards!`);
-        // Refresh position after successful claim
-        fetchStakingPosition(address);
-      } else {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        tg?.showAlert(`Failed to claim rewards: ${results[0]?.error || 'Unknown error'}`);
-      }
-    } catch (err) {
-      tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert(`Failed to claim rewards: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsProcessing(false);
+  // Execute claim rewards after confirmation
+  const handleClaimRewards = async (mnemonic: string) => {
+    if (!address) return;
+
+    const results = await claimAllRewards(mnemonic, address);
+    const successCount = results.filter(r => r.success).length;
+
+    if (successCount > 0) {
+      // Refresh position after successful claim
+      fetchStakingPosition(address);
+    } else {
+      throw new Error(results[0]?.error || 'Failed to claim rewards');
     }
+  };
+
+  // Handle transaction confirmation
+  const handleTransactionConfirm = async (mnemonic: string) => {
+    if (pendingAction === 'delegate') {
+      await handleDelegate(mnemonic);
+    } else if (pendingAction === 'undelegate') {
+      await handleUndelegate(mnemonic);
+    } else if (pendingAction === 'claim') {
+      await handleClaimRewards(mnemonic);
+    }
+  };
+
+  // Cancel transaction confirmation
+  const handleTransactionCancel = () => {
+    setPendingTransaction(null);
+    setPendingAction(null);
   };
 
   const formatNumber = (num: number): string => {
@@ -265,8 +276,8 @@ export function StakingScreen() {
               </button>
               <button
                 className="action-btn secondary"
-                onClick={handleClaimRewards}
-                disabled={!position.pendingRewards || isProcessing}
+                onClick={initiateClaimRewards}
+                disabled={!position.pendingRewards}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
@@ -437,10 +448,10 @@ export function StakingScreen() {
               </div>
               <button
                 className="claim-btn"
-                onClick={handleClaimRewards}
-                disabled={!position.pendingRewards || isProcessing}
+                onClick={initiateClaimRewards}
+                disabled={!position.pendingRewards}
               >
-                {isProcessing ? 'Claiming...' : 'Claim All Rewards'}
+                Claim All Rewards
               </button>
             </div>
           </div>
@@ -472,10 +483,10 @@ export function StakingScreen() {
               <button className="cancel-btn" onClick={() => setShowDelegateModal(false)}>Cancel</button>
               <button
                 className="confirm-btn"
-                onClick={handleDelegate}
-                disabled={!amount || parseFloat(amount) <= 0 || isProcessing}
+                onClick={initiateDelegate}
+                disabled={!amount || parseFloat(amount) <= 0}
               >
-                {isProcessing ? 'Staking...' : 'Stake'}
+                Continue
               </button>
             </div>
           </div>
@@ -509,14 +520,25 @@ export function StakingScreen() {
               <button className="cancel-btn" onClick={() => setShowUndelegateModal(false)}>Cancel</button>
               <button
                 className="confirm-btn danger"
-                onClick={handleUndelegate}
-                disabled={!amount || parseFloat(amount) <= 0 || isProcessing}
+                onClick={initiateUndelegate}
+                disabled={!amount || parseFloat(amount) <= 0}
               >
-                {isProcessing ? 'Unstaking...' : 'Unstake'}
+                Continue
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Transaction Confirmation */}
+      {pendingTransaction && (
+        <TransactionConfirmation
+          transaction={pendingTransaction}
+          onConfirm={handleTransactionConfirm}
+          onCancel={handleTransactionCancel}
+          getMnemonicForSigning={getMnemonicForSigning}
+          cachedPin={_cachedPin}
+        />
       )}
 
       <style>{styles}</style>

@@ -4,21 +4,21 @@
  * SECURITY: PIN is required before signing transactions
  */
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Scan, ChevronDown, AlertCircle, CheckCircle, Loader2, ExternalLink } from 'lucide-react';
+import { Scan, ChevronDown, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
 import { useWalletStore } from '../services/walletStore';
 import { Chain, CHAIN_CONFIGS } from '../types';
 import { sendTokens, validateAddress, type TransactionResult } from '../services/blockchainService';
 import { BottomSheet } from '../components/BottomSheet';
+import { TransactionConfirmation, TransactionDetails } from '../components/TransactionConfirmation';
 
-type SendStep = 'form' | 'pin' | 'sending' | 'success' | 'error';
-const PIN_LENGTH = 6;
+type SendStep = 'form' | 'confirm' | 'success' | 'error';
 
 export function SendScreen() {
   const { chain: chainParam } = useParams();
   const navigate = useNavigate();
-  const { accounts, getMnemonicForSigning } = useWalletStore();
+  const { accounts, getMnemonicForSigning, _cachedPin } = useWalletStore();
   const tg = window.Telegram?.WebApp;
 
   const [selectedChain, setSelectedChain] = useState<Chain>(
@@ -32,10 +32,8 @@ export function SendScreen() {
 
   // Transaction state
   const [step, setStep] = useState<SendStep>('form');
-  const [pin, setPin] = useState('');
   const [txResult, setTxResult] = useState<TransactionResult | null>(null);
-  const [shake, setShake] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingTransaction, setPendingTransaction] = useState<TransactionDetails | null>(null);
 
   const account = accounts.find(a => a.chain === selectedChain);
   const config = CHAIN_CONFIGS[selectedChain];
@@ -54,7 +52,7 @@ export function SendScreen() {
     }
   };
 
-  // Initiate send - show PIN dialog
+  // Initiate send - show confirmation
   const handleSend = () => {
     if (!recipient || !amount) {
       tg?.showAlert('Please fill in all fields');
@@ -76,81 +74,45 @@ export function SendScreen() {
       return;
     }
 
-    // Show PIN confirmation
+    // Create transaction details for confirmation
+    const transaction: TransactionDetails = {
+      type: 'send',
+      title: `Send ${config.symbol}`,
+      amount: amount,
+      token: config.symbol,
+      recipient: recipient,
+      fee: `~0.001 ${config.symbol}`,
+      details: memo ? [{ label: 'Memo', value: memo }] : undefined,
+    };
+
+    setPendingTransaction(transaction);
+    setStep('confirm');
     tg?.HapticFeedback?.impactOccurred('medium');
-    setStep('pin');
   };
 
-  // Handle PIN entry
-  const handleKeyPress = useCallback(async (key: string) => {
-    if (isProcessing) return;
-    tg?.HapticFeedback?.impactOccurred('light');
+  // Process the transaction after confirmation
+  const handleTransactionConfirm = async (mnemonic: string) => {
+    // Send the transaction
+    const result = await sendTokens(
+      mnemonic,
+      recipient,
+      amount,
+      memo || undefined
+    );
 
-    if (key === 'delete') {
-      setPin(prev => prev.slice(0, -1));
-      return;
+    setTxResult(result);
+
+    if (result.success) {
+      setStep('success');
+    } else {
+      throw new Error(result.error || 'Transaction failed');
     }
+  };
 
-    if (pin.length >= PIN_LENGTH) return;
-
-    const newPin = pin + key;
-    setPin(newPin);
-
-    // Auto-submit when PIN is complete
-    if (newPin.length === PIN_LENGTH) {
-      await processTransaction(newPin);
-    }
-  }, [pin, isProcessing]);
-
-  // Process the transaction
-  const processTransaction = async (enteredPin: string) => {
-    setIsProcessing(true);
-    setStep('sending');
-    tg?.HapticFeedback?.impactOccurred('heavy');
-
-    try {
-      // Get mnemonic for signing
-      const mnemonic = await getMnemonicForSigning(enteredPin);
-
-      // Send the transaction
-      const result = await sendTokens(
-        mnemonic,
-        recipient,
-        amount,
-        memo || undefined
-      );
-
-      setTxResult(result);
-
-      if (result.success) {
-        tg?.HapticFeedback?.notificationOccurred('success');
-        setStep('success');
-      } else {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        setStep('error');
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
-
-      // Check if it's a PIN error
-      if (errorMessage.includes('PIN') || errorMessage.includes('Decryption')) {
-        tg?.HapticFeedback?.notificationOccurred('error');
-        setShake(true);
-        setTimeout(() => {
-          setShake(false);
-          setPin('');
-          setStep('pin');
-        }, 500);
-        setIsProcessing(false);
-        return;
-      }
-
-      setTxResult({ success: false, error: errorMessage });
-      tg?.HapticFeedback?.notificationOccurred('error');
-      setStep('error');
-    }
-
-    setIsProcessing(false);
+  // Cancel transaction confirmation
+  const handleTransactionCancel = () => {
+    setPendingTransaction(null);
+    setStep('form');
   };
 
   const handleMax = () => {
@@ -161,12 +123,11 @@ export function SendScreen() {
   };
 
   const handleBack = () => {
-    if (step === 'pin') {
+    if (step === 'confirm') {
       setStep('form');
-      setPin('');
+      setPendingTransaction(null);
     } else if (step === 'error') {
       setStep('form');
-      setPin('');
       setTxResult(null);
     }
   };
@@ -345,98 +306,16 @@ export function SendScreen() {
     );
   }
 
-  // PIN entry view
-  if (step === 'pin') {
+  // Transaction confirmation view
+  if (step === 'confirm' && pendingTransaction) {
     return (
-      <BottomSheet title="Confirm" fullHeight onClose={handleBack}>
-        <div className="flex flex-col items-center justify-center p-4 pt-8">
-          <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-primary">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-
-          <h2 className="text-xl font-bold text-white mb-2">Confirm Transaction</h2>
-          <p className="text-gray-400 text-center mb-6">
-            Enter your PIN to send {amount} {config.symbol}
-          </p>
-
-          {/* Transaction summary */}
-          <div className="w-full max-w-sm bg-dark-card rounded-xl p-4 mb-6">
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-400">To</span>
-              <span className="text-white font-mono text-sm">
-                {recipient.slice(0, 12)}...{recipient.slice(-6)}
-              </span>
-            </div>
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-400">Amount</span>
-              <span className="text-white">{amount} {config.symbol}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-400">Fee</span>
-              <span className="text-white">~0.001 {config.symbol}</span>
-            </div>
-          </div>
-
-          {/* PIN dots */}
-          <div className={`flex gap-4 mb-8 ${shake ? 'animate-shake' : ''}`}>
-            {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-              <div
-                key={i}
-                className={`w-4 h-4 rounded-full transition-all ${
-                  i < pin.length ? 'bg-primary scale-110' : 'bg-gray-600'
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* Numpad */}
-          <div className="grid grid-cols-3 gap-4 w-full max-w-[280px]">
-            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'delete'].map((key) =>
-              key === '' ? (
-                <div key="empty" className="w-[72px] h-[72px]" />
-              ) : (
-                <button
-                  key={key}
-                  onClick={() => handleKeyPress(key)}
-                  disabled={isProcessing}
-                  className="w-[72px] h-[72px] rounded-full bg-dark-card flex items-center justify-center text-white text-2xl transition-all active:bg-primary/20"
-                >
-                  {key === 'delete' ? '⌫' : key}
-                </button>
-              )
-            )}
-          </div>
-
-          <style>{`
-            @keyframes shake {
-              0%, 100% { transform: translateX(0); }
-              20%, 60% { transform: translateX(-10px); }
-              40%, 80% { transform: translateX(10px); }
-            }
-            .animate-shake { animation: shake 0.5s ease-in-out; }
-          `}</style>
-        </div>
-      </BottomSheet>
-    );
-  }
-
-  // Sending view
-  if (step === 'sending') {
-    return (
-      <BottomSheet fullHeight>
-        <div className="flex flex-col items-center justify-center p-4 pt-16">
-          <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6">
-            <Loader2 className="w-10 h-10 text-primary animate-spin" />
-          </div>
-          <h2 className="text-xl font-bold text-white mb-2">Sending Transaction</h2>
-          <p className="text-gray-400 text-center">
-            Please wait while your transaction is being processed...
-          </p>
-        </div>
-      </BottomSheet>
+      <TransactionConfirmation
+        transaction={pendingTransaction}
+        onConfirm={handleTransactionConfirm}
+        onCancel={handleTransactionCancel}
+        getMnemonicForSigning={getMnemonicForSigning}
+        cachedPin={_cachedPin}
+      />
     );
   }
 
