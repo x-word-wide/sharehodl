@@ -177,7 +177,12 @@ export function MarketScreen() {
 
         {filteredEquities.length === 0 && (
           <div className="empty-state">
-            <span className="empty-icon">📈</span>
+            <span className="empty-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="48" height="48">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
+            </span>
             <p className="empty-title">No Equities Available</p>
             <p className="empty-desc">Tokenized equities will appear here when companies are onboarded</p>
           </div>
@@ -271,7 +276,8 @@ export function MarketScreen() {
             <div className="input-group">
               <label>Shares</label>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="0"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
@@ -285,7 +291,8 @@ export function MarketScreen() {
                 <div className="price-input">
                   <span className="prefix">$</span>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     placeholder={selectedEquity.price.toFixed(2)}
                     value={limitPrice}
                     onChange={e => setLimitPrice(e.target.value)}

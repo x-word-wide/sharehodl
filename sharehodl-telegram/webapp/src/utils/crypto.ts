@@ -343,6 +343,47 @@ export async function encryptData(data: string, pin: string): Promise<string> {
 }
 
 /**
+ * Safely decode base64 string to Uint8Array
+ * Handles padding, URL-safe variants, and various corruption scenarios
+ */
+function safeBase64Decode(input: string): Uint8Array {
+  if (!input || typeof input !== 'string') {
+    throw new Error('Wallet data missing or invalid.');
+  }
+
+  // Step 1: Clean up the input
+  let base64Data = input.trim();
+
+  // Remove any whitespace, newlines, or non-printable characters
+  base64Data = base64Data.replace(/[\s\n\r\t]/g, '');
+
+  // Step 2: Replace URL-safe base64 characters with standard ones
+  base64Data = base64Data.replace(/-/g, '+').replace(/_/g, '/');
+
+  // Step 3: Remove any existing padding (we'll add correct padding later)
+  base64Data = base64Data.replace(/=+$/, '');
+
+  // Step 4: Validate that only valid base64 characters remain
+  const validBase64Regex = /^[A-Za-z0-9+/]*$/;
+  if (!validBase64Regex.test(base64Data)) {
+    throw new Error('Wallet data contains invalid characters.');
+  }
+
+  // Step 5: Add correct padding
+  const paddingNeeded = (4 - (base64Data.length % 4)) % 4;
+  base64Data += '='.repeat(paddingNeeded);
+
+  // Step 6: Attempt decoding
+  try {
+    const decoded = atob(base64Data);
+    return Uint8Array.from(decoded, c => c.charCodeAt(0));
+  } catch (e) {
+    // This should rarely happen after our validation, but just in case
+    throw new Error('Failed to decode wallet data.');
+  }
+}
+
+/**
  * Decrypt data with AES-GCM
  */
 export async function decryptData(encryptedData: string, pin: string): Promise<string> {
@@ -355,7 +396,20 @@ export async function decryptData(encryptedData: string, pin: string): Promise<s
   const decoder = new TextDecoder();
 
   try {
-    const data = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+    // Decode the base64 data safely
+    let data: Uint8Array;
+    try {
+      data = safeBase64Decode(encryptedData);
+    } catch (decodeError) {
+      // SECURITY: Log error without sensitive details
+      logger.error('Wallet data decode failed');
+      throw new Error('Wallet data corrupted. Please restore your wallet from backup.');
+    }
+
+    // Validate minimum data length (16 salt + 12 iv + at least 1 byte encrypted)
+    if (data.length < 29) {
+      throw new Error('Wallet data incomplete. Please restore your wallet.');
+    }
 
     const salt = data.slice(0, 16);
     const iv = data.slice(16, 28);
@@ -390,7 +444,36 @@ export async function decryptData(encryptedData: string, pin: string): Promise<s
 
     return decoder.decode(decrypted);
   } catch (error) {
-    // Don't log specific error to avoid leaking info
-    throw new Error('Decryption failed');
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // If it's already a user-friendly message we created, pass it through
+    if (errorMessage.includes('Wallet data') ||
+        errorMessage.includes('restore') ||
+        errorMessage.includes('corrupted') ||
+        errorMessage.includes('incomplete') ||
+        errorMessage.includes('missing')) {
+      throw error;
+    }
+
+    // Base64/decoding related errors from browser
+    if (errorMessage.includes('string length') ||
+        errorMessage.includes('multiple of 4') ||
+        errorMessage.includes('atob') ||
+        errorMessage.includes('base64') ||
+        errorMessage.includes('decode')) {
+      throw new Error('Wallet data corrupted. Please restore your wallet from backup.');
+    }
+
+    // Wrong PIN (AES-GCM decryption failure)
+    if (errorMessage.includes('operation-specific') ||
+        errorMessage.includes('OperationError') ||
+        errorMessage.includes('Decryption failed') ||
+        errorMessage.includes('decrypt')) {
+      throw new Error('Incorrect PIN. Please try again.');
+    }
+
+    // SECURITY: Log error without sensitive details
+    logger.error('Decryption operation failed');
+    throw new Error('Failed to decrypt wallet. Please check your PIN.');
   }
 }

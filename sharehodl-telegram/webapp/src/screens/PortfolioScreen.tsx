@@ -3,11 +3,59 @@
  * Professional design inspired by Trust Wallet
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWalletStore } from '../services/walletStore';
 import { useStakingStore } from '../services/stakingStore';
 import { Chain, AssetHolding, CHAIN_CONFIGS, TokenType } from '../types';
+
+// Animated counter hook - smoothly counts up/down to target value
+function useAnimatedCounter(targetValue: number, duration: number = 800): number {
+  const [displayValue, setDisplayValue] = useState(targetValue);
+  const previousValue = useRef(targetValue);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const startValue = previousValue.current;
+    const diff = targetValue - startValue;
+
+    // Skip animation if no change or first render
+    if (diff === 0 || previousValue.current === targetValue) {
+      previousValue.current = targetValue;
+      return;
+    }
+
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-out cubic for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const currentValue = startValue + (diff * easeOut);
+
+      setDisplayValue(currentValue);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        previousValue.current = targetValue;
+        setDisplayValue(targetValue);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [targetValue, duration]);
+
+  return displayValue;
+}
 
 const SERVICES = [
   { id: 'staking', iconType: 'star', title: 'Staking', desc: 'Earn rewards', path: '/staking', color: '#1E40AF' },
@@ -135,13 +183,22 @@ export function PortfolioScreen() {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'crypto' | 'equity'>('equity');
+  const [hasInitiallyLoaded, setHasInitiallyLoaded] = useState(false);
+
+  // Animated balance counter
+  const animatedBalance = useAnimatedCounter(totalBalanceUsd);
 
   // Get ShareHODL address for staking
   const sharehodlAccount = accounts.find(a => a.chain === Chain.SHAREHODL);
   const address = sharehodlAccount?.address || '';
 
   useEffect(() => {
-    refreshBalances();
+    const loadData = async () => {
+      await refreshBalances();
+      setHasInitiallyLoaded(true);
+    };
+    loadData();
+
     if (address) {
       fetchStakingPosition(address);
     }
@@ -177,8 +234,47 @@ export function PortfolioScreen() {
 
   const userName = tg?.initDataUnsafe?.user?.first_name || 'there';
 
+  // Check if wallet needs activation (no balance yet)
+  // Only show after initial load completes to avoid flash
+  const needsActivation = totalBalanceUsd === 0 && hasInitiallyLoaded && !isLoading;
+
   return (
     <div className="portfolio-screen">
+      {/* Wallet Activation Banner */}
+      {needsActivation && (
+        <div className="activation-banner">
+          <div className="activation-glow" />
+          <div className="activation-content">
+            <div className="activation-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="M12 8v4" />
+                <circle cx="12" cy="16" r="1" fill="currentColor" />
+              </svg>
+            </div>
+            <div className="activation-text">
+              <h3 className="activation-title">Activate Your Wallet</h3>
+              <p className="activation-desc">
+                Your wallet is ready but not yet active on the blockchain.
+                Receive any amount to activate it and start trading.
+              </p>
+            </div>
+            <button
+              className="activation-btn"
+              onClick={() => {
+                tg?.HapticFeedback?.impactOccurred('medium');
+                navigate('/receive');
+              }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 19V5M5 12l7 7 7-7" />
+              </svg>
+              <span>Get Your Address</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="portfolio-header">
         <div className="header-left">
@@ -221,7 +317,7 @@ export function PortfolioScreen() {
           <p className="balance-label">Total Balance</p>
           <h2 className="balance-amount">
             <span className="currency">$</span>
-            {totalBalanceUsd.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {animatedBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </h2>
           <div className="balance-info">
             <div className="info-chip">
@@ -411,29 +507,40 @@ export function PortfolioScreen() {
               return (
                 <button
                   key={equity.id}
-                  className="asset-item"
+                  className="equity-card"
                   onClick={() => {
                     tg?.HapticFeedback?.impactOccurred('light');
                     navigate(`/equity/${equity.id}`);
                   }}
                 >
-                  <TokenIcon symbol={equity.symbol} color={equity.color} />
-                  <div className="asset-info">
-                    <div className="asset-name-row">
-                      <span className="asset-symbol equity-name">{equity.name}</span>
-                    </div>
-                    <div className="asset-price-row">
-                      <span className="asset-price">${equity.pricePerShare.toFixed(2)}/share</span>
-                      {equity.change24h !== 0 && (
-                        <span className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
+                  {/* Header row: Icon, Ticker, Company, Change */}
+                  <div className="equity-header">
+                    <TokenIcon symbol={equity.symbol} color={equity.color} size={48} />
+                    <div className="equity-title">
+                      <div className="equity-ticker-row">
+                        <span className="equity-ticker">{equity.symbol}</span>
+                        <span className={`equity-change ${isPositive ? 'positive' : 'negative'}`}>
                           {isPositive ? '+' : ''}{equity.change24h.toFixed(2)}%
                         </span>
-                      )}
+                      </div>
+                      <span className="equity-name">{equity.name}</span>
                     </div>
                   </div>
-                  <div className="asset-balance">
-                    <span className="balance-amount">{equity.shares.toLocaleString()}</span>
-                    <span className="balance-usd-value">${totalValue.toLocaleString()}</span>
+
+                  {/* Stats row: Shares, Price, Value */}
+                  <div className="equity-stats">
+                    <div className="equity-stat">
+                      <span className="stat-label">Shares</span>
+                      <span className="stat-value">{equity.shares.toLocaleString()}</span>
+                    </div>
+                    <div className="equity-stat">
+                      <span className="stat-label">Price</span>
+                      <span className="stat-value">${equity.pricePerShare.toFixed(2)}</span>
+                    </div>
+                    <div className="equity-stat primary">
+                      <span className="stat-label">Value</span>
+                      <span className="stat-value">${totalValue.toLocaleString()}</span>
+                    </div>
                   </div>
                 </button>
               );
@@ -940,12 +1047,19 @@ export function PortfolioScreen() {
           color: var(--text-primary);
         }
 
-        .asset-symbol.equity-name {
-          font-size: 14px;
+        .equity-company-name {
+          font-size: 13px;
+          color: var(--text-secondary);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
           max-width: 160px;
+        }
+
+        .equity-price {
+          font-size: 13px;
+          color: var(--text-secondary);
+          font-weight: 500;
         }
 
         .chain-badge {
@@ -1082,6 +1196,221 @@ export function PortfolioScreen() {
           font-weight: 600;
           color: white;
           cursor: pointer;
+        }
+
+        /* Wallet Activation Banner */
+        .activation-banner {
+          margin: 0 16px 16px;
+          padding: 20px;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(251, 191, 36, 0.1) 100%);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          border-radius: 20px;
+          position: relative;
+          overflow: hidden;
+          animation: slideDown 0.4s ease-out;
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .activation-glow {
+          position: absolute;
+          top: -50%;
+          left: -50%;
+          width: 200%;
+          height: 200%;
+          background: radial-gradient(circle at 30% 30%, rgba(245, 158, 11, 0.2) 0%, transparent 50%);
+          pointer-events: none;
+        }
+
+        .activation-content {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+        }
+
+        .activation-icon {
+          width: 56px;
+          height: 56px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, rgba(245, 158, 11, 0.25) 0%, rgba(251, 191, 36, 0.2) 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 16px;
+          box-shadow: 0 0 30px rgba(245, 158, 11, 0.3);
+        }
+
+        .activation-icon svg {
+          width: 28px;
+          height: 28px;
+          color: #F59E0B;
+        }
+
+        .activation-text {
+          margin-bottom: 18px;
+        }
+
+        .activation-title {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--text-primary);
+          margin: 0 0 8px;
+        }
+
+        .activation-desc {
+          font-size: 14px;
+          color: var(--text-secondary);
+          margin: 0;
+          line-height: 1.5;
+          max-width: 280px;
+        }
+
+        .activation-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 28px;
+          background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+          border: none;
+          border-radius: 14px;
+          font-size: 15px;
+          font-weight: 600;
+          color: white;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          box-shadow: 0 4px 20px rgba(245, 158, 11, 0.35);
+        }
+
+        .activation-btn:active {
+          transform: scale(0.97);
+        }
+
+        .activation-btn svg {
+          width: 20px;
+          height: 20px;
+        }
+
+        /* Equity Card Styles */
+        .equity-card {
+          width: 100%;
+          padding: 18px;
+          background: var(--surface-bg);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+          border: 1px solid var(--border-color);
+          border-radius: 18px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          text-align: left;
+        }
+
+        .equity-card:active {
+          transform: scale(0.98);
+          background: rgba(30, 64, 175, 0.08);
+        }
+
+        .equity-header {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 16px;
+        }
+
+        .equity-title {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .equity-ticker-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 4px;
+        }
+
+        .equity-ticker {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--text-primary);
+          letter-spacing: 0.5px;
+        }
+
+        .equity-change {
+          font-size: 14px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 8px;
+        }
+
+        .equity-change.positive {
+          color: #10b981;
+          background: rgba(16, 185, 129, 0.12);
+        }
+
+        .equity-change.negative {
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.12);
+        }
+
+        .equity-name {
+          font-size: 14px;
+          color: var(--text-secondary);
+          display: block;
+        }
+
+        .equity-stats {
+          display: flex;
+          gap: 12px;
+          padding: 14px;
+          background: rgba(0, 0, 0, 0.2);
+          border-radius: 12px;
+        }
+
+        .equity-stat {
+          flex: 1;
+          text-align: center;
+        }
+
+        .equity-stat.primary {
+          background: linear-gradient(135deg, rgba(30, 64, 175, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%);
+          margin: -14px -14px -14px 0;
+          padding: 14px;
+          border-radius: 0 12px 12px 0;
+        }
+
+        .stat-label {
+          display: block;
+          font-size: 11px;
+          font-weight: 500;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 4px;
+        }
+
+        .stat-value {
+          display: block;
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text-primary);
+        }
+
+        .equity-stat.primary .stat-value {
+          color: #60a5fa;
         }
       `}</style>
     </div>

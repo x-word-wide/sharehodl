@@ -3,8 +3,8 @@
  * Delegate, undelegate, and claim rewards
  */
 
-import { useEffect, useState } from 'react';
-import { useStakingStore } from '../services/stakingStore';
+import { useEffect, useState, useMemo } from 'react';
+import { useStakingStore, STAKING_TIERS } from '../services/stakingStore';
 import { useWalletStore } from '../services/walletStore';
 import { checkCanUnstake, formatBlockingMessage } from '../services/positionChecker';
 import { Chain, VALIDATOR_TIER_COLORS, type Validator } from '../types';
@@ -12,9 +12,12 @@ import { TransactionConfirmation, TransactionDetails } from '../components/Trans
 
 type Tab = 'stake' | 'validators' | 'rewards';
 
+// Staking fee estimate in HODL (conservative to cover gas estimation variance)
+const STAKING_FEE = 0.05;
+
 export function StakingScreen() {
   const tg = window.Telegram?.WebApp;
-  const { accounts, _cachedPin, getMnemonicForSigning } = useWalletStore();
+  const { accounts, assets, refreshBalances, _cachedPin, getMnemonicForSigning } = useWalletStore();
   const {
     position,
     validators,
@@ -36,20 +39,58 @@ export function StakingScreen() {
   const [pendingTransaction, setPendingTransaction] = useState<TransactionDetails | null>(null);
   const [pendingAction, setPendingAction] = useState<'delegate' | 'undelegate' | 'claim' | null>(null);
 
-  // Get ShareHODL address
+  // Get ShareHODL address and balance
   const sharehodlAccount = accounts.find(a => a.chain === Chain.SHAREHODL);
   const address = sharehodlAccount?.address || '';
 
+  // Get available HODL balance
+  const hodlAsset = assets.find(a => a.token.symbol === 'HODL');
+  const availableBalance = hodlAsset ? parseFloat(hodlAsset.balance) : 0;
+
+  // Calculate if amount is valid (has enough for amount + fee)
+  const parsedAmount = parseFloat(amount) || 0;
+  const hasInsufficientBalance = parsedAmount > 0 && parsedAmount + STAKING_FEE > availableBalance;
+  const maxStakeAmount = Math.max(0, availableBalance - STAKING_FEE);
+
+  // Calculate estimated rewards based on amount and current tier
+  const estimatedRewards = useMemo(() => {
+    if (!parsedAmount || parsedAmount <= 0) return null;
+    const newTotalStaked = (position?.stakedAmount || 0) + parsedAmount;
+    // Find tier for new staked amount
+    let tierMultiplier = 1;
+    for (let i = STAKING_TIERS.length - 1; i >= 0; i--) {
+      if (newTotalStaked >= STAKING_TIERS[i].minStake) {
+        tierMultiplier = STAKING_TIERS[i].rewardMultiplier;
+        break;
+      }
+    }
+    const baseApr = 0.12; // 12% base APR
+    const effectiveApr = baseApr * tierMultiplier;
+    const dailyReward = (parsedAmount * effectiveApr) / 365;
+    const monthlyReward = dailyReward * 30;
+    const yearlyReward = parsedAmount * effectiveApr;
+    return { daily: dailyReward, monthly: monthlyReward, yearly: yearlyReward, apr: effectiveApr * 100 };
+  }, [parsedAmount, position?.stakedAmount]);
+
   useEffect(() => {
     if (address) {
+      refreshBalances(); // Refresh balance to get accurate available amount
       fetchStakingPosition(address);
       fetchValidators();
     }
-  }, [address, fetchStakingPosition, fetchValidators]);
+  }, [address, refreshBalances, fetchStakingPosition, fetchValidators]);
 
   // Show transaction confirmation for delegate
   const initiateDelegate = () => {
     if (!selectedValidator || !amount) return;
+
+    // Validate sufficient balance (amount + fee)
+    const amountNum = parseFloat(amount);
+    if (amountNum + STAKING_FEE > availableBalance) {
+      tg?.HapticFeedback?.notificationOccurred('error');
+      tg?.showAlert(`Insufficient balance. You need ${amountNum.toFixed(2)} HODL + ${STAKING_FEE} HODL fee, but only have ${availableBalance.toFixed(2)} HODL available.`);
+      return;
+    }
 
     const transaction: TransactionDetails = {
       type: 'stake',
@@ -60,7 +101,7 @@ export function StakingScreen() {
         { label: 'Validator', value: selectedValidator.name },
         { label: 'Commission', value: `${(selectedValidator.commission * 100).toFixed(0)}%` },
       ],
-      fee: '~0.001 HODL',
+      fee: `~${STAKING_FEE} HODL`,
     };
 
     setPendingTransaction(transaction);
@@ -461,8 +502,10 @@ export function StakingScreen() {
       {/* Delegate Modal */}
       {showDelegateModal && (
         <div className="modal-overlay" onClick={() => setShowDelegateModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="modal-content stake-modal" onClick={e => e.stopPropagation()}>
             <h2>Stake HODL</h2>
+
+            {/* Validator Info */}
             {selectedValidator && (
               <div className="selected-validator">
                 <span className="tier-dot" style={{ background: VALIDATOR_TIER_COLORS[selectedValidator.tier] }} />
@@ -470,21 +513,92 @@ export function StakingScreen() {
                 <span className="commission">{(selectedValidator.commission * 100).toFixed(0)}% commission</span>
               </div>
             )}
+
+            {/* Available Balance */}
+            <div className="balance-info">
+              <span className="balance-label">Available Balance</span>
+              <span className="balance-value">{formatNumber(availableBalance)} HODL</span>
+            </div>
+
+            {/* Amount Input */}
             <div className="input-group">
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="Amount to stake"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
+                className={hasInsufficientBalance ? 'error' : ''}
               />
               <span className="suffix">HODL</span>
             </div>
+
+            {/* Quick Amount Buttons */}
+            <div className="quick-amounts">
+              <button onClick={() => setAmount((maxStakeAmount * 0.25).toFixed(2))}>25%</button>
+              <button onClick={() => setAmount((maxStakeAmount * 0.5).toFixed(2))}>50%</button>
+              <button onClick={() => setAmount((maxStakeAmount * 0.75).toFixed(2))}>75%</button>
+              <button onClick={() => setAmount(maxStakeAmount.toFixed(2))}>Max</button>
+            </div>
+
+            {/* Insufficient Balance Error */}
+            {hasInsufficientBalance && (
+              <div className="error-message">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 8v4M12 16h.01" />
+                </svg>
+                Insufficient balance (need {parsedAmount.toFixed(2)} + {STAKING_FEE} fee)
+              </div>
+            )}
+
+            {/* Estimated Rewards */}
+            {estimatedRewards && !hasInsufficientBalance && (
+              <div className="rewards-preview">
+                <div className="rewards-header">
+                  <span>Estimated Rewards</span>
+                  <span className="apr-tag">{estimatedRewards.apr.toFixed(1)}% APR</span>
+                </div>
+                <div className="rewards-grid">
+                  <div className="reward-item">
+                    <span className="reward-period">Daily</span>
+                    <span className="reward-amount">+{estimatedRewards.daily.toFixed(4)} HODL</span>
+                  </div>
+                  <div className="reward-item">
+                    <span className="reward-period">Monthly</span>
+                    <span className="reward-amount">+{estimatedRewards.monthly.toFixed(2)} HODL</span>
+                  </div>
+                  <div className="reward-item">
+                    <span className="reward-period">Yearly</span>
+                    <span className="reward-amount">+{estimatedRewards.yearly.toFixed(2)} HODL</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Fee Info */}
+            <div className="fee-info">
+              <span>Network Fee</span>
+              <span>~{STAKING_FEE} HODL</span>
+            </div>
+
+            {/* Tier Benefits Preview */}
+            {position && (
+              <div className="tier-preview">
+                <span className="tier-preview-label">Current Tier: </span>
+                <span className="tier-preview-name" style={{ color: position.tierConfig.color }}>
+                  {position.tierConfig.icon} {position.tierConfig.name}
+                </span>
+                <span className="tier-preview-multiplier">{position.tierConfig.rewardMultiplier}x rewards</span>
+              </div>
+            )}
+
             <div className="modal-actions">
               <button className="cancel-btn" onClick={() => setShowDelegateModal(false)}>Cancel</button>
               <button
                 className="confirm-btn"
                 onClick={initiateDelegate}
-                disabled={!amount || parseFloat(amount) <= 0}
+                disabled={!amount || parseFloat(amount) <= 0 || hasInsufficientBalance}
               >
                 Continue
               </button>
@@ -509,7 +623,8 @@ export function StakingScreen() {
             </div>
             <div className="input-group">
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 placeholder="Amount to unstake"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
@@ -1157,5 +1272,169 @@ const styles = `
   .confirm-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Enhanced Stake Modal */
+  .stake-modal {
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .balance-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: rgba(30, 64, 175, 0.1);
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  .balance-label {
+    font-size: 13px;
+    color: #8b949e;
+  }
+
+  .balance-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .input-group input.error {
+    border-color: #ef4444;
+  }
+
+  .quick-amounts {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .quick-amounts button {
+    flex: 1;
+    padding: 10px;
+    background: #30363d;
+    border: none;
+    border-radius: 8px;
+    color: #8b949e;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .quick-amounts button:active {
+    background: #1E40AF;
+    color: white;
+  }
+
+  .error-message {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border-radius: 8px;
+    color: #f87171;
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+
+  .rewards-preview {
+    background: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .rewards-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .rewards-header span:first-child {
+    font-size: 13px;
+    color: #8b949e;
+  }
+
+  .apr-tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.15);
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  .rewards-grid {
+    display: flex;
+    gap: 8px;
+  }
+
+  .reward-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .reward-period {
+    font-size: 11px;
+    color: #8b949e;
+  }
+
+  .reward-amount {
+    font-size: 12px;
+    font-weight: 600;
+    color: #10b981;
+  }
+
+  .fee-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: #0D1117;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+  }
+
+  .fee-info span:first-child {
+    color: #8b949e;
+  }
+
+  .fee-info span:last-child {
+    color: white;
+    font-weight: 500;
+  }
+
+  .tier-preview {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+    background: #0D1117;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    flex-wrap: wrap;
+  }
+
+  .tier-preview-label {
+    color: #8b949e;
+  }
+
+  .tier-preview-name {
+    font-weight: 600;
+  }
+
+  .tier-preview-multiplier {
+    margin-left: auto;
+    color: #8b949e;
   }
 `;

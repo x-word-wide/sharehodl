@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Shield,
   Key,
@@ -66,6 +67,7 @@ export function SettingsScreen() {
     clearBiometricToken
   } = useWalletStore();
   const tg = window.Telegram?.WebApp;
+  const navigate = useNavigate();
 
   // Modal state
   const [activeModal, setActiveModal] = useState<ModalType>('none');
@@ -146,13 +148,13 @@ export function SettingsScreen() {
     }
   }, []);
 
-  // SECURITY: Auto-hide recovery phrase after 60 seconds
+  // SECURITY: Auto-hide recovery phrase after 30 seconds
   useEffect(() => {
     if (recoveryPhraseLoaded) {
       recoveryPhraseTimeoutRef.current = setTimeout(() => {
         clearRecoveryPhrase();
         tg?.HapticFeedback?.notificationOccurred('warning');
-      }, 60000); // 60 seconds
+      }, 30000); // 30 seconds
 
       return () => {
         if (recoveryPhraseTimeoutRef.current) {
@@ -507,7 +509,7 @@ export function SettingsScreen() {
                 token
               );
               setSuccess('Wallet imported successfully!');
-              setTimeout(() => closeModal(), 1500);
+              setTimeout(() => { closeModal(); navigate('/portfolio'); }, 1500);
             }
             tg?.HapticFeedback?.notificationOccurred('success');
           } catch (err) {
@@ -635,7 +637,7 @@ export function SettingsScreen() {
       await importNewWallet(newWalletName || `Imported Wallet ${wallets.length + 1}`, importMnemonic, enteredPin);
       tg?.HapticFeedback?.notificationOccurred('success');
       setSuccess('Wallet imported successfully!');
-      setTimeout(() => closeModal(), 1500);
+      setTimeout(() => { closeModal(); navigate('/portfolio'); }, 1500);
     } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
       setShake(true);
@@ -702,6 +704,8 @@ export function SettingsScreen() {
       setSuccess('Wallet switched successfully!');
       setTimeout(() => {
         closeModal();
+        // Navigate to home/portfolio after switching wallet
+        navigate('/portfolio');
       }, 1000);
     } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
@@ -1377,7 +1381,7 @@ export function SettingsScreen() {
                   )}
                 </div>
 
-                <button className="modal-button primary" onClick={closeModal}>
+                <button className="modal-button primary" onClick={() => { closeModal(); navigate('/portfolio'); }}>
                   I've saved my phrase
                 </button>
               </>

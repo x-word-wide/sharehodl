@@ -2,7 +2,7 @@
  * Transaction Confirmation Component - Premium Design
  *
  * Professional transaction confirmation flow with:
- * - Beautiful animated UI
+ * - Beautiful animated UI with SVG icons
  * - Slide-to-confirm gesture
  * - Face ID / PIN authentication
  * - Smart error handling for common issues
@@ -31,6 +31,60 @@ interface TransactionConfirmationProps {
 
 type AuthStep = 'review' | 'auth' | 'processing' | 'success' | 'error';
 
+// SVG Icons for transaction types
+const TxIcons = {
+  stake: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  ),
+  unstake: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+    </svg>
+  ),
+  send: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19V5" />
+      <path d="M5 12l7-7 7 7" />
+    </svg>
+  ),
+  claim: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2v6" />
+      <path d="M12 22v-6" />
+      <path d="M4.93 4.93l4.24 4.24" />
+      <path d="M14.83 14.83l4.24 4.24" />
+      <path d="M2 12h6" />
+      <path d="M16 12h6" />
+      <path d="M4.93 19.07l4.24-4.24" />
+      <path d="M14.83 9.17l4.24-4.24" />
+    </svg>
+  ),
+  trade: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 3l4 4-4 4" />
+      <path d="M20 7H4" />
+      <path d="M8 21l-4-4 4-4" />
+      <path d="M4 17h16" />
+    </svg>
+  ),
+  escrow: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  loan: (color: string) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  ),
+};
+
 // Format number with commas
 function formatWithCommas(value: string): string {
   const num = parseFloat(value);
@@ -43,6 +97,8 @@ function formatWithCommas(value: string): string {
 
 // Parse user-friendly error messages
 function parseErrorMessage(error: string): { title: string; message: string; action?: string } {
+  const errorLower = error.toLowerCase();
+
   if (error.includes('does not exist on chain')) {
     return {
       title: 'Wallet Not Activated',
@@ -50,20 +106,40 @@ function parseErrorMessage(error: string): { title: string; message: string; act
       action: 'Receive some HODL tokens to activate your wallet'
     };
   }
-  if (error.includes('insufficient funds')) {
+
+  if (errorLower.includes('insufficient funds')) {
     return {
       title: 'Insufficient Balance',
       message: 'You don\'t have enough tokens to complete this transaction.',
       action: 'Add more tokens to your wallet'
     };
   }
-  if (error.includes('sequence')) {
+
+  if (errorLower.includes('sequence')) {
     return {
       title: 'Wallet Not Ready',
       message: 'Your wallet needs to be funded before sending transactions.',
       action: 'Receive tokens to activate your wallet'
     };
   }
+
+  // Wallet data corruption errors
+  if (errorLower.includes('corrupted') ||
+      errorLower.includes('restore') ||
+      errorLower.includes('incomplete') ||
+      errorLower.includes('invalid characters') ||
+      errorLower.includes('wallet data') ||
+      errorLower.includes('string length') ||
+      errorLower.includes('multiple of 4') ||
+      errorLower.includes('base64') ||
+      errorLower.includes('decode')) {
+    return {
+      title: 'Wallet Data Error',
+      message: 'Your wallet data appears to be corrupted.',
+      action: 'Please restore your wallet using your recovery phrase'
+    };
+  }
+
   return {
     title: 'Transaction Failed',
     message: error || 'Something went wrong. Please try again.'
@@ -256,8 +332,21 @@ export function TransactionConfirmation({
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Transaction failed';
 
-      // Check if PIN error
-      if (errorMsg.includes('PIN') || errorMsg.includes('Decryption') || errorMsg.includes('Invalid')) {
+      // Check if this is a wallet data error (not a PIN error)
+      const isWalletDataError =
+        errorMsg.includes('string length') ||
+        errorMsg.includes('corrupted') ||
+        errorMsg.includes('multiple') ||
+        errorMsg.includes('base64');
+
+      // Check if PIN error (but exclude wallet data issues)
+      const isPinError = !isWalletDataError && (
+        errorMsg.includes('PIN') ||
+        errorMsg.includes('Decryption') ||
+        errorMsg.toLowerCase().includes('incorrect')
+      );
+
+      if (isPinError) {
         setStep('auth');
         setPin(['', '', '', '', '', '']);
         setPinError('Incorrect PIN. Please try again.');
@@ -273,19 +362,20 @@ export function TransactionConfirmation({
 
   const getTypeConfig = () => {
     const configs = {
-      stake: { icon: '🔒', color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
-      unstake: { icon: '🔓', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
-      send: { icon: '↗️', color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
-      claim: { icon: '🎁', color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
-      trade: { icon: '💱', color: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' },
-      escrow: { icon: '🤝', color: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)' },
-      loan: { icon: '💰', color: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' },
+      stake: { color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+      unstake: { color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+      send: { color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
+      claim: { color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+      trade: { color: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' },
+      escrow: { color: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)' },
+      loan: { color: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' },
     };
     return configs[transaction.type] || configs.send;
   };
 
   const config = getTypeConfig();
   const formattedAmount = formatWithCommas(transaction.amount);
+  const IconComponent = TxIcons[transaction.type] || TxIcons.send;
 
   return (
     <div className="tx-overlay">
@@ -300,7 +390,9 @@ export function TransactionConfirmation({
             {/* Hero Section */}
             <div className="tx-hero">
               <div className="tx-icon-wrap" style={{ background: `${config.color}15` }}>
-                <span className="tx-icon">{config.icon}</span>
+                <div className="tx-icon">
+                  {IconComponent(config.color)}
+                </div>
               </div>
               <h2 className="tx-type-title">{transaction.title}</h2>
               <div className="tx-amount-display">
@@ -334,7 +426,13 @@ export function TransactionConfirmation({
             {/* Warning */}
             {transaction.warning && (
               <div className="tx-warning-box">
-                <div className="tx-warning-icon">⚠️</div>
+                <div className="tx-warning-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                  </svg>
+                </div>
                 <span>{transaction.warning}</span>
               </div>
             )}
@@ -483,7 +581,6 @@ export function TransactionConfirmation({
             </div>
             <h3>Success!</h3>
             <p>Your {transaction.type} of {formattedAmount} {transaction.token} is complete</p>
-            <div className="tx-success-confetti" />
           </div>
         )}
 
@@ -500,7 +597,11 @@ export function TransactionConfirmation({
             <p>{errorInfo.message}</p>
             {errorInfo.action && (
               <div className="tx-error-action">
-                <span>💡</span> {errorInfo.action}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4M12 8h.01" />
+                </svg>
+                <span>{errorInfo.action}</span>
               </div>
             )}
             <div className="tx-error-buttons">
@@ -593,7 +694,13 @@ const styles = `
   }
 
   .tx-icon {
-    font-size: 40px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .tx-icon svg {
+    width: 100%;
+    height: 100%;
   }
 
   .tx-type-title {
@@ -679,8 +786,15 @@ const styles = `
   }
 
   .tx-warning-icon {
-    font-size: 18px;
     flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    color: #fbbf24;
+  }
+
+  .tx-warning-icon svg {
+    width: 100%;
+    height: 100%;
   }
 
   .tx-warning-box span {
@@ -806,12 +920,12 @@ const styles = `
   }
 
   .tx-pin-input {
-    width: 52px;
-    height: 64px;
+    width: 48px;
+    height: 56px;
     border: 2px solid #2d3748;
-    border-radius: 14px;
+    border-radius: 12px;
     background: #0f1318;
-    font-size: 28px;
+    font-size: 24px;
     font-weight: 700;
     color: white;
     text-align: center;
@@ -1055,6 +1169,10 @@ const styles = `
     font-size: 14px;
     color: #60a5fa;
     margin: 0 0 24px;
+  }
+
+  .tx-error-action svg {
+    flex-shrink: 0;
   }
 
   .tx-error-buttons {

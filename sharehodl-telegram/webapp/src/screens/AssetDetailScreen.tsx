@@ -35,7 +35,9 @@ export function AssetDetailScreen() {
 
   // Fetch transactions for ShareHODL chain
   const loadTransactions = useCallback(async () => {
+    console.log('[AssetDetail] loadTransactions called', { asset: asset?.address, chain: token?.chain });
     if (!asset || token?.chain !== Chain.SHAREHODL) {
+      console.log('[AssetDetail] Skipping - not ShareHODL chain or no asset');
       setTransactions([]);
       setIsLoadingTxs(false);
       return;
@@ -43,10 +45,12 @@ export function AssetDetailScreen() {
 
     setIsLoadingTxs(true);
     try {
+      console.log('[AssetDetail] Fetching tx history for:', asset.address);
       const result = await fetchTransactionHistory(asset.address, 20);
+      console.log('[AssetDetail] Result:', result);
       setTransactions(result.transactions);
     } catch (error) {
-      console.error('Failed to load transactions:', error);
+      console.error('[AssetDetail] Failed to load transactions:', error);
     } finally {
       setIsLoadingTxs(false);
     }
@@ -199,6 +203,10 @@ export function AssetDetailScreen() {
       {/* Transactions */}
       <div className="transactions-section">
         <h3 className="section-title">Recent Transactions</h3>
+        {/* DEBUG: Show address being queried */}
+        <p style={{ fontSize: '10px', color: '#666', marginBottom: '8px', wordBreak: 'break-all' }}>
+          Debug: {asset.address} | Chain: {token?.chain} | Found: {transactions.length}
+        </p>
 
         {isLoadingTxs ? (
           <div className="empty-transactions">

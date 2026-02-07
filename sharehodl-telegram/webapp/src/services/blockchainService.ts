@@ -27,14 +27,58 @@ interface RateLimitEntry {
   resetTime: number;
 }
 
+// SECURITY: Persistent rate limiter that survives page reloads
 class RateLimiter {
   private limits: Map<string, RateLimitEntry> = new Map();
   private readonly maxRequests: number;
   private readonly windowMs: number;
+  private readonly storageKey: string;
 
-  constructor(maxRequests: number = 10, windowMs: number = 60000) {
+  constructor(maxRequests: number = 10, windowMs: number = 60000, storageKey: string = 'sh_rate_limit') {
     this.maxRequests = maxRequests;
     this.windowMs = windowMs;
+    this.storageKey = storageKey;
+    this.loadFromStorage();
+  }
+
+  /**
+   * Load rate limit state from localStorage
+   */
+  private loadFromStorage(): void {
+    try {
+      const stored = localStorage.getItem(this.storageKey);
+      if (stored) {
+        const data = JSON.parse(stored) as Record<string, RateLimitEntry>;
+        const now = Date.now();
+        // Only load entries that haven't expired
+        for (const [key, entry] of Object.entries(data)) {
+          if (entry.resetTime > now) {
+            this.limits.set(key, entry);
+          }
+        }
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }
+
+  /**
+   * Save rate limit state to localStorage
+   */
+  private saveToStorage(): void {
+    try {
+      const data: Record<string, RateLimitEntry> = {};
+      const now = Date.now();
+      // Only save entries that haven't expired
+      for (const [key, entry] of this.limits.entries()) {
+        if (entry.resetTime > now) {
+          data[key] = entry;
+        }
+      }
+      localStorage.setItem(this.storageKey, JSON.stringify(data));
+    } catch {
+      // Ignore storage errors
+    }
   }
 
   /**
@@ -49,6 +93,7 @@ class RateLimiter {
     if (!entry || now >= entry.resetTime) {
       // New window
       this.limits.set(key, { count: 1, resetTime: now + this.windowMs });
+      this.saveToStorage();
       return true;
     }
 
@@ -57,6 +102,7 @@ class RateLimiter {
     }
 
     entry.count++;
+    this.saveToStorage();
     return true;
   }
 
@@ -71,8 +117,8 @@ class RateLimiter {
 }
 
 // SECURITY: Global rate limiters for different operation types
-const queryRateLimiter = new RateLimiter(30, 60000);  // 30 queries per minute
-const txRateLimiter = new RateLimiter(5, 60000);      // 5 transactions per minute
+const queryRateLimiter = new RateLimiter(30, 60000, 'sh_query_rate_limit');  // 30 queries per minute
+const txRateLimiter = new RateLimiter(5, 60000, 'sh_tx_rate_limit');        // 5 transactions per minute
 
 // Response types
 export interface TransactionResult {
@@ -602,7 +648,7 @@ export async function fetchTransactionHistory(
 }> {
   // SECURITY: Rate limiting check
   if (!queryRateLimiter.check(`txHistory:${address}`)) {
-    logger.warn('Rate limit exceeded for transaction history', { address });
+    logger.warn('Rate limit exceeded for transaction history');
     return { transactions: [], error: 'Rate limit exceeded' };
   }
 
@@ -617,7 +663,26 @@ export async function fetchTransactionHistory(
       counterparty?: string;
     }> = [];
 
-    // Use Tendermint RPC tx_search - more reliable than REST API
+    // Query by transfer.recipient (received transactions) - check this first
+    const receivedQuery = encodeURIComponent(`"transfer.recipient='${address}'"`);
+    const receivedUrl = `${RPC_URL}/tx_search?query=${receivedQuery}&per_page=${limit}&order_by="desc"`;
+
+    const receivedResponse = await fetch(receivedUrl);
+
+    if (receivedResponse.ok) {
+      const receivedData = await receivedResponse.json();
+      const txs = receivedData.result?.txs || [];
+
+      for (const tx of txs) {
+        const txResult = await parseTendermintTx(tx, address, 'RECEIVE');
+        if (txResult) {
+          transactions.push(txResult);
+        }
+      }
+    } else {
+      logger.warn('Failed to fetch received transactions');
+    }
+
     // Query by transfer.sender (sent transactions)
     const sentQuery = encodeURIComponent(`"transfer.sender='${address}'"`);
     const sentResponse = await fetch(
@@ -627,25 +692,8 @@ export async function fetchTransactionHistory(
     if (sentResponse.ok) {
       const sentData = await sentResponse.json();
       for (const tx of sentData.result?.txs || []) {
-        const txResult = await parseTendermintTx(tx, address, 'SEND');
-        if (txResult) {
-          transactions.push(txResult);
-        }
-      }
-    }
-
-    // Query by transfer.recipient (received transactions)
-    const receivedQuery = encodeURIComponent(`"transfer.recipient='${address}'"`);
-    const receivedResponse = await fetch(
-      `${RPC_URL}/tx_search?query=${receivedQuery}&per_page=${limit}&order_by="desc"`
-    );
-
-    if (receivedResponse.ok) {
-      const receivedData = await receivedResponse.json();
-      for (const tx of receivedData.result?.txs || []) {
-        // Skip if already added
         if (!transactions.some(t => t.hash === tx.hash)) {
-          const txResult = await parseTendermintTx(tx, address, 'RECEIVE');
+          const txResult = await parseTendermintTx(tx, address, 'SEND');
           if (txResult) {
             transactions.push(txResult);
           }
@@ -662,7 +710,6 @@ export async function fetchTransactionHistory(
     if (msgResponse.ok) {
       const msgData = await msgResponse.json();
       for (const tx of msgData.result?.txs || []) {
-        // Skip if already added
         if (!transactions.some(t => t.hash === tx.hash)) {
           const txResult = await parseTendermintTx(tx, address, 'SEND');
           if (txResult) {
@@ -677,17 +724,18 @@ export async function fetchTransactionHistory(
 
     return { transactions: transactions.slice(0, limit) };
   } catch (error) {
-    logger.error('Failed to fetch transaction history:', error);
+    logger.error('Failed to fetch transaction history');
     return { transactions: [], error: 'Failed to fetch transactions' };
   }
 }
 
 /**
  * Parse a Tendermint tx_search result into a transaction item
+ * Uses coin_received/coin_spent events which are more reliable than transfer events
  */
 async function parseTendermintTx(
-  tx: { hash: string; height: string; tx_result?: { events?: Array<{ type: string; attributes: Array<{ key: string; value: string }> }> } },
-  _userAddress: string,
+  tx: { hash: string; height: string; tx_result?: { events?: Array<{ type: string; attributes: Array<{ key: string; value: string; index?: boolean }> }> } },
+  userAddress: string,
   defaultType: 'SEND' | 'RECEIVE'
 ): Promise<{
   hash: string;
@@ -697,46 +745,109 @@ async function parseTendermintTx(
   timestamp: number;
   height: number;
   counterparty?: string;
+  fee?: string;
 } | null> {
   try {
     const events = tx.tx_result?.events || [];
     let type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM' = defaultType;
     let amount = '0';
+    let fee = '0';
     let counterparty = '';
+    const userAddrLower = userAddress.toLowerCase();
+
+    // Extract fee from tx_fee or fee event
+    const feeEvent = events.find(e => e.type === 'tx' || e.type === 'fee');
+    if (feeEvent) {
+      const feeAttr = feeEvent.attributes.find(a => a.key === 'fee');
+      if (feeAttr) {
+        const match = feeAttr.value.match(/(\d+)/);
+        if (match) {
+          fee = (parseInt(match[1]) / 1_000_000).toFixed(4);
+        }
+      }
+    }
 
     // Look for message type in events
     const messageEvent = events.find(e => e.type === 'message');
-    const messageAction = messageEvent?.attributes.find(a => {
-      // Tendermint RPC returns base64 encoded values
-      const decodedKey = atob(a.key);
-      return decodedKey === 'action';
-    });
-
-    if (messageAction) {
-      const action = atob(messageAction.value);
-      if (action.includes('MsgDelegate')) type = 'STAKE';
-      else if (action.includes('MsgUndelegate')) type = 'UNSTAKE';
-      else if (action.includes('MsgWithdrawDelegatorReward')) type = 'CLAIM';
+    if (messageEvent) {
+      const messageAction = messageEvent.attributes.find(a => a.key === 'action');
+      if (messageAction) {
+        const action = messageAction.value;
+        if (action.includes('MsgDelegate')) type = 'STAKE';
+        else if (action.includes('MsgUndelegate')) type = 'UNSTAKE';
+        else if (action.includes('MsgWithdrawDelegatorReward')) type = 'CLAIM';
+      }
     }
 
-    // Get amount from transfer event
-    const transferEvent = events.find(e => e.type === 'transfer');
-    if (transferEvent) {
-      for (const attr of transferEvent.attributes) {
-        const key = atob(attr.key);
-        const value = atob(attr.value);
-        if (key === 'amount') {
-          // Parse amount like "100000000uhodl"
-          const match = value.match(/(\d+)/);
+    // Strategy 1: Use coin_received for RECEIVE, coin_spent for SEND
+    // These events are more reliable and directly tied to the user's address
+    if (defaultType === 'RECEIVE') {
+      const coinReceivedEvents = events.filter(e => e.type === 'coin_received');
+      for (const event of coinReceivedEvents) {
+        const attrs: Record<string, string> = {};
+        for (const attr of event.attributes) {
+          attrs[attr.key] = attr.value;
+        }
+        if (attrs['receiver']?.toLowerCase() === userAddrLower && attrs['amount']) {
+          const match = attrs['amount'].match(/(\d+)/);
           if (match) {
-            amount = match[1];
+            const parsedAmt = parseInt(match[1]);
+            // Take the largest amount (skip fee-sized amounts < 100000 = 0.1 HODL)
+            if (parsedAmt > parseInt(amount) && parsedAmt > 100000) {
+              amount = match[1];
+            }
           }
         }
-        if (key === 'recipient' && defaultType === 'SEND') {
-          counterparty = value;
+      }
+    } else {
+      // For SEND, use coin_spent but exclude fees (small amounts)
+      const coinSpentEvents = events.filter(e => e.type === 'coin_spent');
+      for (const event of coinSpentEvents) {
+        const attrs: Record<string, string> = {};
+        for (const attr of event.attributes) {
+          attrs[attr.key] = attr.value;
         }
-        if (key === 'sender' && defaultType === 'RECEIVE') {
-          counterparty = value;
+        if (attrs['spender']?.toLowerCase() === userAddrLower && attrs['amount']) {
+          const match = attrs['amount'].match(/(\d+)/);
+          if (match) {
+            const parsedAmt = parseInt(match[1]);
+            // Take the largest amount (the actual transfer, not fees)
+            if (parsedAmt > parseInt(amount)) {
+              amount = match[1];
+            }
+          }
+        }
+      }
+    }
+
+    // Strategy 2: Fallback to transfer events if coin_received/spent didn't work
+    if (amount === '0') {
+      const transferEvents = events.filter(e => e.type === 'transfer');
+      let maxAmount = 0;
+
+      for (const transferEvent of transferEvents) {
+        const attrs: Record<string, string> = {};
+        for (const attr of transferEvent.attributes) {
+          attrs[attr.key] = attr.value;
+        }
+
+        const recipient = attrs['recipient'] || '';
+        const sender = attrs['sender'] || '';
+
+        const isUserTransfer = defaultType === 'RECEIVE'
+          ? recipient.toLowerCase() === userAddrLower
+          : sender.toLowerCase() === userAddrLower;
+
+        if (isUserTransfer && attrs['amount']) {
+          const match = attrs['amount'].match(/(\d+)/);
+          if (match) {
+            const parsedAmt = parseInt(match[1]);
+            if (parsedAmt > maxAmount) {
+              maxAmount = parsedAmt;
+              amount = match[1];
+              counterparty = defaultType === 'SEND' ? recipient : sender;
+            }
+          }
         }
       }
     }
@@ -746,62 +857,89 @@ async function parseTendermintTx(
       const stakingEvent = events.find(e => e.type === 'delegate' || e.type === 'unbond');
       if (stakingEvent) {
         for (const attr of stakingEvent.attributes) {
-          const key = atob(attr.key);
-          const value = atob(attr.value);
-          if (key === 'amount') {
-            const match = value.match(/(\d+)/);
+          if (attr.key === 'amount') {
+            const match = attr.value.match(/(\d+)/);
             if (match) {
               amount = match[1];
             }
           }
-          if (key === 'validator') {
-            counterparty = value;
+          if (attr.key === 'validator') {
+            counterparty = attr.value;
           }
         }
       }
     }
 
     const height = parseInt(tx.height);
+    const parsedAmount = parseInt(amount) / 1_000_000;
+
+    // Format amount nicely: no decimals for whole numbers, max 2 for others
+    const formattedAmount = parsedAmount >= 1
+      ? (Number.isInteger(parsedAmount) ? parsedAmount.toString() : parsedAmount.toFixed(2))
+      : parsedAmount.toFixed(4);
 
     return {
       hash: tx.hash,
       type,
-      amount: (parseInt(amount) / 1_000_000).toFixed(6),
+      amount: formattedAmount,
       symbol: 'HODL',
       timestamp: Date.now() - (height * 2000), // Approximate timestamp (2s blocks)
       height,
       counterparty,
+      fee: fee !== '0' ? fee : undefined,
     };
-  } catch {
+  } catch (error) {
+    logger.error('Error parsing transaction');
     return null;
   }
 }
 
 /**
- * Validate a ShareHODL address
+ * Validate a ShareHODL address (bech32 format)
  */
 export function validateAddress(address: string): { valid: boolean; error?: string } {
   if (!address) {
     return { valid: false, error: 'Address is required' };
   }
 
+  // Trim any whitespace
+  const cleanAddress = address.trim();
+
   // Check prefix
-  if (!address.startsWith(ADDRESS_PREFIX)) {
-    return { valid: false, error: `Address must start with '${ADDRESS_PREFIX}'` };
+  if (!cleanAddress.startsWith(ADDRESS_PREFIX)) {
+    return { valid: false, error: `Invalid address. Must start with '${ADDRESS_PREFIX}'` };
   }
 
-  // Check length (hodl addresses are typically 43-45 chars)
-  if (address.length < 40 || address.length > 60) {
-    return { valid: false, error: 'Invalid address length' };
+  // Check for bech32 separator (must have '1' after prefix)
+  const separatorIndex = cleanAddress.indexOf('1');
+  if (separatorIndex !== ADDRESS_PREFIX.length) {
+    return { valid: false, error: 'Invalid address format' };
   }
 
-  // Check for valid bech32 characters
+  // Check length (hodl addresses are typically 43-45 chars: hodl1 + 38-40 chars)
+  if (cleanAddress.length < 43 || cleanAddress.length > 50) {
+    return { valid: false, error: `Invalid address length (${cleanAddress.length} chars)` };
+  }
+
+  // Check for valid bech32 characters in data part
   const bech32Chars = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-  const dataPart = address.slice(ADDRESS_PREFIX.length + 1); // Skip prefix and separator
+  const dataPart = cleanAddress.slice(separatorIndex + 1); // Skip prefix and separator
+
+  if (dataPart.length === 0) {
+    return { valid: false, error: 'Invalid address - missing data' };
+  }
+
   for (const char of dataPart.toLowerCase()) {
     if (!bech32Chars.includes(char)) {
-      return { valid: false, error: 'Invalid address characters' };
+      return { valid: false, error: `Invalid character '${char}' in address` };
     }
+  }
+
+  // Check it doesn't contain mixed case (bech32 should be all lowercase or all uppercase)
+  const hasUpper = /[A-Z]/.test(dataPart);
+  const hasLower = /[a-z]/.test(dataPart);
+  if (hasUpper && hasLower) {
+    return { valid: false, error: 'Address has mixed case - invalid format' };
   }
 
   return { valid: true };

@@ -35,6 +35,7 @@ import {
   clearSecurityData,
   formatLockoutTime,
   getSecurityState,
+  validatePinComplexity,
   type SecurityState
 } from '../utils/security';
 
@@ -79,9 +80,9 @@ const STORAGE_KEYS = {
   BIOMETRIC_TOKEN: 'sh_biometric_token'
 };
 
-// SECURITY: PIN cache timeout (5 minutes)
-// After this period, cached PIN is cleared to reduce exposure window
-const PIN_CACHE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+// SECURITY: PIN cache timeout (30 seconds)
+// Short timeout to minimize PIN exposure window in memory
+const PIN_CACHE_TIMEOUT_MS = 30 * 1000; // 30 seconds
 
 // Check if cached PIN has expired
 function isPinCacheExpired(timestamp: number | null): boolean {
@@ -228,6 +229,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // SECURITY: Validate PIN complexity before creating wallet
+      const pinValidation = validatePinComplexity(pin);
+      if (!pinValidation.isValid) {
+        throw new Error(pinValidation.errors[0]);
+      }
+
       // Generate mnemonic
       const mnemonic = generateMnemonic(256); // 24 words
 
@@ -296,6 +303,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // SECURITY: Validate PIN complexity before importing wallet
+      const pinValidation = validatePinComplexity(pin);
+      if (!pinValidation.isValid) {
+        throw new Error(pinValidation.errors[0]);
+      }
+
       // Validate mnemonic
       if (!validateMnemonic(mnemonic.trim())) {
         throw new Error('Invalid mnemonic phrase');
@@ -642,7 +655,20 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // Get mnemonic for transaction signing
   // SECURITY: This should only be called when needed for signing
   getMnemonicForSigning: async (pin: string): Promise<string> => {
-    const encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    // Get the active wallet's encrypted mnemonic (wallet-specific key first, fallback to main key)
+    const activeWalletId = localStorage.getItem(STORAGE_KEYS.ACTIVE_WALLET_ID);
+    let encrypted: string | null = null;
+
+    if (activeWalletId) {
+      // Try wallet-specific key first
+      encrypted = localStorage.getItem(`${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${activeWalletId}`);
+    }
+
+    // Fallback to main key for backward compatibility
+    if (!encrypted) {
+      encrypted = localStorage.getItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
+    }
+
     if (!encrypted) {
       throw new Error('No wallet found');
     }
@@ -651,7 +677,30 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       const mnemonic = await decryptData(encrypted, pin);
       return mnemonic;
     } catch (error) {
-      throw new Error('Invalid PIN');
+      // Preserve specific error messages for wallet data issues
+      const errorMsg = error instanceof Error ? error.message : '';
+
+      // These indicate wallet data corruption - pass through as-is
+      const isWalletDataError =
+        errorMsg.includes('corrupted') ||
+        errorMsg.includes('restore') ||
+        errorMsg.includes('Wallet data') ||
+        errorMsg.includes('incomplete') ||
+        errorMsg.includes('missing') ||
+        errorMsg.includes('invalid characters') ||
+        errorMsg.includes('decode');
+
+      if (isWalletDataError) {
+        throw error;
+      }
+
+      // If the error message indicates wrong PIN, pass it through
+      if (errorMsg.includes('Incorrect PIN')) {
+        throw error;
+      }
+
+      // Default to PIN error for other decryption failures
+      throw new Error('Incorrect PIN. Please try again.');
     }
   },
 
@@ -715,6 +764,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // SECURITY: Validate PIN complexity
+      const pinValidation = validatePinComplexity(pin);
+      if (!pinValidation.isValid) {
+        throw new Error(pinValidation.errors[0]);
+      }
+
       // Generate new mnemonic
       const mnemonic = generateMnemonic(256);
       const walletId = generateSecureWalletId();
@@ -779,6 +834,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // SECURITY: Validate PIN complexity
+      const pinValidation = validatePinComplexity(pin);
+      if (!pinValidation.isValid) {
+        throw new Error(pinValidation.errors[0]);
+      }
+
       // Clean and normalize the mnemonic (lowercase, collapse whitespace for BIP39 validation)
       const cleanMnemonic = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -894,6 +955,12 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   changePin: async (currentPin: string, newPin: string): Promise<void> => {
+    // SECURITY: Validate new PIN complexity
+    const pinValidation = validatePinComplexity(newPin);
+    if (!pinValidation.isValid) {
+      throw new Error(pinValidation.errors[0]);
+    }
+
     // Verify current PIN
     const isValid = await get().verifyPin(currentPin);
     if (!isValid) throw new Error('Current PIN is incorrect');
