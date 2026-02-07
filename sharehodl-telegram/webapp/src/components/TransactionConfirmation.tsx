@@ -1,10 +1,11 @@
 /**
- * Transaction Confirmation Component
+ * Transaction Confirmation Component - Premium Design
  *
- * A professional transaction confirmation flow with:
- * - Transaction details display
+ * Professional transaction confirmation flow with:
+ * - Beautiful animated UI
  * - Slide-to-confirm gesture
  * - Face ID / PIN authentication
+ * - Smart error handling for common issues
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -28,7 +29,46 @@ interface TransactionConfirmationProps {
   cachedPin: string | null;
 }
 
-type AuthStep = 'review' | 'slide' | 'auth' | 'processing' | 'success' | 'error';
+type AuthStep = 'review' | 'auth' | 'processing' | 'success' | 'error';
+
+// Format number with commas
+function formatWithCommas(value: string): string {
+  const num = parseFloat(value);
+  if (isNaN(num)) return value;
+  return num.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6
+  });
+}
+
+// Parse user-friendly error messages
+function parseErrorMessage(error: string): { title: string; message: string; action?: string } {
+  if (error.includes('does not exist on chain')) {
+    return {
+      title: 'Wallet Not Activated',
+      message: 'Your wallet needs to receive tokens first before you can send transactions.',
+      action: 'Receive some HODL tokens to activate your wallet'
+    };
+  }
+  if (error.includes('insufficient funds')) {
+    return {
+      title: 'Insufficient Balance',
+      message: 'You don\'t have enough tokens to complete this transaction.',
+      action: 'Add more tokens to your wallet'
+    };
+  }
+  if (error.includes('sequence')) {
+    return {
+      title: 'Wallet Not Ready',
+      message: 'Your wallet needs to be funded before sending transactions.',
+      action: 'Receive tokens to activate your wallet'
+    };
+  }
+  return {
+    title: 'Transaction Failed',
+    message: error || 'Something went wrong. Please try again.'
+  };
+}
 
 export function TransactionConfirmation({
   transaction,
@@ -44,11 +84,11 @@ export function TransactionConfirmation({
   const [isSliding, setIsSliding] = useState(false);
   const [pin, setPin] = useState(['', '', '', '', '', '']);
   const [pinError, setPinError] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{ title: string; message: string; action?: string } | null>(null);
   const [isBiometricAvailable, setIsBiometricAvailable] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [slideCompleted, setSlideCompleted] = useState(false);
 
-  const sliderRef = useRef<HTMLDivElement>(null);
   const sliderTrackRef = useRef<HTMLDivElement>(null);
   const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const startXRef = useRef(0);
@@ -56,8 +96,6 @@ export function TransactionConfirmation({
 
   // Check for biometric availability
   useEffect(() => {
-    // Check if biometric is available via Telegram WebApp
-    // BiometricManager is available in newer versions of Telegram WebApp API
     const biometricManager = (tg as any)?.BiometricManager;
     if (biometricManager?.isBiometricAvailable) {
       setIsBiometricAvailable(true);
@@ -85,7 +123,6 @@ export function TransactionConfirmation({
     setIsAuthenticating(true);
 
     try {
-      // Request biometric authentication
       biometricManager.authenticate({
         reason: `Confirm ${transaction.type} transaction`
       }, async (success: boolean, token?: string) => {
@@ -93,7 +130,6 @@ export function TransactionConfirmation({
           tg?.HapticFeedback?.notificationOccurred('success');
           await handleBiometricSuccess(token);
         } else {
-          // Fall back to PIN entry
           setIsAuthenticating(false);
           tg?.HapticFeedback?.notificationOccurred('error');
         }
@@ -106,42 +142,40 @@ export function TransactionConfirmation({
   const handleBiometricSuccess = async (_token: string) => {
     setStep('processing');
     try {
-      // For biometric, we use the cached PIN if available
-      // The token validates the biometric was successful
       if (cachedPin) {
         const mnemonic = await getMnemonicForSigning(cachedPin);
         await onConfirm(mnemonic);
         setStep('success');
         tg?.HapticFeedback?.notificationOccurred('success');
-        setTimeout(onCancel, 1500);
+        setTimeout(onCancel, 2000);
       } else {
-        // No cached PIN, need to enter manually
         setStep('auth');
         setIsAuthenticating(false);
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Transaction failed';
+      setErrorInfo(parseErrorMessage(errorMsg));
       setStep('error');
-      setErrorMessage(error instanceof Error ? error.message : 'Transaction failed');
       tg?.HapticFeedback?.notificationOccurred('error');
     }
   };
 
   const handleSlideStart = (e: React.TouchEvent | React.MouseEvent) => {
-    if (step !== 'review') return;
+    if (step !== 'review' || slideCompleted) return;
 
     setIsSliding(true);
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     startXRef.current = clientX;
 
     if (sliderTrackRef.current) {
-      slideWidthRef.current = sliderTrackRef.current.offsetWidth - 60; // 60 = slider button width
+      slideWidthRef.current = sliderTrackRef.current.offsetWidth - 64;
     }
 
     tg?.HapticFeedback?.impactOccurred('light');
   };
 
   const handleSlideMove = useCallback((e: TouchEvent | MouseEvent) => {
-    if (!isSliding) return;
+    if (!isSliding || slideCompleted) return;
 
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const deltaX = clientX - startXRef.current;
@@ -149,34 +183,32 @@ export function TransactionConfirmation({
     setSlideProgress(progress);
 
     // Haptic feedback at milestones
-    if (progress > 25 && progress < 30) {
+    if (progress >= 25 && progress < 27) {
       tg?.HapticFeedback?.impactOccurred('light');
-    } else if (progress > 50 && progress < 55) {
+    } else if (progress >= 50 && progress < 52) {
       tg?.HapticFeedback?.impactOccurred('medium');
-    } else if (progress > 75 && progress < 80) {
+    } else if (progress >= 75 && progress < 77) {
+      tg?.HapticFeedback?.impactOccurred('medium');
+    } else if (progress >= 95) {
       tg?.HapticFeedback?.impactOccurred('heavy');
     }
-  }, [isSliding, tg]);
+  }, [isSliding, slideCompleted, tg]);
 
   const handleSlideEnd = useCallback(() => {
-    if (!isSliding) return;
+    if (!isSliding || slideCompleted) return;
 
     setIsSliding(false);
 
-    if (slideProgress >= 95) {
-      // Completed slide
+    if (slideProgress >= 92) {
+      setSlideCompleted(true);
       setSlideProgress(100);
       tg?.HapticFeedback?.notificationOccurred('success');
-      setTimeout(() => {
-        setStep('auth');
-      }, 200);
+      setTimeout(() => setStep('auth'), 300);
     } else {
-      // Reset
       setSlideProgress(0);
     }
-  }, [isSliding, slideProgress, tg]);
+  }, [isSliding, slideProgress, slideCompleted, tg]);
 
-  // Add/remove global listeners for slide
   useEffect(() => {
     if (isSliding) {
       window.addEventListener('mousemove', handleSlideMove);
@@ -201,12 +233,10 @@ export function TransactionConfirmation({
     setPin(newPin);
     setPinError(null);
 
-    // Auto-focus next input
     if (value && index < 5) {
       pinInputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all digits entered
     if (value && index === 5 && newPin.every(d => d !== '')) {
       handlePinSubmit(newPin.join(''));
     }
@@ -228,168 +258,173 @@ export function TransactionConfirmation({
       await onConfirm(mnemonic);
       setStep('success');
       tg?.HapticFeedback?.notificationOccurred('success');
-      setTimeout(onCancel, 1500);
+      setTimeout(onCancel, 2000);
     } catch (error) {
-      setStep('auth');
-      setPin(['', '', '', '', '', '']);
-      setPinError('Invalid PIN. Please try again.');
-      tg?.HapticFeedback?.notificationOccurred('error');
-      setTimeout(() => pinInputRefs.current[0]?.focus(), 100);
+      const errorMsg = error instanceof Error ? error.message : 'Transaction failed';
+
+      // Check if PIN error
+      if (errorMsg.includes('PIN') || errorMsg.includes('Decryption') || errorMsg.includes('Invalid')) {
+        setStep('auth');
+        setPin(['', '', '', '', '', '']);
+        setPinError('Incorrect PIN. Please try again.');
+        tg?.HapticFeedback?.notificationOccurred('error');
+        setTimeout(() => pinInputRefs.current[0]?.focus(), 100);
+      } else {
+        setErrorInfo(parseErrorMessage(errorMsg));
+        setStep('error');
+        tg?.HapticFeedback?.notificationOccurred('error');
+      }
     }
   };
 
-  const getTypeIcon = () => {
-    switch (transaction.type) {
-      case 'stake': return '🔒';
-      case 'unstake': return '🔓';
-      case 'send': return '↗️';
-      case 'claim': return '🎁';
-      case 'trade': return '💱';
-      case 'escrow': return '🤝';
-      case 'loan': return '💰';
-      default: return '📝';
-    }
+  const getTypeConfig = () => {
+    const configs = {
+      stake: { icon: '🔒', color: '#10b981', gradient: 'linear-gradient(135deg, #10b981 0%, #059669 100%)' },
+      unstake: { icon: '🔓', color: '#f59e0b', gradient: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
+      send: { icon: '↗️', color: '#3b82f6', gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' },
+      claim: { icon: '🎁', color: '#8b5cf6', gradient: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)' },
+      trade: { icon: '💱', color: '#06b6d4', gradient: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)' },
+      escrow: { icon: '🤝', color: '#ec4899', gradient: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)' },
+      loan: { icon: '💰', color: '#f97316', gradient: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' },
+    };
+    return configs[transaction.type] || configs.send;
   };
 
-  const getTypeColor = () => {
-    switch (transaction.type) {
-      case 'stake': return '#10b981';
-      case 'unstake': return '#f59e0b';
-      case 'send': return '#3b82f6';
-      case 'claim': return '#8b5cf6';
-      case 'trade': return '#06b6d4';
-      case 'escrow': return '#ec4899';
-      case 'loan': return '#f97316';
-      default: return '#6b7280';
-    }
-  };
+  const config = getTypeConfig();
+  const formattedAmount = formatWithCommas(transaction.amount);
 
   return (
-    <div className="tx-confirm-overlay">
-      <div className="tx-confirm-container">
-        {/* Header */}
-        <div className="tx-confirm-header">
-          <button className="close-btn" onClick={onCancel}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-          <h2>{step === 'success' ? 'Success!' : step === 'error' ? 'Failed' : 'Confirm Transaction'}</h2>
-          <div className="spacer" />
-        </div>
+    <div className="tx-overlay">
+      <div className="tx-backdrop" onClick={onCancel} />
+      <div className="tx-sheet">
+        {/* Drag indicator */}
+        <div className="tx-drag-indicator" />
 
-        {/* Content based on step */}
-        {(step === 'review' || step === 'slide') && (
+        {/* REVIEW STEP */}
+        {step === 'review' && (
           <>
-            {/* Transaction Summary */}
-            <div className="tx-summary">
-              <div className="tx-icon" style={{ backgroundColor: `${getTypeColor()}20` }}>
-                <span>{getTypeIcon()}</span>
+            {/* Hero Section */}
+            <div className="tx-hero">
+              <div className="tx-icon-wrap" style={{ background: `${config.color}15` }}>
+                <span className="tx-icon">{config.icon}</span>
               </div>
-              <h3 className="tx-title">{transaction.title}</h3>
-              <div className="tx-amount">
-                <span className="amount">{transaction.amount}</span>
-                <span className="token">{transaction.token}</span>
+              <h2 className="tx-type-title">{transaction.title}</h2>
+              <div className="tx-amount-display">
+                <span className="tx-amount-value">{formattedAmount}</span>
+                <span className="tx-amount-token">{transaction.token}</span>
               </div>
             </div>
 
-            {/* Transaction Details */}
-            <div className="tx-details">
+            {/* Details Card */}
+            <div className="tx-details-card">
               {transaction.recipient && (
-                <div className="detail-row">
-                  <span className="label">To</span>
-                  <span className="value address">{formatAddress(transaction.recipient)}</span>
+                <div className="tx-detail-row">
+                  <span className="tx-detail-label">To</span>
+                  <span className="tx-detail-value tx-address">
+                    {transaction.recipient.slice(0, 12)}...{transaction.recipient.slice(-6)}
+                  </span>
                 </div>
               )}
               {transaction.details?.map((detail, i) => (
-                <div key={i} className="detail-row">
-                  <span className="label">{detail.label}</span>
-                  <span className="value">{detail.value}</span>
+                <div key={i} className="tx-detail-row">
+                  <span className="tx-detail-label">{detail.label}</span>
+                  <span className="tx-detail-value">{detail.value}</span>
                 </div>
               ))}
-              <div className="detail-row">
-                <span className="label">Network Fee</span>
-                <span className="value">{transaction.fee || '~0.001 HODL'}</span>
+              <div className="tx-detail-row">
+                <span className="tx-detail-label">Network Fee</span>
+                <span className="tx-detail-value tx-fee">{transaction.fee || '~0.001 HODL'}</span>
               </div>
             </div>
 
             {/* Warning */}
             {transaction.warning && (
-              <div className="tx-warning">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
-                  <path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+              <div className="tx-warning-box">
+                <div className="tx-warning-icon">⚠️</div>
                 <span>{transaction.warning}</span>
               </div>
             )}
 
             {/* Slide to Confirm */}
-            <div className="slide-container">
+            <div className="tx-slide-wrapper">
               <div
                 ref={sliderTrackRef}
-                className="slide-track"
+                className={`tx-slide-track ${slideCompleted ? 'completed' : ''}`}
                 style={{
                   background: slideProgress > 0
-                    ? `linear-gradient(90deg, ${getTypeColor()}40 ${slideProgress}%, #30363d ${slideProgress}%)`
-                    : '#30363d'
+                    ? `linear-gradient(90deg, ${config.color}30 ${slideProgress}%, #1f2937 ${slideProgress}%)`
+                    : undefined
                 }}
               >
                 <div
-                  ref={sliderRef}
-                  className="slide-button"
+                  className="tx-slide-thumb"
                   style={{
-                    left: `${slideProgress}%`,
-                    backgroundColor: slideProgress > 90 ? getTypeColor() : '#1E40AF'
+                    transform: `translateX(${(slideProgress / 100) * (slideWidthRef.current || 280)}px)`,
+                    background: slideCompleted ? config.gradient : config.gradient
                   }}
                   onTouchStart={handleSlideStart}
                   onMouseDown={handleSlideStart}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M9 5l7 7-7 7" />
-                  </svg>
+                  {slideCompleted ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                      <path d="M5 12l5 5L19 7" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
                 </div>
-                <span className="slide-text" style={{ opacity: 1 - slideProgress / 100 }}>
+                <span className="tx-slide-label" style={{ opacity: 1 - slideProgress / 80 }}>
                   Slide to confirm
                 </span>
               </div>
             </div>
+
+            {/* Cancel Button */}
+            <button className="tx-cancel-btn" onClick={onCancel}>
+              Cancel
+            </button>
           </>
         )}
 
+        {/* AUTH STEP */}
         {step === 'auth' && (
-          <div className="auth-container">
+          <div className="tx-auth-section">
             {isAuthenticating ? (
-              <div className="biometric-scanning">
-                <div className="face-id-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M9 4H5a1 1 0 00-1 1v4" />
-                    <path d="M15 4h4a1 1 0 011 1v4" />
-                    <path d="M9 20H5a1 1 0 01-1-1v-4" />
-                    <path d="M15 20h4a1 1 0 001-1v-4" />
-                    <circle cx="9" cy="9" r="1" fill="currentColor" />
-                    <circle cx="15" cy="9" r="1" fill="currentColor" />
-                    <path d="M9 15c.83.67 2 1 3 1s2.17-.33 3-1" />
+              <div className="tx-biometric">
+                <div className="tx-face-icon">
+                  <svg viewBox="0 0 96 96" fill="none">
+                    <rect x="4" y="4" width="24" height="4" rx="2" fill="#3b82f6"/>
+                    <rect x="4" y="4" width="4" height="24" rx="2" fill="#3b82f6"/>
+                    <rect x="68" y="4" width="24" height="4" rx="2" fill="#3b82f6"/>
+                    <rect x="88" y="4" width="4" height="24" rx="2" fill="#3b82f6"/>
+                    <rect x="4" y="88" width="24" height="4" rx="2" fill="#3b82f6"/>
+                    <rect x="4" y="68" width="4" height="24" rx="2" fill="#3b82f6"/>
+                    <rect x="68" y="88" width="24" height="4" rx="2" fill="#3b82f6"/>
+                    <rect x="88" y="68" width="4" height="24" rx="2" fill="#3b82f6"/>
+                    <circle cx="36" cy="40" r="4" fill="#3b82f6"/>
+                    <circle cx="60" cy="40" r="4" fill="#3b82f6"/>
+                    <path d="M32 60c6 8 20 8 32 0" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round"/>
                   </svg>
+                  <div className="tx-scan-line" />
                 </div>
-                <p className="scanning-text">Scanning Face ID...</p>
-                <div className="scanning-animation">
-                  <div className="scan-line" />
-                </div>
+                <h3>Face ID</h3>
+                <p>Look at your device to authenticate</p>
               </div>
             ) : (
               <>
-                <div className="pin-header">
-                  <div className="lock-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                      <path d="M7 11V7a5 5 0 0110 0v4" />
-                    </svg>
-                  </div>
-                  <h3>Enter PIN to Confirm</h3>
-                  <p>Enter your 6-digit PIN to authorize this transaction</p>
+                <div className="tx-pin-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <rect x="3" y="11" width="18" height="11" rx="2"/>
+                    <path d="M7 11V7a5 5 0 0110 0v4"/>
+                    <circle cx="12" cy="16" r="1" fill="currentColor"/>
+                  </svg>
                 </div>
+                <h3>Enter PIN</h3>
+                <p>Authorize this transaction</p>
 
-                <div className="pin-input-container">
+                <div className="tx-pin-dots">
                   {pin.map((digit, i) => (
                     <input
                       key={i}
@@ -400,66 +435,88 @@ export function TransactionConfirmation({
                       value={digit}
                       onChange={e => handlePinChange(i, e.target.value)}
                       onKeyDown={e => handlePinKeyDown(i, e)}
-                      className={`pin-digit ${digit ? 'filled' : ''} ${pinError ? 'error' : ''}`}
+                      className={`tx-pin-input ${digit ? 'filled' : ''} ${pinError ? 'error' : ''}`}
                       autoComplete="off"
                     />
                   ))}
                 </div>
 
-                {pinError && (
-                  <p className="pin-error">{pinError}</p>
-                )}
+                {pinError && <p className="tx-pin-error">{pinError}</p>}
 
                 {isBiometricAvailable && (
-                  <button className="biometric-btn" onClick={triggerBiometric}>
+                  <button className="tx-face-btn" onClick={triggerBiometric}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <path d="M9 4H5a1 1 0 00-1 1v4" />
-                      <path d="M15 4h4a1 1 0 011 1v4" />
-                      <path d="M9 20H5a1 1 0 01-1-1v-4" />
-                      <path d="M15 20h4a1 1 0 001-1v-4" />
-                      <circle cx="9" cy="9" r="1" fill="currentColor" />
-                      <circle cx="15" cy="9" r="1" fill="currentColor" />
-                      <path d="M9 15c.83.67 2 1 3 1s2.17-.33 3-1" />
+                      <rect x="4" y="4" width="3" height="1" rx="0.5"/>
+                      <rect x="4" y="4" width="1" height="3" rx="0.5"/>
+                      <rect x="17" y="4" width="3" height="1" rx="0.5"/>
+                      <rect x="20" y="4" width="1" height="3" rx="0.5"/>
+                      <rect x="4" y="19" width="3" height="1" rx="0.5"/>
+                      <rect x="4" y="17" width="1" height="3" rx="0.5"/>
+                      <rect x="17" y="19" width="3" height="1" rx="0.5"/>
+                      <rect x="20" y="17" width="1" height="3" rx="0.5"/>
+                      <circle cx="9" cy="10" r="1" fill="currentColor"/>
+                      <circle cx="15" cy="10" r="1" fill="currentColor"/>
+                      <path d="M9 15c1.5 2 4.5 2 6 0"/>
                     </svg>
                     Use Face ID
                   </button>
                 )}
+
+                <button className="tx-back-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); }}>
+                  Back
+                </button>
               </>
             )}
           </div>
         )}
 
+        {/* PROCESSING STEP */}
         {step === 'processing' && (
-          <div className="processing-container">
-            <div className="processing-spinner" />
-            <p>Processing transaction...</p>
+          <div className="tx-processing">
+            <div className="tx-spinner" style={{ borderTopColor: config.color }} />
+            <h3>Processing</h3>
+            <p>Please wait while we confirm your transaction...</p>
           </div>
         )}
 
+        {/* SUCCESS STEP */}
         {step === 'success' && (
-          <div className="success-container">
-            <div className="success-icon">
+          <div className="tx-success">
+            <div className="tx-success-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M5 13l4 4L19 7" />
+                <path d="M5 12l5 5L19 7" />
               </svg>
             </div>
-            <h3>Transaction Confirmed</h3>
-            <p>Your {transaction.type} transaction was successful</p>
+            <h3>Success!</h3>
+            <p>Your {transaction.type} of {formattedAmount} {transaction.token} is complete</p>
+            <div className="tx-success-confetti" />
           </div>
         )}
 
-        {step === 'error' && (
-          <div className="error-container">
-            <div className="error-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M6 18L18 6M6 6l12 12" />
+        {/* ERROR STEP */}
+        {step === 'error' && errorInfo && (
+          <div className="tx-error">
+            <div className="tx-error-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
               </svg>
             </div>
-            <h3>Transaction Failed</h3>
-            <p>{errorMessage || 'An error occurred'}</p>
-            <button className="retry-btn" onClick={() => setStep('review')}>
-              Try Again
-            </button>
+            <h3>{errorInfo.title}</h3>
+            <p>{errorInfo.message}</p>
+            {errorInfo.action && (
+              <div className="tx-error-action">
+                <span>💡</span> {errorInfo.action}
+              </div>
+            )}
+            <div className="tx-error-buttons">
+              <button className="tx-retry-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); }}>
+                Try Again
+              </button>
+              <button className="tx-dismiss-btn" onClick={onCancel}>
+                Dismiss
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -469,19 +526,21 @@ export function TransactionConfirmation({
   );
 }
 
-function formatAddress(address: string): string {
-  if (address.length <= 16) return address;
-  return `${address.slice(0, 10)}...${address.slice(-6)}`;
-}
-
 const styles = `
-  .tx-confirm-overlay {
+  .tx-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.9);
-    z-index: 1000;
+    z-index: 9999;
     display: flex;
     align-items: flex-end;
+  }
+
+  .tx-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     animation: fadeIn 0.2s ease;
   }
 
@@ -490,15 +549,17 @@ const styles = `
     to { opacity: 1; }
   }
 
-  .tx-confirm-container {
+  .tx-sheet {
+    position: relative;
     width: 100%;
-    max-height: 90vh;
-    background: #161B22;
-    border-radius: 24px 24px 0 0;
-    padding: 20px;
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-    animation: slideUp 0.3s ease;
+    max-height: 92vh;
+    background: linear-gradient(180deg, #1a1f2e 0%, #0f1219 100%);
+    border-radius: 28px 28px 0 0;
+    padding: 12px 20px 32px;
+    padding-bottom: max(32px, env(safe-area-inset-bottom));
     overflow-y: auto;
+    animation: slideUp 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.5);
   }
 
   @keyframes slideUp {
@@ -506,476 +567,532 @@ const styles = `
     to { transform: translateY(0); }
   }
 
-  .tx-confirm-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
+  .tx-drag-indicator {
+    width: 40px;
+    height: 4px;
+    background: #3d4654;
+    border-radius: 2px;
+    margin: 0 auto 20px;
   }
 
-  .tx-confirm-header h2 {
-    font-size: 18px;
-    font-weight: 700;
-    color: white;
-    margin: 0;
-  }
-
-  .close-btn {
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: #30363d;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .close-btn svg {
-    width: 20px;
-    height: 20px;
-    color: #8b949e;
-  }
-
-  .spacer {
-    width: 36px;
-  }
-
-  /* Transaction Summary */
-  .tx-summary {
+  /* Hero Section */
+  .tx-hero {
     text-align: center;
-    padding: 24px 0;
-    border-bottom: 1px solid #30363d;
-    margin-bottom: 20px;
+    padding: 20px 0 28px;
   }
 
-  .tx-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
+  .tx-icon-wrap {
+    width: 80px;
+    height: 80px;
+    border-radius: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 16px;
-    font-size: 28px;
+    animation: iconBounce 0.5s ease 0.2s both;
   }
 
-  .tx-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: #8b949e;
+  @keyframes iconBounce {
+    0% { transform: scale(0); }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  .tx-icon {
+    font-size: 40px;
+  }
+
+  .tx-type-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #8b95a8;
     margin: 0 0 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
 
-  .tx-amount {
+  .tx-amount-display {
     display: flex;
     align-items: baseline;
     justify-content: center;
-    gap: 8px;
+    gap: 10px;
   }
 
-  .tx-amount .amount {
-    font-size: 36px;
+  .tx-amount-value {
+    font-size: 48px;
     font-weight: 700;
     color: white;
+    letter-spacing: -1px;
   }
 
-  .tx-amount .token {
-    font-size: 20px;
+  .tx-amount-token {
+    font-size: 24px;
     font-weight: 600;
-    color: #8b949e;
+    color: #6b7689;
   }
 
-  /* Transaction Details */
-  .tx-details {
-    background: #0D1117;
+  /* Details Card */
+  .tx-details-card {
+    background: #0f1318;
     border-radius: 16px;
-    padding: 16px;
-    margin-bottom: 20px;
+    padding: 4px 16px;
+    margin-bottom: 16px;
   }
 
-  .detail-row {
+  .tx-detail-row {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 0;
-    border-bottom: 1px solid #21262d;
+    padding: 14px 0;
+    border-bottom: 1px solid #1e242e;
   }
 
-  .detail-row:last-child {
+  .tx-detail-row:last-child {
     border-bottom: none;
   }
 
-  .detail-row .label {
+  .tx-detail-label {
     font-size: 14px;
-    color: #8b949e;
+    color: #6b7689;
   }
 
-  .detail-row .value {
+  .tx-detail-value {
     font-size: 14px;
     font-weight: 600;
     color: white;
   }
 
-  .detail-row .value.address {
-    font-family: monospace;
+  .tx-detail-value.tx-address {
+    font-family: 'SF Mono', 'Menlo', monospace;
     font-size: 13px;
-    color: #58a6ff;
+    color: #60a5fa;
   }
 
-  /* Warning */
-  .tx-warning {
+  .tx-detail-value.tx-fee {
+    color: #8b95a8;
+  }
+
+  /* Warning Box */
+  .tx-warning-box {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 12px;
     padding: 14px 16px;
-    background: rgba(245, 158, 11, 0.1);
-    border: 1px solid rgba(245, 158, 11, 0.3);
-    border-radius: 12px;
-    margin-bottom: 24px;
+    background: rgba(251, 191, 36, 0.08);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 14px;
+    margin-bottom: 20px;
   }
 
-  .tx-warning svg {
+  .tx-warning-icon {
+    font-size: 18px;
     flex-shrink: 0;
-    color: #f59e0b;
   }
 
-  .tx-warning span {
+  .tx-warning-box span {
     font-size: 13px;
-    color: #f59e0b;
+    color: #fbbf24;
+    line-height: 1.5;
   }
 
   /* Slide to Confirm */
-  .slide-container {
-    padding: 8px 0;
+  .tx-slide-wrapper {
+    padding: 8px 0 16px;
   }
 
-  .slide-track {
+  .tx-slide-track {
     position: relative;
-    height: 60px;
-    border-radius: 30px;
+    height: 64px;
+    background: #1f2937;
+    border-radius: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     user-select: none;
     -webkit-user-select: none;
+    transition: background 0.15s ease;
   }
 
-  .slide-button {
+  .tx-slide-track.completed {
+    background: rgba(16, 185, 129, 0.15);
+  }
+
+  .tx-slide-thumb {
     position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 4px;
     width: 56px;
     height: 56px;
-    margin-left: 2px;
-    border-radius: 50%;
+    border-radius: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: grab;
-    transition: left 0.1s ease-out, background-color 0.2s ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    touch-action: none;
+    transition: transform 0.05s linear;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   }
 
-  .slide-button:active {
+  .tx-slide-thumb:active {
     cursor: grabbing;
   }
 
-  .slide-button svg {
+  .tx-slide-thumb svg {
     width: 24px;
     height: 24px;
     color: white;
   }
 
-  .slide-text {
+  .tx-slide-label {
     font-size: 16px;
     font-weight: 600;
-    color: #8b949e;
+    color: #6b7689;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.15s ease;
   }
 
-  /* Auth Container */
-  .auth-container {
-    padding: 32px 0;
+  /* Cancel Button */
+  .tx-cancel-btn {
+    width: 100%;
+    padding: 16px;
+    border: none;
+    background: transparent;
+    color: #6b7689;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+
+  .tx-cancel-btn:active {
+    color: white;
+  }
+
+  /* Auth Section */
+  .tx-auth-section {
+    padding: 40px 0 20px;
     text-align: center;
   }
 
-  .pin-header {
-    margin-bottom: 32px;
+  .tx-auth-section h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    margin: 0 0 8px;
   }
 
-  .lock-icon {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: rgba(30, 64, 175, 0.1);
+  .tx-auth-section p {
+    font-size: 15px;
+    color: #6b7689;
+    margin: 0 0 32px;
+  }
+
+  .tx-pin-icon-wrap {
+    width: 72px;
+    height: 72px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 20px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin: 0 auto 20px;
   }
 
-  .lock-icon svg {
-    width: 32px;
-    height: 32px;
+  .tx-pin-icon-wrap svg {
+    width: 36px;
+    height: 36px;
     color: #3b82f6;
   }
 
-  .pin-header h3 {
-    font-size: 20px;
-    font-weight: 700;
-    color: white;
-    margin: 0 0 8px;
-  }
-
-  .pin-header p {
-    font-size: 14px;
-    color: #8b949e;
-    margin: 0;
-  }
-
-  .pin-input-container {
+  .tx-pin-dots {
     display: flex;
     justify-content: center;
-    gap: 12px;
+    gap: 14px;
     margin-bottom: 24px;
   }
 
-  .pin-digit {
-    width: 48px;
-    height: 56px;
-    border: 2px solid #30363d;
-    border-radius: 12px;
-    background: #0D1117;
-    font-size: 24px;
+  .tx-pin-input {
+    width: 52px;
+    height: 64px;
+    border: 2px solid #2d3748;
+    border-radius: 14px;
+    background: #0f1318;
+    font-size: 28px;
     font-weight: 700;
     color: white;
     text-align: center;
     outline: none;
     transition: all 0.2s ease;
+    caret-color: transparent;
   }
 
-  .pin-digit:focus {
+  .tx-pin-input:focus {
     border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
   }
 
-  .pin-digit.filled {
+  .tx-pin-input.filled {
     border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.08);
   }
 
-  .pin-digit.error {
+  .tx-pin-input.error {
     border-color: #ef4444;
-    animation: shake 0.5s ease;
+    animation: shakeInput 0.4s ease;
   }
 
-  @keyframes shake {
+  @keyframes shakeInput {
     0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-8px); }
-    40%, 80% { transform: translateX(8px); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
   }
 
-  .pin-error {
+  .tx-pin-error {
     font-size: 14px;
     color: #ef4444;
-    margin: 0 0 16px;
+    margin: 0 0 20px;
   }
 
-  .biometric-btn {
+  .tx-face-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
     width: 100%;
     padding: 16px;
-    border: 1px solid #30363d;
+    border: 1px solid #2d3748;
     border-radius: 14px;
     background: transparent;
     color: white;
     font-size: 16px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    transition: all 0.2s;
   }
 
-  .biometric-btn:active {
-    background: #21262d;
+  .tx-face-btn:active {
+    background: #1f2937;
   }
 
-  .biometric-btn svg {
-    width: 28px;
-    height: 28px;
+  .tx-face-btn svg {
+    width: 26px;
+    height: 26px;
     color: #3b82f6;
   }
 
-  /* Biometric Scanning */
-  .biometric-scanning {
-    padding: 40px 0;
-    text-align: center;
-  }
-
-  .face-id-icon {
-    width: 100px;
-    height: 100px;
-    margin: 0 auto 24px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .face-id-icon svg {
-    width: 80px;
-    height: 80px;
-    color: #3b82f6;
-  }
-
-  .scanning-text {
-    font-size: 18px;
+  .tx-back-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    background: transparent;
+    color: #6b7689;
+    font-size: 15px;
     font-weight: 600;
-    color: white;
-    margin: 0 0 24px;
+    cursor: pointer;
   }
 
-  .scanning-animation {
+  /* Biometric */
+  .tx-biometric {
+    padding: 60px 0;
+  }
+
+  .tx-biometric h3 {
+    margin-top: 24px;
+  }
+
+  .tx-face-icon {
     width: 120px;
     height: 120px;
     margin: 0 auto;
     position: relative;
-    border-radius: 20px;
-    overflow: hidden;
-    background: rgba(59, 130, 246, 0.1);
   }
 
-  .scan-line {
-    position: absolute;
+  .tx-face-icon svg {
     width: 100%;
-    height: 3px;
-    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
-    animation: scanMove 2s ease-in-out infinite;
+    height: 100%;
   }
 
-  @keyframes scanMove {
-    0%, 100% { top: 0; }
-    50% { top: calc(100% - 3px); }
+  .tx-scan-line {
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+    animation: scanLine 1.5s ease-in-out infinite;
+  }
+
+  @keyframes scanLine {
+    0%, 100% { top: 20px; opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: 76px; opacity: 0; }
   }
 
   /* Processing */
-  .processing-container {
-    padding: 60px 0;
+  .tx-processing {
+    padding: 80px 0;
     text-align: center;
   }
 
-  .processing-spinner {
-    width: 56px;
-    height: 56px;
-    border: 4px solid #30363d;
-    border-top-color: #3b82f6;
+  .tx-processing h3 {
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+    margin: 24px 0 8px;
+  }
+
+  .tx-processing p {
+    font-size: 15px;
+    color: #6b7689;
+    margin: 0;
+  }
+
+  .tx-spinner {
+    width: 64px;
+    height: 64px;
+    border: 3px solid #2d3748;
+    border-top-width: 3px;
     border-radius: 50%;
-    margin: 0 auto 24px;
-    animation: spin 1s linear infinite;
+    margin: 0 auto;
+    animation: spin 0.8s linear infinite;
   }
 
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
 
-  .processing-container p {
-    font-size: 16px;
-    color: #8b949e;
-    margin: 0;
-  }
-
   /* Success */
-  .success-container {
-    padding: 60px 0;
+  .tx-success {
+    padding: 80px 0;
     text-align: center;
+    position: relative;
   }
 
-  .success-icon {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: rgba(16, 185, 129, 0.1);
+  .tx-success h3 {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    margin: 24px 0 12px;
+  }
+
+  .tx-success p {
+    font-size: 16px;
+    color: #8b95a8;
+    margin: 0;
+    padding: 0 20px;
+  }
+
+  .tx-success-icon {
+    width: 88px;
+    height: 88px;
+    background: rgba(16, 185, 129, 0.15);
+    border-radius: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 24px;
-    animation: successPop 0.4s ease;
+    margin: 0 auto;
+    animation: successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
 
   @keyframes successPop {
     0% { transform: scale(0); }
-    50% { transform: scale(1.1); }
     100% { transform: scale(1); }
   }
 
-  .success-icon svg {
-    width: 40px;
-    height: 40px;
+  .tx-success-icon svg {
+    width: 44px;
+    height: 44px;
     color: #10b981;
+    animation: checkDraw 0.4s ease 0.3s both;
   }
 
-  .success-container h3 {
-    font-size: 22px;
-    font-weight: 700;
-    color: white;
-    margin: 0 0 8px;
-  }
-
-  .success-container p {
-    font-size: 14px;
-    color: #8b949e;
-    margin: 0;
+  @keyframes checkDraw {
+    0% { stroke-dasharray: 50; stroke-dashoffset: 50; }
+    100% { stroke-dashoffset: 0; }
   }
 
   /* Error */
-  .error-container {
-    padding: 60px 0;
+  .tx-error {
+    padding: 60px 0 20px;
     text-align: center;
   }
 
-  .error-icon {
+  .tx-error h3 {
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    margin: 20px 0 8px;
+  }
+
+  .tx-error p {
+    font-size: 15px;
+    color: #8b95a8;
+    margin: 0 0 16px;
+    padding: 0 20px;
+    line-height: 1.5;
+  }
+
+  .tx-error-icon {
     width: 80px;
     height: 80px;
-    border-radius: 50%;
-    background: rgba(239, 68, 68, 0.1);
+    background: rgba(239, 68, 68, 0.12);
+    border-radius: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin: 0 auto 24px;
+    margin: 0 auto;
   }
 
-  .error-icon svg {
+  .tx-error-icon svg {
     width: 40px;
     height: 40px;
     color: #ef4444;
   }
 
-  .error-container h3 {
-    font-size: 22px;
-    font-weight: 700;
-    color: white;
-    margin: 0 0 8px;
-  }
-
-  .error-container p {
+  .tx-error-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(59, 130, 246, 0.08);
+    border-radius: 12px;
     font-size: 14px;
-    color: #8b949e;
+    color: #60a5fa;
     margin: 0 0 24px;
   }
 
-  .retry-btn {
-    padding: 14px 32px;
+  .tx-error-buttons {
+    display: flex;
+    gap: 12px;
+  }
+
+  .tx-retry-btn {
+    flex: 1;
+    padding: 16px;
     border: none;
-    border-radius: 12px;
-    background: #30363d;
+    border-radius: 14px;
+    background: #2d3748;
     color: white;
-    font-size: 15px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .tx-retry-btn:active {
+    background: #374151;
+  }
+
+  .tx-dismiss-btn {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    color: white;
+    font-size: 16px;
     font-weight: 600;
     cursor: pointer;
   }
