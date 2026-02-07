@@ -38,6 +38,7 @@ import {
   validatePinComplexity,
   type SecurityState
 } from '../utils/security';
+import { SecureMnemonic } from '../utils/secureMemory';
 
 // ShareHODL-themed wallet name generator
 const HODL_ADJECTIVES = [
@@ -119,7 +120,7 @@ interface WalletStore {
 
   // Actions
   initialize: () => Promise<void>;
-  createWallet: (pin: string, name?: string) => Promise<string>;
+  createWallet: (pin: string, name?: string) => Promise<SecureMnemonic>;
   completeWalletSetup: () => void;  // Call after seed phrase verification
   importWallet: (mnemonic: string, pin: string, name?: string) => Promise<void>;
   unlockWallet: (pin: string) => Promise<void>;
@@ -145,7 +146,7 @@ interface WalletStore {
   activeWalletId: string | null;
   getWallets: () => WalletMetadata[];
   switchWallet: (walletId: string, pin: string) => Promise<void>;
-  addWallet: (name: string, pin: string) => Promise<string>;
+  addWallet: (name: string, pin: string) => Promise<SecureMnemonic>;
   importNewWallet: (name: string, mnemonic: string, pin: string) => Promise<void>;
   renameWallet: (walletId: string, newName: string) => void;
   deleteWallet: (walletId: string, pin: string) => Promise<void>;
@@ -284,7 +285,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         activeWalletId: walletId
       });
 
-      return mnemonic;
+      // SECURITY: Return SecureMnemonic instead of plain string
+      return new SecureMnemonic(mnemonic);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create wallet';
       set({ isLoading: false, error: message });
@@ -760,7 +762,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     }
   },
 
-  addWallet: async (name: string, pin: string): Promise<string> => {
+  addWallet: async (name: string, pin: string): Promise<SecureMnemonic> => {
     set({ isLoading: true, error: null });
 
     try {
@@ -822,7 +824,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       // Refresh balances for new wallet
       get().refreshBalances();
 
-      return mnemonic;
+      // SECURITY: Return SecureMnemonic instead of plain string
+      return new SecureMnemonic(mnemonic);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create wallet';
       set({ isLoading: false, error: message });

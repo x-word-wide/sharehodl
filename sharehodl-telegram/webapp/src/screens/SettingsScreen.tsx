@@ -85,7 +85,9 @@ export function SettingsScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [shake, setShake] = useState(false);
   const [newWalletName, setNewWalletName] = useState('');
-  const [walletMnemonic, setWalletMnemonic] = useState('');
+  // SECURITY: Store wallet mnemonic in SecureMnemonic instead of React state
+  const addWalletMnemonicRef = useRef(new SecureMnemonic());
+  const [addWalletMnemonicVersion, setAddWalletMnemonicVersion] = useState(0);
   const [addWalletMode, setAddWalletMode] = useState<AddWalletMode>('choose');
   const [importMnemonic, setImportMnemonic] = useState('');
   const [usePinFallback, setUsePinFallback] = useState(false);
@@ -309,7 +311,9 @@ export function SettingsScreen() {
     setIsLoading(false);
     setShake(false);
     setNewWalletName('');
-    setWalletMnemonic('');
+    // SECURITY: Clear wallet mnemonic securely
+    addWalletMnemonicRef.current.clear();
+    setAddWalletMnemonicVersion(v => v + 1);
     setAddWalletMode('choose');
     setImportMnemonic('');
     setUsePinFallback(false);
@@ -494,8 +498,11 @@ export function SettingsScreen() {
             // PIN verified, proceed with add/import
             // SECURITY: Use refs to get current values, avoiding stale closure issues
             if (addWalletMode === 'create') {
-              const mnemonic = await addWallet(newWalletNameRef.current || `Wallet ${wallets.length + 1}`, token);
-              setWalletMnemonic(mnemonic);
+              const secureMnemonicResult = await addWallet(newWalletNameRef.current || `Wallet ${wallets.length + 1}`, token);
+              // SECURITY: Store in SecureMnemonic ref instead of React state
+              addWalletMnemonicRef.current.clear();
+              addWalletMnemonicRef.current = secureMnemonicResult;
+              setAddWalletMnemonicVersion(v => v + 1);
             } else if (addWalletMode === 'import') {
               const mnemonicToImport = importMnemonicRef.current;
 
@@ -537,8 +544,9 @@ export function SettingsScreen() {
     if (activeModal === 'add-wallet' && biometricEnabled && !addWalletBiometricAttempted && !addWalletUsePinFallback) {
       // For create mode, trigger when in create mode (name has a default)
       // For import mode, only trigger when user has confirmed the mnemonic (clicked Continue)
+      const hasMnemonic = addWalletMnemonicRef.current.get() !== '';
       const shouldTrigger =
-        (addWalletMode === 'create' && !walletMnemonic && !success) ||
+        (addWalletMode === 'create' && !hasMnemonic && !success) ||
         (addWalletMode === 'import' && importMnemonicConfirmed && !success);
 
       if (shouldTrigger && pin.length === 0 && !isLoading) {
@@ -548,7 +556,7 @@ export function SettingsScreen() {
         return () => clearTimeout(timer);
       }
     }
-  }, [activeModal, biometricEnabled, addWalletBiometricAttempted, addWalletUsePinFallback, addWalletMode, walletMnemonic, importMnemonicConfirmed, pin.length, isLoading, success, handleAddWalletBiometricAuth]);
+  }, [activeModal, biometricEnabled, addWalletBiometricAttempted, addWalletUsePinFallback, addWalletMode, addWalletMnemonicVersion, importMnemonicConfirmed, pin.length, isLoading, success, handleAddWalletBiometricAuth]);
 
   // Change PIN steps
   const handleChangePinStep = async (enteredPin: string) => {
@@ -609,8 +617,11 @@ export function SettingsScreen() {
         throw new Error('Invalid PIN');
       }
 
-      const mnemonic = await addWallet(newWalletName || `Wallet ${wallets.length + 1}`, enteredPin);
-      setWalletMnemonic(mnemonic);
+      const secureMnemonicResult = await addWallet(newWalletName || `Wallet ${wallets.length + 1}`, enteredPin);
+      // SECURITY: Store in SecureMnemonic ref instead of React state
+      addWalletMnemonicRef.current.clear();
+      addWalletMnemonicRef.current = secureMnemonicResult;
+      setAddWalletMnemonicVersion(v => v + 1);
       tg?.HapticFeedback?.notificationOccurred('success');
     } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
@@ -1355,7 +1366,7 @@ export function SettingsScreen() {
             </button>
 
             {/* Success state for created wallet */}
-            {walletMnemonic ? (
+            {addWalletMnemonicRef.current.get() ? (
               <>
                 <div className="modal-icon success">
                   <CheckCircle size={32} />
@@ -1365,7 +1376,7 @@ export function SettingsScreen() {
 
                 <div className="phrase-container">
                   <div className={`phrase-grid ${showPhrase ? '' : 'blurred'}`}>
-                    {walletMnemonic.split(' ').map((word, i) => (
+                    {addWalletMnemonicRef.current.get().split(' ').map((word, i) => (
                       <div key={i} className="phrase-word">
                         <span className="word-number">{i + 1}</span>
                         <span className="word-text">{word}</span>

@@ -141,9 +141,10 @@ export function CreateWalletScreen() {
           // PINs match, create wallet
           tg?.HapticFeedback?.notificationOccurred('success');
           try {
-            const generatedMnemonic = await createWallet(newPin, walletName);
-            // SECURITY: Store in SecureMnemonic instead of React state
-            secureMnemonicRef.current.set(generatedMnemonic);
+            const secureMnemonicResult = await createWallet(newPin, walletName);
+            // SECURITY: Replace ref with returned SecureMnemonic (already secure)
+            secureMnemonicRef.current.clear(); // Clear old instance
+            secureMnemonicRef.current = secureMnemonicResult;
             setMnemonicVersion(v => v + 1); // Trigger re-render
             setStep('mnemonic');
           } catch (error) {
