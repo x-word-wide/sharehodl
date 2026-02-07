@@ -55,6 +55,7 @@ var (
 	DividendStatisticsPrefix = []byte{0x12}
 	DividendPaymentCounterKey = []byte{0x13}
 	DividendClaimCounterKey = []byte{0x14}
+	DividendEscrowPrefix = []byte{0x15} // Escrow for pending dividend funds
 
 	// Anti-dilution system prefixes
 	AntiDilutionProvisionPrefix   = []byte{0x20}  // Store anti-dilution provisions
@@ -207,6 +208,12 @@ func GetDividendPolicyKey(companyID uint64) []byte {
 func GetDividendStatisticsKey(companyID uint64, classID string) []byte {
 	key := append(DividendStatisticsPrefix, sdk.Uint64ToBigEndian(companyID)...)
 	return append(key, []byte(classID)...)
+}
+
+// GetDividendEscrowKey returns the store key for dividend escrow
+// Escrow holds funds locked for a pending dividend until governance approves/rejects
+func GetDividendEscrowKey(dividendID uint64) []byte {
+	return append(DividendEscrowPrefix, sdk.Uint64ToBigEndian(dividendID)...)
 }
 
 // =============================================================================

@@ -299,39 +299,18 @@ func (k Keeper) DeclareDividend(
 	dividend.RemainingAmount = dividend.TotalAmount
 	dividend.EligibleShares = totalShares
 
-	// For cash dividends, verify TREASURY has sufficient funds (NOT founder)
+	// For cash dividends, lock funds in escrow (prevents access by other proposals)
 	if dividendType == types.DividendTypeCash {
-		treasury, found := k.GetCompanyTreasury(ctx, companyID)
-		if !found {
-			return 0, types.ErrTreasuryNotFound
-		}
-
-		// Check treasury isn't frozen
-		if k.IsTreasuryFrozen(ctx, companyID) {
-			return 0, types.ErrTreasuryFrozenForInvestigation
-		}
-
 		requiredAmount := dividend.TotalAmount.TruncateInt()
-		treasuryBalance := treasury.Balance.AmountOf(currency)
 
-		if treasuryBalance.LT(requiredAmount) {
-			return 0, fmt.Errorf("%w: need %s %s, treasury has %s",
-				types.ErrInsufficientTreasuryBalance,
-				requiredAmount.String(), currency,
-				treasuryBalance.String())
-		}
-
-		// Lock dividend amount in treasury (deduct from available balance)
-		// The funds are already in the module account, just track the allocation
-		lockedCoins := sdk.NewCoins(sdk.NewCoin(currency, requiredAmount))
-		treasury.Balance = treasury.Balance.Sub(lockedCoins...)
-		treasury.UpdatedAt = ctx.BlockTime()
-		if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
+		// Lock funds in escrow - this deducts from treasury and creates escrow record
+		// Escrow protects funds while awaiting governance approval
+		if err := k.LockDividendFundsInEscrow(ctx, dividendID, companyID, requiredAmount, currency); err != nil {
 			return 0, err
 		}
 
-		// Note: Funds are already in equity module account from treasury deposits
-		// We just deducted from treasury tracking, funds will be distributed from module
+		// Note: Funds are now in escrow. If governance approves, they'll be distributed.
+		// If rejected, they'll be returned to treasury automatically.
 	}
 	
 	// Create audit record for this dividend (MANDATORY)
@@ -934,6 +913,14 @@ func (k Keeper) ApproveDividendDistribution(ctx sdk.Context, dividendID uint64, 
 		}
 	}
 
+	// Release escrow for distribution to shareholders (for cash dividends)
+	if dividend.Type == types.DividendTypeCash {
+		if err := k.ReleaseDividendEscrowToHolders(ctx, dividendID); err != nil {
+			k.Logger(ctx).Error("failed to release escrow", "error", err, "dividend_id", dividendID)
+			// Don't fail the approval - escrow may not exist for old dividends
+		}
+	}
+
 	// Update dividend status to Declared (approved for distribution)
 	dividend.Status = types.DividendStatusDeclared
 	dividend.ProposalID = proposalID
@@ -979,26 +966,20 @@ func (k Keeper) RejectDividendDistribution(ctx sdk.Context, dividendID uint64, p
 		return fmt.Errorf("dividend %d is not pending approval, current status: %s", dividendID, dividend.Status.String())
 	}
 
+	// Return escrowed funds to treasury (for cash dividends)
+	if dividend.Type == types.DividendTypeCash {
+		if err := k.ReturnDividendEscrowToTreasury(ctx, dividendID); err != nil {
+			k.Logger(ctx).Error("failed to return escrow to treasury", "error", err, "dividend_id", dividendID)
+			// Don't fail the rejection - escrow may not exist for old dividends
+		}
+	}
+
 	// Update dividend status to Rejected
 	dividend.Status = types.DividendStatusRejected
 	dividend.ProposalID = proposalID
 	dividend.RejectedAt = ctx.BlockTime()
 	dividend.RejectionReason = reason
 	dividend.UpdatedAt = ctx.BlockTime()
-
-	// Release locked funds back to treasury if cash dividend
-	if dividend.Type == types.DividendTypeCash && dividend.TotalAmount.IsPositive() {
-		treasury, found := k.GetCompanyTreasury(ctx, dividend.CompanyID)
-		if found {
-			// Return locked funds to treasury balance
-			releasedCoins := sdk.NewCoins(sdk.NewCoin(dividend.Currency, dividend.TotalAmount.TruncateInt()))
-			treasury.Balance = treasury.Balance.Add(releasedCoins...)
-			treasury.UpdatedAt = ctx.BlockTime()
-			if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
-				k.Logger(ctx).Error("failed to release funds to treasury", "error", err)
-			}
-		}
-	}
 
 	if err := k.SetDividend(ctx, dividend); err != nil {
 		return fmt.Errorf("failed to update dividend: %w", err)
@@ -1062,4 +1043,212 @@ func (k Keeper) GetTotalSharesForAddress(ctx sdk.Context, companyID uint64, addr
 	}
 
 	return total
+}
+
+// =============================================================================
+// DIVIDEND ESCROW MANAGEMENT
+// Funds are locked in escrow when dividend is declared, preventing other
+// governance proposals from accessing them while awaiting approval
+// =============================================================================
+
+// GetDividendEscrow returns the escrow record for a dividend
+func (k Keeper) GetDividendEscrow(ctx sdk.Context, dividendID uint64) (types.DividendEscrow, bool) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetDividendEscrowKey(dividendID)
+	bz := store.Get(key)
+	if bz == nil {
+		return types.DividendEscrow{}, false
+	}
+
+	var escrow types.DividendEscrow
+	if err := json.Unmarshal(bz, &escrow); err != nil {
+		return types.DividendEscrow{}, false
+	}
+	return escrow, true
+}
+
+// SetDividendEscrow stores an escrow record
+func (k Keeper) SetDividendEscrow(ctx sdk.Context, escrow types.DividendEscrow) error {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetDividendEscrowKey(escrow.DividendID)
+	bz, err := json.Marshal(escrow)
+	if err != nil {
+		return fmt.Errorf("failed to marshal dividend escrow: %w", err)
+	}
+	store.Set(key, bz)
+	return nil
+}
+
+// DeleteDividendEscrow removes an escrow record
+func (k Keeper) DeleteDividendEscrow(ctx sdk.Context, dividendID uint64) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetDividendEscrowKey(dividendID)
+	store.Delete(key)
+}
+
+// LockDividendFundsInEscrow moves funds from treasury to escrow for a pending dividend
+// This prevents the funds from being accessed by other treasury spend proposals
+func (k Keeper) LockDividendFundsInEscrow(ctx sdk.Context, dividendID, companyID uint64, amount math.Int, currency string) error {
+	// Get company treasury
+	treasury, found := k.GetCompanyTreasury(ctx, companyID)
+	if !found {
+		return types.ErrTreasuryNotFound
+	}
+
+	// Check treasury isn't frozen
+	if k.IsTreasuryFrozen(ctx, companyID) {
+		return types.ErrTreasuryFrozenForInvestigation
+	}
+
+	// Verify treasury has sufficient funds
+	treasuryBalance := treasury.Balance.AmountOf(currency)
+	if treasuryBalance.LT(amount) {
+		return fmt.Errorf("%w: need %s %s, treasury has %s",
+			types.ErrInsufficientTreasuryBalance,
+			amount.String(), currency,
+			treasuryBalance.String())
+	}
+
+	// Deduct from treasury balance tracking
+	deductedCoins := sdk.NewCoins(sdk.NewCoin(currency, amount))
+	treasury.Balance = treasury.Balance.Sub(deductedCoins...)
+	treasury.UpdatedAt = ctx.BlockTime()
+	if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
+		return fmt.Errorf("failed to update treasury: %w", err)
+	}
+
+	// Create escrow record
+	escrow := types.DividendEscrow{
+		DividendID: dividendID,
+		CompanyID:  companyID,
+		Amount:     amount,
+		Currency:   currency,
+		LockedAt:   ctx.BlockTime(),
+		Status:     "locked",
+	}
+
+	if err := k.SetDividendEscrow(ctx, escrow); err != nil {
+		// Rollback treasury deduction
+		treasury.Balance = treasury.Balance.Add(deductedCoins...)
+		k.SetCompanyTreasury(ctx, treasury)
+		return fmt.Errorf("failed to create escrow: %w", err)
+	}
+
+	k.Logger(ctx).Info("dividend funds locked in escrow",
+		"dividend_id", dividendID,
+		"company_id", companyID,
+		"amount", amount.String(),
+		"currency", currency,
+	)
+
+	// Emit escrow event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_escrow_locked",
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", companyID)),
+			sdk.NewAttribute("amount", amount.String()),
+			sdk.NewAttribute("currency", currency),
+		),
+	)
+
+	return nil
+}
+
+// ReleaseDividendEscrowToHolders distributes escrowed funds to shareholders
+// Called when dividend is approved by governance
+func (k Keeper) ReleaseDividendEscrowToHolders(ctx sdk.Context, dividendID uint64) error {
+	escrow, found := k.GetDividendEscrow(ctx, dividendID)
+	if !found {
+		return fmt.Errorf("escrow not found for dividend %d", dividendID)
+	}
+
+	if escrow.Status != "locked" {
+		return fmt.Errorf("escrow already processed, status: %s", escrow.Status)
+	}
+
+	// Mark escrow as distributed
+	escrow.Status = "distributed"
+	escrow.ReleasedAt = ctx.BlockTime()
+	if err := k.SetDividendEscrow(ctx, escrow); err != nil {
+		return fmt.Errorf("failed to update escrow status: %w", err)
+	}
+
+	k.Logger(ctx).Info("dividend escrow released for distribution",
+		"dividend_id", dividendID,
+		"amount", escrow.Amount.String(),
+		"currency", escrow.Currency,
+	)
+
+	// Emit release event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_escrow_released",
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", escrow.CompanyID)),
+			sdk.NewAttribute("amount", escrow.Amount.String()),
+			sdk.NewAttribute("currency", escrow.Currency),
+			sdk.NewAttribute("action", "distributed"),
+		),
+	)
+
+	// Note: Actual distribution to shareholders happens in ProcessDividendPayments
+	// The funds are already in the equity module account, ready for distribution
+
+	return nil
+}
+
+// ReturnDividendEscrowToTreasury returns escrowed funds to treasury
+// Called when dividend is rejected by governance
+func (k Keeper) ReturnDividendEscrowToTreasury(ctx sdk.Context, dividendID uint64) error {
+	escrow, found := k.GetDividendEscrow(ctx, dividendID)
+	if !found {
+		return fmt.Errorf("escrow not found for dividend %d", dividendID)
+	}
+
+	if escrow.Status != "locked" {
+		return fmt.Errorf("escrow already processed, status: %s", escrow.Status)
+	}
+
+	// Get company treasury
+	treasury, found := k.GetCompanyTreasury(ctx, escrow.CompanyID)
+	if !found {
+		return types.ErrTreasuryNotFound
+	}
+
+	// Return funds to treasury balance
+	returnedCoins := sdk.NewCoins(sdk.NewCoin(escrow.Currency, escrow.Amount))
+	treasury.Balance = treasury.Balance.Add(returnedCoins...)
+	treasury.UpdatedAt = ctx.BlockTime()
+	if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
+		return fmt.Errorf("failed to update treasury: %w", err)
+	}
+
+	// Mark escrow as returned
+	escrow.Status = "returned"
+	escrow.ReleasedAt = ctx.BlockTime()
+	if err := k.SetDividendEscrow(ctx, escrow); err != nil {
+		return fmt.Errorf("failed to update escrow status: %w", err)
+	}
+
+	k.Logger(ctx).Info("dividend escrow returned to treasury",
+		"dividend_id", dividendID,
+		"company_id", escrow.CompanyID,
+		"amount", escrow.Amount.String(),
+		"currency", escrow.Currency,
+	)
+
+	// Emit return event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_escrow_released",
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", escrow.CompanyID)),
+			sdk.NewAttribute("amount", escrow.Amount.String()),
+			sdk.NewAttribute("currency", escrow.Currency),
+			sdk.NewAttribute("action", "returned_to_treasury"),
+		),
+	)
+
+	return nil
 }

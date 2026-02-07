@@ -373,3 +373,16 @@ type DividendPolicy struct {
 	LastUpdated             time.Time      `json:"last_updated"`
 	UpdatedBy               string         `json:"updated_by"`
 }
+
+// DividendEscrow represents funds locked for a pending dividend
+// Funds are moved from treasury to escrow when dividend is declared,
+// and either distributed to holders (approved) or returned to treasury (rejected)
+type DividendEscrow struct {
+	DividendID  uint64    `json:"dividend_id"`
+	CompanyID   uint64    `json:"company_id"`
+	Amount      math.Int  `json:"amount"`       // Total amount in escrow (in micro units)
+	Currency    string    `json:"currency"`     // Denomination (e.g., "uhodl")
+	LockedAt    time.Time `json:"locked_at"`    // When funds were locked
+	Status      string    `json:"status"`       // "locked", "distributed", "returned"
+	ReleasedAt  time.Time `json:"released_at,omitempty"` // When funds were released
+}
