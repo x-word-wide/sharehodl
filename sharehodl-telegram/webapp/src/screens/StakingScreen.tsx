@@ -6,13 +6,26 @@
 import { useEffect, useState } from 'react';
 import { useStakingStore } from '../services/stakingStore';
 import { useWalletStore } from '../services/walletStore';
+import { checkCanUnstake, formatBlockingMessage } from '../services/positionChecker';
 import { Chain, VALIDATOR_TIER_COLORS, type Validator } from '../types';
 
 type Tab = 'stake' | 'validators' | 'rewards';
 
+// Helper to get mnemonic from wallet store with cached PIN
+async function getMnemonicForTransaction(getMnemonicForSigning: (pin: string) => Promise<string>, cachedPin: string | null): Promise<string | null> {
+  if (!cachedPin) {
+    return null;
+  }
+  try {
+    return await getMnemonicForSigning(cachedPin);
+  } catch {
+    return null;
+  }
+}
+
 export function StakingScreen() {
   const tg = window.Telegram?.WebApp;
-  const { accounts } = useWalletStore();
+  const { accounts, _cachedPin, getMnemonicForSigning } = useWalletStore();
   const {
     position,
     validators,
@@ -47,48 +60,116 @@ export function StakingScreen() {
 
     setIsProcessing(true);
     try {
-      await delegate(selectedValidator.address, parseFloat(amount));
-      tg?.HapticFeedback?.notificationOccurred('success');
-      setShowDelegateModal(false);
-      setAmount('');
-      setSelectedValidator(null);
-    } catch {
+      // Get mnemonic for signing
+      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
+      if (!mnemonic) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert('Session expired. Please unlock your wallet again.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const result = await delegate(mnemonic, selectedValidator.address, parseFloat(amount));
+
+      if (result.success) {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        tg?.showAlert(`Successfully staked ${amount} HODL!\nTx: ${result.txHash?.slice(0, 16)}...`);
+        setShowDelegateModal(false);
+        setAmount('');
+        setSelectedValidator(null);
+        // Refresh position after successful delegation
+        if (address) {
+          fetchStakingPosition(address);
+        }
+      } else {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert(`Staking failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert('Failed to delegate. Please try again.');
+      tg?.showAlert(`Failed to delegate: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleUndelegate = async () => {
-    if (!selectedValidator || !amount) return;
+    if (!selectedValidator || !amount || !address) return;
 
     setIsProcessing(true);
     try {
-      await undelegate(selectedValidator.address, parseFloat(amount));
-      tg?.HapticFeedback?.notificationOccurred('success');
-      setShowUndelegateModal(false);
-      setAmount('');
-      setSelectedValidator(null);
-    } catch {
+      // Check for active positions that block unstaking
+      // (escrows, disputes, loans, P2P trades)
+      const positionCheck = await checkCanUnstake(address);
+      if (!positionCheck.canUnstake) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert(formatBlockingMessage(positionCheck.blockedBy));
+        setIsProcessing(false);
+        return;
+      }
+
+      // Get mnemonic for signing
+      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
+      if (!mnemonic) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert('Session expired. Please unlock your wallet again.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const result = await undelegate(mnemonic, selectedValidator.address, parseFloat(amount));
+
+      if (result.success) {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        tg?.showAlert(`Successfully unstaked ${amount} HODL!\nUnbonding period: 21 days`);
+        setShowUndelegateModal(false);
+        setAmount('');
+        setSelectedValidator(null);
+        // Refresh position after successful undelegation
+        if (address) {
+          fetchStakingPosition(address);
+        }
+      } else {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert(`Unstaking failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert('Failed to undelegate. Please try again.');
+      tg?.showAlert(`Failed to undelegate: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleClaimRewards = async () => {
-    if (!position?.pendingRewards) return;
+    if (!position?.pendingRewards || !address) return;
 
     setIsProcessing(true);
     try {
-      await claimAllRewards();
-      tg?.HapticFeedback?.notificationOccurred('success');
-      tg?.showAlert(`Claimed ${position.pendingRewards.toFixed(2)} HODL rewards!`);
-    } catch {
+      // Get mnemonic for signing
+      const mnemonic = await getMnemonicForTransaction(getMnemonicForSigning, _cachedPin);
+      if (!mnemonic) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert('Session expired. Please unlock your wallet again.');
+        setIsProcessing(false);
+        return;
+      }
+
+      const results = await claimAllRewards(mnemonic, address);
+      const successCount = results.filter(r => r.success).length;
+
+      if (successCount > 0) {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        tg?.showAlert(`Claimed ${position.pendingRewards.toFixed(2)} HODL rewards!`);
+        // Refresh position after successful claim
+        fetchStakingPosition(address);
+      } else {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        tg?.showAlert(`Failed to claim rewards: ${results[0]?.error || 'Unknown error'}`);
+      }
+    } catch (err) {
       tg?.HapticFeedback?.notificationOccurred('error');
-      tg?.showAlert('Failed to claim rewards. Please try again.');
+      tg?.showAlert(`Failed to claim rewards: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsProcessing(false);
     }

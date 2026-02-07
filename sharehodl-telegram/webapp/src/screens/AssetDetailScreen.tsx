@@ -62,42 +62,9 @@ export function AssetDetailScreen() {
   const chainConfig = CHAIN_CONFIGS[token.chain];
   const isPositive = asset.priceChange24h >= 0;
 
-  // Demo transactions
-  const demoTransactions: Transaction[] = [
-    {
-      hash: '0x1234...5678',
-      type: 'RECEIVE',
-      chain: token.chain,
-      from: '0xabcd...efgh',
-      to: asset.address,
-      amount: (parseFloat(asset.balance) * 0.3).toFixed(4),
-      symbol: token.symbol,
-      status: 'SUCCESS',
-      timestamp: Date.now() - 86400000 * 2
-    },
-    {
-      hash: '0x5678...9abc',
-      type: 'SEND',
-      chain: token.chain,
-      from: asset.address,
-      to: '0xijkl...mnop',
-      amount: (parseFloat(asset.balance) * 0.1).toFixed(4),
-      symbol: token.symbol,
-      status: 'SUCCESS',
-      timestamp: Date.now() - 86400000 * 5
-    },
-    {
-      hash: '0x9abc...def0',
-      type: 'RECEIVE',
-      chain: token.chain,
-      from: '0xqrst...uvwx',
-      to: asset.address,
-      amount: (parseFloat(asset.balance) * 0.8).toFixed(4),
-      symbol: token.symbol,
-      status: 'SUCCESS',
-      timestamp: Date.now() - 86400000 * 10
-    }
-  ];
+  // Real transactions will be fetched from blockchain
+  // Empty array until transaction indexer is connected
+  const transactions: Transaction[] = [];
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -200,9 +167,9 @@ export function AssetDetailScreen() {
       <div className="transactions-section">
         <h3 className="section-title">Recent Transactions</h3>
 
-        {demoTransactions.length > 0 ? (
+        {transactions.length > 0 ? (
           <div className="transactions-list">
-            {demoTransactions.map((tx) => (
+            {transactions.map((tx) => (
               <div key={tx.hash} className="transaction-item">
                 <div className={`tx-icon ${tx.type.toLowerCase()}`}>
                   {tx.type === 'RECEIVE' ? (

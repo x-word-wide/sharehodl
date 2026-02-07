@@ -14,6 +14,12 @@ import {
   ValidatorTier,
   STAKING_TIERS
 } from '../types';
+import {
+  delegateTokens,
+  undelegateTokens,
+  claimRewards as claimRewardsOnChain,
+  type TransactionResult
+} from './blockchainService';
 
 // API base URL for ShareHODL blockchain
 export const API_BASE = import.meta.env.VITE_SHAREHODL_REST || 'https://api.sharehodl.com';
@@ -28,11 +34,11 @@ interface StakingStore {
   // Actions
   fetchStakingPosition: (address: string) => Promise<void>;
   fetchValidators: () => Promise<void>;
-  delegate: (validatorAddress: string, amount: number) => Promise<void>;
-  undelegate: (validatorAddress: string, amount: number) => Promise<void>;
+  delegate: (mnemonic: string, validatorAddress: string, amount: number) => Promise<TransactionResult>;
+  undelegate: (mnemonic: string, validatorAddress: string, amount: number) => Promise<TransactionResult>;
   redelegate: (fromValidator: string, toValidator: string, amount: number) => Promise<void>;
-  claimRewards: (validatorAddress?: string) => Promise<void>;
-  claimAllRewards: () => Promise<void>;
+  claimRewards: (mnemonic: string, validatorAddress: string) => Promise<TransactionResult>;
+  claimAllRewards: (mnemonic: string, address: string) => Promise<TransactionResult[]>;
   clearError: () => void;
 }
 
@@ -238,18 +244,21 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
     }
   },
 
-  // Delegate to a validator
-  delegate: async (validatorAddress: string, amount: number) => {
+  // Delegate to a validator - REAL blockchain transaction
+  delegate: async (mnemonic: string, validatorAddress: string, amount: number): Promise<TransactionResult> => {
     set({ isLoading: true, error: null });
 
     try {
-      // TODO: Implement actual delegation transaction
-      // This would require:
-      // 1. Get mnemonic from encrypted storage
-      // 2. Create delegation message
-      // 3. Sign and broadcast transaction
+      // Call the blockchain service to delegate tokens
+      // Amount is in HODL, service converts to uhodl internally
+      const result = await delegateTokens(mnemonic, validatorAddress, amount.toString());
 
-      // For demo, update local state
+      if (!result.success) {
+        set({ isLoading: false, error: result.error || 'Delegation failed' });
+        return result;
+      }
+
+      // Update local state optimistically after successful broadcast
       const { position, validators } = get();
       if (position) {
         const validator = validators.find(v => v.address === validatorAddress);
@@ -292,19 +301,32 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
           },
           isLoading: false
         });
+      } else {
+        set({ isLoading: false });
       }
+
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delegate';
       set({ isLoading: false, error: message });
-      throw error;
+      return { success: false, error: message };
     }
   },
 
-  // Undelegate from a validator
-  undelegate: async (validatorAddress: string, amount: number) => {
+  // Undelegate from a validator - REAL blockchain transaction
+  undelegate: async (mnemonic: string, validatorAddress: string, amount: number): Promise<TransactionResult> => {
     set({ isLoading: true, error: null });
 
     try {
+      // Call the blockchain service to undelegate tokens
+      const result = await undelegateTokens(mnemonic, validatorAddress, amount.toString());
+
+      if (!result.success) {
+        set({ isLoading: false, error: result.error || 'Undelegation failed' });
+        return result;
+      }
+
+      // Update local state after successful broadcast
       const { position } = get();
       if (position) {
         // Create unbonding entry (21 day unbonding period)
@@ -340,11 +362,15 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
           },
           isLoading: false
         });
+      } else {
+        set({ isLoading: false });
       }
+
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to undelegate';
       set({ isLoading: false, error: message });
-      throw error;
+      return { success: false, error: message };
     }
   },
 
@@ -393,18 +419,27 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
     }
   },
 
-  // Claim rewards from a specific validator
-  claimRewards: async (validatorAddress?: string) => {
+  // Claim rewards from a specific validator - REAL blockchain transaction
+  claimRewards: async (mnemonic: string, validatorAddress: string): Promise<TransactionResult> => {
     set({ isLoading: true, error: null });
 
     try {
+      // Call the blockchain service to claim rewards
+      const result = await claimRewardsOnChain(mnemonic, validatorAddress);
+
+      if (!result.success) {
+        set({ isLoading: false, error: result.error || 'Claim failed' });
+        return result;
+      }
+
+      // Update local state after successful claim
       const { position } = get();
       if (position) {
-        let claimedAmount = 0;
+        const delegation = position.delegations.find(d => d.validatorAddress === validatorAddress);
+        const claimedAmount = delegation?.rewards || 0;
 
         const newDelegations = position.delegations.map(d => {
-          if (!validatorAddress || d.validatorAddress === validatorAddress) {
-            claimedAmount += d.rewards;
+          if (d.validatorAddress === validatorAddress) {
             return { ...d, rewards: 0 };
           }
           return d;
@@ -418,19 +453,57 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
           },
           isLoading: false
         });
-
-        return;
+      } else {
+        set({ isLoading: false });
       }
+
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to claim rewards';
       set({ isLoading: false, error: message });
-      throw error;
+      return { success: false, error: message };
     }
   },
 
-  // Claim all pending rewards
-  claimAllRewards: async () => {
-    return get().claimRewards();
+  // Claim all pending rewards from all validators
+  claimAllRewards: async (mnemonic: string, _address: string): Promise<TransactionResult[]> => {
+    const { position } = get();
+    if (!position || position.delegations.length === 0) {
+      return [{ success: false, error: 'No delegations found' }];
+    }
+
+    set({ isLoading: true, error: null });
+
+    const results: TransactionResult[] = [];
+
+    // Claim from each validator with pending rewards
+    for (const delegation of position.delegations) {
+      if (delegation.rewards > 0) {
+        try {
+          const result = await claimRewardsOnChain(mnemonic, delegation.validatorAddress);
+          results.push(result);
+        } catch (error) {
+          results.push({ success: false, error: error instanceof Error ? error.message : 'Claim failed' });
+        }
+      }
+    }
+
+    // Update local state
+    if (position) {
+      const newDelegations = position.delegations.map(d => ({ ...d, rewards: 0 }));
+      set({
+        position: {
+          ...position,
+          delegations: newDelegations,
+          pendingRewards: 0
+        },
+        isLoading: false
+      });
+    } else {
+      set({ isLoading: false });
+    }
+
+    return results;
   },
 
   clearError: () => set({ error: null })

@@ -6,19 +6,17 @@
 import { useState } from 'react';
 import { EquitySector, SECTOR_COLORS } from '../types';
 
-// Demo equity data with more details
-const DEMO_EQUITIES = [
-  { symbol: 'AAPL', name: 'Apple Inc.', price: 189.45, change: 2.34, marketCap: '2.95T', volume: '52.3M', sector: EquitySector.TECHNOLOGY },
-  { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 141.80, change: -0.89, marketCap: '1.78T', volume: '23.1M', sector: EquitySector.TECHNOLOGY },
-  { symbol: 'MSFT', name: 'Microsoft Corp.', price: 378.91, change: 1.56, marketCap: '2.81T', volume: '18.7M', sector: EquitySector.TECHNOLOGY },
-  { symbol: 'AMZN', name: 'Amazon.com Inc.', price: 178.25, change: 3.21, marketCap: '1.86T', volume: '35.2M', sector: EquitySector.CONSUMER },
-  { symbol: 'NVDA', name: 'NVIDIA Corp.', price: 875.30, change: 5.67, marketCap: '2.16T', volume: '42.8M', sector: EquitySector.TECHNOLOGY },
-  { symbol: 'JPM', name: 'JPMorgan Chase', price: 195.40, change: -1.23, marketCap: '562B', volume: '8.4M', sector: EquitySector.FINANCE },
-  { symbol: 'JNJ', name: 'Johnson & Johnson', price: 156.78, change: 0.45, marketCap: '378B', volume: '6.2M', sector: EquitySector.HEALTHCARE },
-  { symbol: 'XOM', name: 'Exxon Mobil', price: 103.56, change: -2.10, marketCap: '412B', volume: '12.1M', sector: EquitySector.ENERGY },
-  { symbol: 'V', name: 'Visa Inc.', price: 276.34, change: 1.12, marketCap: '567B', volume: '5.8M', sector: EquitySector.FINANCE },
-  { symbol: 'PFE', name: 'Pfizer Inc.', price: 28.45, change: -0.34, marketCap: '160B', volume: '32.4M', sector: EquitySector.HEALTHCARE },
-];
+// Equities will be fetched from blockchain equity module when available
+// Empty array until equity module API is exposed
+const EQUITIES: Array<{
+  symbol: string;
+  name: string;
+  price: number;
+  change: number;
+  marketCap: string;
+  volume: string;
+  sector: EquitySector;
+}> = [];
 
 interface SelectedEquity {
   symbol: string;
@@ -42,7 +40,7 @@ export function MarketScreen() {
 
   const sectors = ['ALL', ...Object.values(EquitySector)] as const;
 
-  const filteredEquities = DEMO_EQUITIES.filter(equity => {
+  const filteredEquities = EQUITIES.filter(equity => {
     const matchesSearch = equity.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           equity.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesSector = selectedSector === 'ALL' || equity.sector === selectedSector;
@@ -119,24 +117,26 @@ export function MarketScreen() {
         ))}
       </div>
 
-      {/* Market Stats */}
-      <div className="market-stats">
-        <div className="stat-card gainer">
-          <span className="stat-label">Top Gainer</span>
-          <span className="stat-symbol">NVDA</span>
-          <span className="stat-value positive">+5.67%</span>
+      {/* Market Stats - Only show when equities are available */}
+      {EQUITIES.length > 0 && (
+        <div className="market-stats">
+          <div className="stat-card gainer">
+            <span className="stat-label">Top Gainer</span>
+            <span className="stat-symbol">-</span>
+            <span className="stat-value positive">-</span>
+          </div>
+          <div className="stat-card loser">
+            <span className="stat-label">Top Loser</span>
+            <span className="stat-symbol">-</span>
+            <span className="stat-value negative">-</span>
+          </div>
+          <div className="stat-card volume">
+            <span className="stat-label">24h Volume</span>
+            <span className="stat-symbol">$0</span>
+            <span className="stat-value">Traded</span>
+          </div>
         </div>
-        <div className="stat-card loser">
-          <span className="stat-label">Top Loser</span>
-          <span className="stat-symbol">XOM</span>
-          <span className="stat-value negative">-2.10%</span>
-        </div>
-        <div className="stat-card volume">
-          <span className="stat-label">24h Volume</span>
-          <span className="stat-symbol">$2.4B</span>
-          <span className="stat-value">Traded</span>
-        </div>
-      </div>
+      )}
 
       {/* Equity List */}
       <div className="equity-list">
@@ -177,7 +177,9 @@ export function MarketScreen() {
 
         {filteredEquities.length === 0 && (
           <div className="empty-state">
-            <p>No stocks found</p>
+            <span className="empty-icon">📈</span>
+            <p className="empty-title">No Equities Available</p>
+            <p className="empty-desc">Tokenized equities will appear here when companies are onboarded</p>
           </div>
         )}
       </div>
@@ -551,9 +553,29 @@ const styles = `
   }
 
   .empty-state {
-    padding: 40px;
+    padding: 60px 40px;
     text-align: center;
     color: #8b949e;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 16px;
+  }
+
+  .empty-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: white;
+    margin: 0 0 8px;
+  }
+
+  .empty-desc {
+    font-size: 14px;
+    color: #8b949e;
+    margin: 0;
+    line-height: 1.5;
   }
 
   /* Modal */

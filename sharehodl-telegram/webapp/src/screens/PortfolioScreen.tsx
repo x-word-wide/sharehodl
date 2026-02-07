@@ -19,9 +19,8 @@ const SERVICES = [
   { id: 'bridge', iconType: 'bridge', title: 'Bridge', desc: 'Cross-chain', path: '/bridge', color: '#3B82F6' }
 ];
 
-// Equity holdings - will be fetched from blockchain when available
-// Empty array for now until equity module is connected
-const EQUITIES: Array<{
+// Equity holding type
+interface EquityHolding {
   id: string;
   symbol: string;
   name: string;
@@ -29,7 +28,7 @@ const EQUITIES: Array<{
   pricePerShare: number;
   change24h: number;
   color: string;
-}> = [];
+}
 
 // Service icons
 const ServiceIcon = ({ type, color }: { type: string; color: string }) => {
@@ -157,6 +156,24 @@ export function PortfolioScreen() {
 
   // Count unique chains with assets
   const chainCount = new Set(assets.map(a => a.token.chain)).size;
+
+  // Get HODL balance for ShareHODL PLC equity display
+  // Use raw balance (not balanceFormatted which is "90.00M" -> parseFloat stops at "M")
+  const hodlAsset = assets.find(a => a.token.symbol === 'HODL');
+  const hodlBalance = hodlAsset ? parseFloat(hodlAsset.balance) : 0;
+
+  // ShareHODL PLC always shows as first equity (native token representing platform ownership)
+  const equities: EquityHolding[] = [
+    {
+      id: 'sharehodl-plc',
+      symbol: 'HODL',
+      name: 'ShareHODL PLC',
+      shares: hodlBalance,
+      pricePerShare: 1.00, // 1 HODL = $1 USD (stablecoin pegged)
+      change24h: 0,
+      color: '#1E40AF'
+    }
+  ];
 
   const userName = tg?.initDataUnsafe?.user?.first_name || 'there';
 
@@ -386,8 +403,8 @@ export function PortfolioScreen() {
                 </button>
               </div>
             )
-          ) : EQUITIES.length > 0 ? (
-            EQUITIES.map((equity) => {
+          ) : (
+            equities.map((equity) => {
               const totalValue = equity.shares * equity.pricePerShare;
               const isPositive = equity.change24h >= 0;
 
@@ -407,9 +424,11 @@ export function PortfolioScreen() {
                     </div>
                     <div className="asset-price-row">
                       <span className="asset-price">${equity.pricePerShare.toFixed(2)}/share</span>
-                      <span className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
-                        {isPositive ? '+' : ''}{equity.change24h.toFixed(2)}%
-                      </span>
+                      {equity.change24h !== 0 && (
+                        <span className={`price-change ${isPositive ? 'positive' : 'negative'}`}>
+                          {isPositive ? '+' : ''}{equity.change24h.toFixed(2)}%
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="asset-balance">
@@ -419,12 +438,6 @@ export function PortfolioScreen() {
                 </button>
               );
             })
-          ) : (
-            <div className="empty-state">
-              <span className="empty-icon">📈</span>
-              <p className="empty-title">No Equities Yet</p>
-              <p className="empty-desc">Tokenized shares will appear here</p>
-            </div>
           )}
         </div>
 
