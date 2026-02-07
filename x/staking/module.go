@@ -133,8 +133,7 @@ func (am AppModule) Name() string {
 
 // RegisterServices registers module services
 func (am AppModule) RegisterServices(cfg module.Configurator) {
-	// Register message server when messages are defined
-	// Register query server when queries are defined
+	// Message server requires protobuf - skipping for now
 }
 
 // InitGenesis performs genesis initialization
@@ -214,5 +213,5 @@ func RegisterCodec(cdc *codec.LegacyAmino) {
 
 // RegisterInterfaces registers interface types
 func RegisterInterfaces(registry cdctypes.InterfaceRegistry) {
-	// Register message implementations when defined
+	// Message types require protobuf generation - skipping for now
 }

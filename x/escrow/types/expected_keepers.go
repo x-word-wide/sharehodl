@@ -63,6 +63,20 @@ type UniversalStakingKeeper interface {
 	PenalizeBadDispute(ctx sdk.Context, addr sdk.AccAddress, disputeID string) error
 	// GetStakeAge returns how long the user has been at their current tier (anti-sybil)
 	GetStakeAge(ctx sdk.Context, addr sdk.AccAddress) int64 // Returns seconds staked at current tier
+
+	// ==========================================================================
+	// STAKE-AS-TRUST-CEILING: Commitment Management
+	// Only the SENDER (market maker) needs stake commitment, not the recipient
+	// ==========================================================================
+
+	// CanCommit checks if user can commit the specified amount (has enough available stake)
+	CanCommit(ctx sdk.Context, owner sdk.AccAddress, amount math.Int) bool
+	// GetAvailableStake returns stake minus current commitments
+	GetAvailableStake(ctx sdk.Context, owner sdk.AccAddress) math.Int
+	// AddEscrowCommitment adds a commitment when escrow is funded by sender
+	AddEscrowCommitment(ctx sdk.Context, owner sdk.AccAddress, escrowID uint64, amount math.Int) error
+	// ReleaseEscrowCommitment releases commitment when escrow is completed/cancelled
+	ReleaseEscrowCommitment(ctx sdk.Context, owner sdk.AccAddress, escrowID uint64) error
 }
 
 // Universal staking tier constants (matching x/staking/types)

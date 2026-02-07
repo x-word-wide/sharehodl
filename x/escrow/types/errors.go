@@ -56,6 +56,7 @@ var (
 	ErrEvidenceAlreadySubmitted = errors.Register(ModuleName, 71, "evidence already submitted")
 
 	// Stake-as-Trust-Ceiling errors
+	ErrExceedsTrustCeiling         = errors.Register(ModuleName, 79, "escrow value exceeds sender's available stake (trust ceiling)")
 	ErrDisputeExceedsTrustCeiling  = errors.Register(ModuleName, 80, "dispute value exceeds moderator stake (trust ceiling)")
 	ErrModeratorBlacklisted        = errors.Register(ModuleName, 81, "moderator is blacklisted")
 	ErrModeratorHasActiveDisputes  = errors.Register(ModuleName, 82, "moderator has active disputes, cannot unstake")

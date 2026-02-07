@@ -4,7 +4,10 @@ import (
 	"context"
 
 	"cosmossdk.io/math"
+	cdctypes "github.com/cosmos/cosmos-sdk/codec/types"
 	sdk "github.com/cosmos/cosmos-sdk/types"
+	"github.com/cosmos/cosmos-sdk/types/msgservice"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -240,3 +243,120 @@ func (m *MsgClaimRewardsResponse) Reset() { *m = MsgClaimRewardsResponse{} }
 
 // String implements proto.Message interface
 func (m *MsgClaimRewardsResponse) String() string { return "msg_claim_rewards_response" }
+
+// ============================================================================
+// Message Registration
+// ============================================================================
+
+// RegisterMsgServer registers the message server
+func RegisterMsgServer(s grpc.ServiceRegistrar, srv MsgServer) {
+	s.RegisterService(&_Msg_serviceDesc, srv)
+}
+
+var _Msg_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "sharehodl.staking.Msg",
+	HandlerType: (*MsgServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "UpdateParams",
+			Handler:    _Msg_UpdateParams_Handler,
+		},
+		{
+			MethodName: "Stake",
+			Handler:    _Msg_Stake_Handler,
+		},
+		{
+			MethodName: "Unstake",
+			Handler:    _Msg_Unstake_Handler,
+		},
+		{
+			MethodName: "ClaimRewards",
+			Handler:    _Msg_ClaimRewards_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "sharehodl/staking/tx.proto",
+}
+
+func _Msg_UpdateParams_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgUpdateParams)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).UpdateParams(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sharehodl.staking.Msg/UpdateParams",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).UpdateParams(ctx, req.(*MsgUpdateParams))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Msg_Stake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgStake)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).Stake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sharehodl.staking.Msg/Stake",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).Stake(ctx, req.(*MsgStake))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Msg_Unstake_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgUnstake)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).Unstake(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sharehodl.staking.Msg/Unstake",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).Unstake(ctx, req.(*MsgUnstake))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Msg_ClaimRewards_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MsgClaimRewards)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgServer).ClaimRewards(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sharehodl.staking.Msg/ClaimRewards",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgServer).ClaimRewards(ctx, req.(*MsgClaimRewards))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// RegisterMsgServiceInterfaces registers the message types with the interface registry
+func RegisterMsgServiceInterfaces(registry cdctypes.InterfaceRegistry) {
+	registry.RegisterImplementations((*sdk.Msg)(nil),
+		&MsgUpdateParams{},
+		&MsgStake{},
+		&MsgUnstake{},
+		&MsgClaimRewards{},
+	)
+	msgservice.RegisterMsgServiceDesc(registry, &_Msg_serviceDesc)
+}

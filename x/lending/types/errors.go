@@ -66,6 +66,7 @@ var (
 	ErrPriceStale        = errors.Register(ModuleName, 91, "price data is stale")
 
 	// Stake-as-Trust-Ceiling: P2P lending stake errors
+	ErrLenderExceedsTrustCeiling  = errors.Register(ModuleName, 99, "loan principal exceeds lender's available stake (trust ceiling)")
 	ErrOfferExceedsTrustCeiling   = errors.Register(ModuleName, 100, "offer value exceeds lender stake (trust ceiling)")
 	ErrRequestExceedsTrustCeiling = errors.Register(ModuleName, 101, "request value exceeds borrower stake (trust ceiling)")
 	ErrLenderStakeNotFound        = errors.Register(ModuleName, 102, "lender stake not found")

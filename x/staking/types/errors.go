@@ -58,6 +58,12 @@ var (
 	// Listing requirement errors
 	ErrInsufficientTierForListing = errors.Register(ModuleName, 80, "must be Keeper tier or higher (10K HODL) to submit company listing")
 	ErrInsufficientTierToVerify   = errors.Register(ModuleName, 81, "insufficient tier to verify this business size")
+
+	// Stake-as-Trust-Ceiling commitment errors
+	ErrInvalidLockType       = errors.Register(ModuleName, 90, "invalid lock type for commitment")
+	ErrExceedsTrustCeiling   = errors.Register(ModuleName, 91, "amount exceeds available stake (trust ceiling)")
+	ErrCommitmentNotFound    = errors.Register(ModuleName, 92, "commitment not found")
+	ErrInsufficientAvailable = errors.Register(ModuleName, 93, "insufficient available stake after commitments")
 )
 
 // Event types

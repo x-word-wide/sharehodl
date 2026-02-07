@@ -339,6 +339,14 @@ func (k Keeper) Unstake(ctx sdk.Context, staker sdk.AccAddress, amount math.Int)
 		return types.ErrUnbondingInProgress
 	}
 
+	// CHECK STAKE-AS-TRUST-CEILING COMMITMENTS
+	// Cannot unstake below total committed amount (escrow, lending, P2P)
+	canUnstakeAmount, reason := k.CanUnstakeAmount(ctx, staker, amount)
+	if !canUnstakeAmount {
+		k.Logger(ctx).Info("unstake blocked by commitments", "staker", staker.String(), "reason", reason)
+		return types.ErrInsufficientAvailable
+	}
+
 	newAmount := stake.StakedAmount.Sub(amount)
 	oldTier := stake.Tier
 
@@ -681,4 +689,284 @@ func (k Keeper) GetValidatorsByTier(ctx sdk.Context, minTier int32) ([]sdk.AccAd
 		return false
 	})
 	return validators, nil
+}
+
+// =============================================================================
+// STAKE-AS-TRUST-CEILING: COMMITMENT MANAGEMENT
+// =============================================================================
+// Users cannot handle transactions above their staked amount.
+// When a user creates an escrow, loan, or P2P trade, that value is "committed"
+// from their stake. They cannot unstake below their total committed amount.
+
+// GetUserCommitments returns a user's stake commitments
+func (k Keeper) GetUserCommitments(ctx sdk.Context, owner sdk.AccAddress) (types.UserStakeCommitments, bool) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetUserCommitmentsKey(owner)
+
+	bz := store.Get(key)
+	if bz == nil {
+		return types.NewUserStakeCommitments(owner.String()), false
+	}
+
+	var commitments types.UserStakeCommitments
+	if err := json.Unmarshal(bz, &commitments); err != nil {
+		return types.NewUserStakeCommitments(owner.String()), false
+	}
+	return commitments, true
+}
+
+// SetUserCommitments stores a user's stake commitments
+func (k Keeper) SetUserCommitments(ctx sdk.Context, commitments types.UserStakeCommitments) error {
+	owner, err := sdk.AccAddressFromBech32(commitments.Owner)
+	if err != nil {
+		return err
+	}
+
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetUserCommitmentsKey(owner)
+
+	bz, err := json.Marshal(commitments)
+	if err != nil {
+		return err
+	}
+	store.Set(key, bz)
+	return nil
+}
+
+// DeleteUserCommitments removes a user's commitments (when all cleared)
+func (k Keeper) DeleteUserCommitments(ctx sdk.Context, owner sdk.AccAddress) {
+	store := ctx.KVStore(k.storeKey)
+	key := types.GetUserCommitmentsKey(owner)
+	store.Delete(key)
+}
+
+// GetAvailableStake returns the stake amount available for new commitments
+// Available = Staked - TotalCommitted
+func (k Keeper) GetAvailableStake(ctx sdk.Context, owner sdk.AccAddress) math.Int {
+	stake, exists := k.GetUserStake(ctx, owner)
+	if !exists {
+		return math.ZeroInt()
+	}
+
+	commitments, _ := k.GetUserCommitments(ctx, owner)
+	available := stake.StakedAmount.Sub(commitments.TotalCommitted)
+
+	if available.IsNegative() {
+		return math.ZeroInt()
+	}
+	return available
+}
+
+// GetTotalCommitted returns the total amount committed by a user
+func (k Keeper) GetTotalCommitted(ctx sdk.Context, owner sdk.AccAddress) math.Int {
+	commitments, exists := k.GetUserCommitments(ctx, owner)
+	if !exists {
+		return math.ZeroInt()
+	}
+	return commitments.TotalCommitted
+}
+
+// CanCommit checks if user can commit the specified amount
+// Returns true if stake - currentCommitments >= newAmount
+func (k Keeper) CanCommit(ctx sdk.Context, owner sdk.AccAddress, amount math.Int) bool {
+	available := k.GetAvailableStake(ctx, owner)
+	return available.GTE(amount)
+}
+
+// AddCommitment adds a new commitment to a user's stake
+// This should be called when creating escrow, activating loan, starting P2P trade
+func (k Keeper) AddCommitment(
+	ctx sdk.Context,
+	owner sdk.AccAddress,
+	lockType types.LockType,
+	referenceID string,
+	amount math.Int,
+	description string,
+) error {
+	// Verify this is a commitment-type lock
+	if !lockType.IsCommitmentLock() {
+		return types.ErrInvalidLockType
+	}
+
+	// Check if user can commit this amount
+	if !k.CanCommit(ctx, owner, amount) {
+		return types.ErrExceedsTrustCeiling
+	}
+
+	// Get or create commitments
+	commitments, _ := k.GetUserCommitments(ctx, owner)
+	if commitments.Owner == "" {
+		commitments = types.NewUserStakeCommitments(owner.String())
+	}
+
+	// Create the commitment
+	commitment := types.StakeCommitment{
+		LockType:        lockType,
+		ReferenceID:     referenceID,
+		CommittedAmount: amount,
+		Description:     description,
+		CreatedAt:       ctx.BlockTime(),
+	}
+
+	// Add commitment
+	commitments.AddCommitment(commitment)
+
+	// Save
+	if err := k.SetUserCommitments(ctx, commitments); err != nil {
+		return err
+	}
+
+	// Emit event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"commitment_added",
+			sdk.NewAttribute("owner", owner.String()),
+			sdk.NewAttribute("lock_type", lockType.String()),
+			sdk.NewAttribute("reference_id", referenceID),
+			sdk.NewAttribute("amount", amount.String()),
+			sdk.NewAttribute("total_committed", commitments.TotalCommitted.String()),
+		),
+	)
+
+	return nil
+}
+
+// ReleaseCommitment removes a commitment when the activity is complete
+// This should be called when escrow completes, loan repaid, P2P trade finished
+func (k Keeper) ReleaseCommitment(
+	ctx sdk.Context,
+	owner sdk.AccAddress,
+	lockType types.LockType,
+	referenceID string,
+) error {
+	commitments, exists := k.GetUserCommitments(ctx, owner)
+	if !exists {
+		return nil // No commitments to release
+	}
+
+	// Get the commitment amount before removing (for event)
+	commitment, found := commitments.GetCommitment(lockType, referenceID)
+	if !found {
+		return nil // Commitment doesn't exist
+	}
+	releasedAmount := commitment.CommittedAmount
+
+	// Remove the commitment
+	if !commitments.RemoveCommitment(lockType, referenceID) {
+		return nil // Wasn't found
+	}
+
+	// Save or delete if empty
+	if len(commitments.Commitments) == 0 {
+		k.DeleteUserCommitments(ctx, owner)
+	} else {
+		if err := k.SetUserCommitments(ctx, commitments); err != nil {
+			return err
+		}
+	}
+
+	// Emit event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"commitment_released",
+			sdk.NewAttribute("owner", owner.String()),
+			sdk.NewAttribute("lock_type", lockType.String()),
+			sdk.NewAttribute("reference_id", referenceID),
+			sdk.NewAttribute("amount", releasedAmount.String()),
+			sdk.NewAttribute("total_committed", commitments.TotalCommitted.String()),
+		),
+	)
+
+	return nil
+}
+
+// GetCommitmentsByType returns all commitments of a specific type for a user
+func (k Keeper) GetCommitmentsByType(ctx sdk.Context, owner sdk.AccAddress, lockType types.LockType) []types.StakeCommitment {
+	commitments, exists := k.GetUserCommitments(ctx, owner)
+	if !exists {
+		return nil
+	}
+	return commitments.GetCommitmentsByType(lockType)
+}
+
+// CanUnstakeAmount checks if user can unstake the specified amount
+// considering their current commitments
+func (k Keeper) CanUnstakeAmount(ctx sdk.Context, owner sdk.AccAddress, unstakeAmount math.Int) (bool, string) {
+	stake, exists := k.GetUserStake(ctx, owner)
+	if !exists {
+		return false, "no stake found"
+	}
+
+	commitments, _ := k.GetUserCommitments(ctx, owner)
+
+	// After unstaking, remaining stake must cover commitments
+	remainingAfterUnstake := stake.StakedAmount.Sub(unstakeAmount)
+	if remainingAfterUnstake.LT(commitments.TotalCommitted) {
+		return false, fmt.Sprintf("cannot unstake: %s uhodl committed to active positions (escrow: %s, lending: %s, p2p: %s)",
+			commitments.TotalCommitted.String(),
+			commitments.EscrowCommitted.String(),
+			commitments.LendingCommitted.String(),
+			commitments.P2PCommitted.String())
+	}
+
+	return true, ""
+}
+
+// =============================================================================
+// ESCROW COMMITMENT WRAPPERS
+// These are called by the escrow module for stake-as-trust-ceiling
+// Only the SENDER (market maker who posts escrow) needs commitment
+// =============================================================================
+
+// AddEscrowCommitment adds a commitment when an escrow is funded by sender
+func (k Keeper) AddEscrowCommitment(ctx sdk.Context, owner sdk.AccAddress, escrowID uint64, amount math.Int) error {
+	referenceID := fmt.Sprintf("escrow:%d", escrowID)
+	description := fmt.Sprintf("Escrow #%d commitment", escrowID)
+	return k.AddCommitment(ctx, owner, types.LockTypeEscrowCommitment, referenceID, amount, description)
+}
+
+// ReleaseEscrowCommitment releases commitment when escrow is completed/refunded/cancelled
+func (k Keeper) ReleaseEscrowCommitment(ctx sdk.Context, owner sdk.AccAddress, escrowID uint64) error {
+	referenceID := fmt.Sprintf("escrow:%d", escrowID)
+	return k.ReleaseCommitment(ctx, owner, types.LockTypeEscrowCommitment, referenceID)
+}
+
+// =============================================================================
+// LENDING COMMITMENT WRAPPERS
+// These are called by the lending module for stake-as-trust-ceiling
+// Only the LENDER (who posts the offer) needs commitment
+// Borrowers provide collateral instead of stake commitment
+// =============================================================================
+
+// AddLendingCommitment adds a commitment when a lender activates a loan
+func (k Keeper) AddLendingCommitment(ctx sdk.Context, owner sdk.AccAddress, loanID uint64, amount math.Int) error {
+	referenceID := fmt.Sprintf("loan:%d", loanID)
+	description := fmt.Sprintf("Loan #%d lending commitment", loanID)
+	return k.AddCommitment(ctx, owner, types.LockTypeLendingCommitment, referenceID, amount, description)
+}
+
+// ReleaseLendingCommitment releases commitment when loan is repaid/liquidated/defaulted
+func (k Keeper) ReleaseLendingCommitment(ctx sdk.Context, owner sdk.AccAddress, loanID uint64) error {
+	referenceID := fmt.Sprintf("loan:%d", loanID)
+	return k.ReleaseCommitment(ctx, owner, types.LockTypeLendingCommitment, referenceID)
+}
+
+// =============================================================================
+// P2P TRADE COMMITMENT WRAPPERS
+// These are called by P2P trading module for stake-as-trust-ceiling
+// Only the SELLER (who posts the ad) needs commitment
+// Buyers who respond to ads are free to participate
+// =============================================================================
+
+// AddP2PCommitment adds a commitment when a seller posts a P2P trade ad
+func (k Keeper) AddP2PCommitment(ctx sdk.Context, owner sdk.AccAddress, tradeID uint64, amount math.Int) error {
+	referenceID := fmt.Sprintf("p2p:%d", tradeID)
+	description := fmt.Sprintf("P2P Trade #%d commitment", tradeID)
+	return k.AddCommitment(ctx, owner, types.LockTypeP2PCommitment, referenceID, amount, description)
+}
+
+// ReleaseP2PCommitment releases commitment when P2P trade is completed/cancelled
+func (k Keeper) ReleaseP2PCommitment(ctx sdk.Context, owner sdk.AccAddress, tradeID uint64) error {
+	referenceID := fmt.Sprintf("p2p:%d", tradeID)
+	return k.ReleaseCommitment(ctx, owner, types.LockTypeP2PCommitment, referenceID)
 }

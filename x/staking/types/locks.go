@@ -19,6 +19,15 @@ const (
 	LockTypeBan                     // User is banned/blacklisted
 	LockTypeValidator               // Running a validator node
 	LockTypeModerator               // Registered as escrow moderator
+
+	// ==========================================================================
+	// COMMITMENT-BASED LOCKS (Stake-as-Trust-Ceiling)
+	// These lock types track amounts committed, not just boolean locks.
+	// Users cannot unstake below their total committed amount.
+	// ==========================================================================
+	LockTypeEscrowCommitment   // Active escrow (as sender/recipient) - commits stake value
+	LockTypeLendingCommitment  // Active lending position (lender/borrower) - commits loan value
+	LockTypeP2PCommitment      // Active P2P trade - commits trade value
 )
 
 // String returns the lock type name
@@ -42,8 +51,24 @@ func (l LockType) String() string {
 		return "validator"
 	case LockTypeModerator:
 		return "moderator"
+	case LockTypeEscrowCommitment:
+		return "escrow_commitment"
+	case LockTypeLendingCommitment:
+		return "lending_commitment"
+	case LockTypeP2PCommitment:
+		return "p2p_commitment"
 	default:
 		return "unknown"
+	}
+}
+
+// IsCommitmentLock returns true if this lock type tracks a committed amount
+func (l LockType) IsCommitmentLock() bool {
+	switch l {
+	case LockTypeEscrowCommitment, LockTypeLendingCommitment, LockTypeP2PCommitment:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -71,6 +96,160 @@ func (l StakeLock) IsExpired(currentTime time.Time) bool {
 		return false // No expiration
 	}
 	return currentTime.After(l.ExpiresAt)
+}
+
+// =============================================================================
+// STAKE COMMITMENTS (Stake-as-Trust-Ceiling)
+// =============================================================================
+
+// StakeCommitment represents a specific amount committed from a user's stake
+// for an activity (escrow, loan, P2P trade). Users cannot unstake below
+// their total committed amount.
+type StakeCommitment struct {
+	LockType        LockType  `json:"lock_type"`         // Type of commitment
+	ReferenceID     string    `json:"reference_id"`      // Escrow ID, Loan ID, Trade ID
+	CommittedAmount math.Int  `json:"committed_amount"`  // Amount committed in uhodl
+	Description     string    `json:"description"`       // Human-readable description
+	CreatedAt       time.Time `json:"created_at"`        // When commitment was created
+	ExpiresAt       time.Time `json:"expires_at,omitempty"` // Optional expiration
+}
+
+// ProtoMessage implements proto.Message interface
+func (m *StakeCommitment) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *StakeCommitment) Reset() { *m = StakeCommitment{} }
+
+// String implements proto.Message interface
+func (m *StakeCommitment) String() string { return m.ReferenceID }
+
+// IsExpired checks if the commitment has expired
+func (c StakeCommitment) IsExpired(currentTime time.Time) bool {
+	if c.ExpiresAt.IsZero() {
+		return false
+	}
+	return currentTime.After(c.ExpiresAt)
+}
+
+// UserStakeCommitments holds all commitments for a user
+type UserStakeCommitments struct {
+	Owner           string            `json:"owner"`
+	Commitments     []StakeCommitment `json:"commitments"`
+	TotalCommitted  math.Int          `json:"total_committed"`   // Sum of all active commitments
+	EscrowCommitted math.Int          `json:"escrow_committed"`  // Sum of escrow commitments
+	LendingCommitted math.Int         `json:"lending_committed"` // Sum of lending commitments
+	P2PCommitted    math.Int          `json:"p2p_committed"`     // Sum of P2P commitments
+}
+
+// ProtoMessage implements proto.Message interface
+func (m *UserStakeCommitments) ProtoMessage() {}
+
+// Reset implements proto.Message interface
+func (m *UserStakeCommitments) Reset() { *m = UserStakeCommitments{} }
+
+// String implements proto.Message interface
+func (m *UserStakeCommitments) String() string { return m.Owner }
+
+// NewUserStakeCommitments creates a new empty commitments struct
+func NewUserStakeCommitments(owner string) UserStakeCommitments {
+	return UserStakeCommitments{
+		Owner:            owner,
+		Commitments:      []StakeCommitment{},
+		TotalCommitted:   math.ZeroInt(),
+		EscrowCommitted:  math.ZeroInt(),
+		LendingCommitted: math.ZeroInt(),
+		P2PCommitted:     math.ZeroInt(),
+	}
+}
+
+// AddCommitment adds a new commitment and updates totals
+func (u *UserStakeCommitments) AddCommitment(commitment StakeCommitment) {
+	u.Commitments = append(u.Commitments, commitment)
+	u.TotalCommitted = u.TotalCommitted.Add(commitment.CommittedAmount)
+
+	switch commitment.LockType {
+	case LockTypeEscrowCommitment:
+		u.EscrowCommitted = u.EscrowCommitted.Add(commitment.CommittedAmount)
+	case LockTypeLendingCommitment:
+		u.LendingCommitted = u.LendingCommitted.Add(commitment.CommittedAmount)
+	case LockTypeP2PCommitment:
+		u.P2PCommitted = u.P2PCommitted.Add(commitment.CommittedAmount)
+	}
+}
+
+// RemoveCommitment removes a commitment by reference ID and updates totals
+func (u *UserStakeCommitments) RemoveCommitment(lockType LockType, referenceID string) bool {
+	for i, c := range u.Commitments {
+		if c.LockType == lockType && c.ReferenceID == referenceID {
+			// Remove from totals
+			u.TotalCommitted = u.TotalCommitted.Sub(c.CommittedAmount)
+			switch c.LockType {
+			case LockTypeEscrowCommitment:
+				u.EscrowCommitted = u.EscrowCommitted.Sub(c.CommittedAmount)
+			case LockTypeLendingCommitment:
+				u.LendingCommitted = u.LendingCommitted.Sub(c.CommittedAmount)
+			case LockTypeP2PCommitment:
+				u.P2PCommitted = u.P2PCommitted.Sub(c.CommittedAmount)
+			}
+
+			// Remove from slice
+			u.Commitments = append(u.Commitments[:i], u.Commitments[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// GetCommitment returns a specific commitment by reference
+func (u UserStakeCommitments) GetCommitment(lockType LockType, referenceID string) (StakeCommitment, bool) {
+	for _, c := range u.Commitments {
+		if c.LockType == lockType && c.ReferenceID == referenceID {
+			return c, true
+		}
+	}
+	return StakeCommitment{}, false
+}
+
+// GetActiveCommitments returns all non-expired commitments
+func (u UserStakeCommitments) GetActiveCommitments(currentTime time.Time) []StakeCommitment {
+	var active []StakeCommitment
+	for _, c := range u.Commitments {
+		if !c.IsExpired(currentTime) {
+			active = append(active, c)
+		}
+	}
+	return active
+}
+
+// GetCommitmentsByType returns commitments of a specific type
+func (u UserStakeCommitments) GetCommitmentsByType(lockType LockType) []StakeCommitment {
+	var result []StakeCommitment
+	for _, c := range u.Commitments {
+		if c.LockType == lockType {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+// RecalculateTotals recalculates all totals from commitments (for consistency)
+func (u *UserStakeCommitments) RecalculateTotals() {
+	u.TotalCommitted = math.ZeroInt()
+	u.EscrowCommitted = math.ZeroInt()
+	u.LendingCommitted = math.ZeroInt()
+	u.P2PCommitted = math.ZeroInt()
+
+	for _, c := range u.Commitments {
+		u.TotalCommitted = u.TotalCommitted.Add(c.CommittedAmount)
+		switch c.LockType {
+		case LockTypeEscrowCommitment:
+			u.EscrowCommitted = u.EscrowCommitted.Add(c.CommittedAmount)
+		case LockTypeLendingCommitment:
+			u.LendingCommitted = u.LendingCommitted.Add(c.CommittedAmount)
+		case LockTypeP2PCommitment:
+			u.P2PCommitted = u.P2PCommitted.Add(c.CommittedAmount)
+		}
+	}
 }
 
 // UserStakeLocks holds all locks for a user

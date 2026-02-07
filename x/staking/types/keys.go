@@ -35,6 +35,7 @@ var (
 	UserLocksPrefix            = []byte{0x60} // Stake locks for users
 	UnbondingRequestPrefix     = []byte{0x70} // Pending unstake requests
 	InheritanceUnbondingPrefix = []byte{0x80} // Inheritance unbonding requests (recipient != owner)
+	UserCommitmentsPrefix      = []byte{0x90} // Stake-as-Trust-Ceiling commitments
 )
 
 // GetUserStakeKey returns the key for a user's stake
@@ -70,4 +71,9 @@ func GetUnbondingRequestKey(addr sdk.AccAddress) []byte {
 // GetInheritanceUnbondingKey returns the key for an inheritance unbonding request
 func GetInheritanceUnbondingKey(addr sdk.AccAddress) []byte {
 	return append(InheritanceUnbondingPrefix, addr.Bytes()...)
+}
+
+// GetUserCommitmentsKey returns the key for a user's stake commitments
+func GetUserCommitmentsKey(addr sdk.AccAddress) []byte {
+	return append(UserCommitmentsPrefix, addr.Bytes()...)
 }

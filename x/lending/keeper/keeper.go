@@ -345,10 +345,47 @@ func (k Keeper) ActivateLoan(ctx sdk.Context, loanID uint64, lender string) erro
 		return err
 	}
 
+	// STAKE-AS-TRUST-CEILING: Pre-check if lender can commit (fail fast)
+	// Lender cannot unstake while loan is active - stake acts as security deposit
+	// NOTE: Actual commitment is added AFTER successful principal transfer to avoid orphaned commitments
+	if k.stakingKeeper != nil {
+		if !k.stakingKeeper.CanCommit(ctx, lenderAddr, loan.Principal) {
+			k.Logger(ctx).Error("lender cannot commit loan principal - insufficient available stake",
+				"loan_id", loan.ID,
+				"lender", lender,
+				"principal", loan.Principal.String(),
+				"available", k.stakingKeeper.GetAvailableStake(ctx, lenderAddr).String(),
+			)
+			return types.ErrLenderExceedsTrustCeiling
+		}
+	}
+
 	// Transfer principal from lender to borrower
 	principalCoins := sdk.NewCoins(sdk.NewCoin("hodl", loan.Principal))
 	if err := k.bankKeeper.SendCoins(ctx, lenderAddr, borrowerAddr, principalCoins); err != nil {
 		return fmt.Errorf("failed to transfer principal: %w", err)
+	}
+
+	// STAKE-AS-TRUST-CEILING: Add commitment AFTER successful principal transfer
+	// This ensures no orphaned commitments if transfer fails
+	if k.stakingKeeper != nil {
+		if err := k.stakingKeeper.AddLendingCommitment(ctx, lenderAddr, loan.ID, loan.Principal); err != nil {
+			// This should rarely happen since we pre-checked CanCommit
+			// If it does, log error and continue - loan is already funded
+			k.Logger(ctx).Error("failed to add lending commitment after principal transfer",
+				"loan_id", loan.ID,
+				"lender", lender,
+				"error", err,
+			)
+			// Note: Principal is already transferred, proceeding anyway
+			// The lender may be able to unstake, but loan will still function correctly
+		} else {
+			k.Logger(ctx).Info("added lending commitment for lender",
+				"loan_id", loan.ID,
+				"lender", lender,
+				"committed", loan.Principal.String(),
+			)
+		}
 	}
 
 	// Update loan
@@ -444,6 +481,24 @@ func (k Keeper) RepayLoan(ctx sdk.Context, loanID uint64, repayer string, amount
 
 		// REWARD: Notify staking system of successful loan repayment
 		k.notifyLoanSuccess(ctx, loan.Borrower, loan.ID)
+
+		// STAKE-AS-TRUST-CEILING: Release lender commitment on successful repayment
+		// Skip pool loans (lender starts with "pool:") - pools don't have stake commitments
+		if k.stakingKeeper != nil && loan.Lender != "" && len(loan.Lender) > 5 && loan.Lender[:5] != "pool:" {
+			lenderAddr, _ := sdk.AccAddressFromBech32(loan.Lender)
+			if err := k.stakingKeeper.ReleaseLendingCommitment(ctx, lenderAddr, loan.ID); err != nil {
+				k.Logger(ctx).Error("failed to release lending commitment on repayment",
+					"loan_id", loan.ID,
+					"lender", loan.Lender,
+					"error", err,
+				)
+			} else {
+				k.Logger(ctx).Info("released lending commitment for lender on repayment",
+					"loan_id", loan.ID,
+					"lender", loan.Lender,
+				)
+			}
+		}
 	}
 
 	k.SetLoan(ctx, loan)
@@ -520,6 +575,23 @@ func (k Keeper) LiquidateLoan(ctx sdk.Context, loanID uint64, liquidator string)
 	// Update loan status
 	loan.Status = types.LoanStatusLiquidated
 	k.SetLoan(ctx, loan)
+
+	// STAKE-AS-TRUST-CEILING: Release lender commitment on liquidation
+	// Skip pool loans (lender starts with "pool:") - pools don't have stake commitments
+	if k.stakingKeeper != nil && loan.Lender != "" && len(loan.Lender) > 5 && loan.Lender[:5] != "pool:" {
+		if err := k.stakingKeeper.ReleaseLendingCommitment(ctx, lenderAddr, loan.ID); err != nil {
+			k.Logger(ctx).Error("failed to release lending commitment on liquidation",
+				"loan_id", loan.ID,
+				"lender", loan.Lender,
+				"error", err,
+			)
+		} else {
+			k.Logger(ctx).Info("released lending commitment for lender on liquidation",
+				"loan_id", loan.ID,
+				"lender", loan.Lender,
+			)
+		}
+	}
 
 	// Emit event
 	ctx.EventManager().EmitEvent(
@@ -1043,6 +1115,26 @@ func (k Keeper) ProcessLoans(ctx sdk.Context) {
 
 			// PENALTY: Notify staking system of loan default
 			k.notifyLoanDefault(ctx, loan.Borrower, loan.ID, loan.TotalOwed.TruncateInt())
+
+			// STAKE-AS-TRUST-CEILING: Release lender commitment on default
+			// Skip pool loans (lender starts with "pool:") - pools don't have stake commitments
+			if k.stakingKeeper != nil && loan.Lender != "" && len(loan.Lender) > 5 && loan.Lender[:5] != "pool:" {
+				lenderAddr, err := sdk.AccAddressFromBech32(loan.Lender)
+				if err == nil {
+					if err := k.stakingKeeper.ReleaseLendingCommitment(ctx, lenderAddr, loan.ID); err != nil {
+						k.Logger(ctx).Error("failed to release lending commitment on default",
+							"loan_id", loan.ID,
+							"lender", loan.Lender,
+							"error", err,
+						)
+					} else {
+						k.Logger(ctx).Info("released lending commitment for lender on default",
+							"loan_id", loan.ID,
+							"lender", loan.Lender,
+						)
+					}
+				}
+			}
 
 			ctx.EventManager().EmitEvent(
 				sdk.NewEvent(

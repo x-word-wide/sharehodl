@@ -62,6 +62,21 @@ type UniversalStakingKeeper interface {
 	PenalizeLoanDefault(ctx sdk.Context, addr sdk.AccAddress, loanID string) error
 	// SlashForLoanDefault slashes a user's stake for loan default
 	SlashForLoanDefault(ctx sdk.Context, addr sdk.AccAddress, defaultAmount math.Int) error
+
+	// ==========================================================================
+	// STAKE-AS-TRUST-CEILING: Commitment Management
+	// Only the LENDER (who posts the offer) needs stake commitment
+	// Borrowers who accept offers are free, they provide collateral instead
+	// ==========================================================================
+
+	// CanCommit checks if user can commit the specified amount (has enough available stake)
+	CanCommit(ctx sdk.Context, owner sdk.AccAddress, amount math.Int) bool
+	// GetAvailableStake returns stake minus current commitments
+	GetAvailableStake(ctx sdk.Context, owner sdk.AccAddress) math.Int
+	// AddLendingCommitment adds a commitment when lender activates a loan
+	AddLendingCommitment(ctx sdk.Context, owner sdk.AccAddress, loanID uint64, amount math.Int) error
+	// ReleaseLendingCommitment releases commitment when loan is completed/liquidated
+	ReleaseLendingCommitment(ctx sdk.Context, owner sdk.AccAddress, loanID uint64) error
 }
 
 // Stake tier constants matching x/staking/types
