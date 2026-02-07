@@ -217,22 +217,42 @@ export function TransactionConfirmation({
 
   const handleBiometricSuccess = async (_token: string) => {
     setStep('processing');
+    // Clear any stale error state from previous attempts
+    setErrorInfo(null);
+    setPinError(null);
+
+    let transactionSucceeded = false;
+
     try {
       if (cachedPin) {
         const mnemonic = await getMnemonicForSigning(cachedPin);
         await onConfirm(mnemonic);
-        setStep('success');
-        tg?.HapticFeedback?.notificationOccurred('success');
-        setTimeout(onCancel, 2000);
+        // If we reach here, the transaction succeeded
+        transactionSucceeded = true;
       } else {
         setStep('auth');
         setIsAuthenticating(false);
+        return;
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Transaction failed';
       setErrorInfo(parseErrorMessage(errorMsg));
       setStep('error');
       tg?.HapticFeedback?.notificationOccurred('error');
+      return;
+    }
+
+    // Transaction succeeded - show success UI
+    if (transactionSucceeded) {
+      try {
+        setStep('success');
+        tg?.HapticFeedback?.notificationOccurred('success');
+        setTimeout(onCancel, 2000);
+      } catch {
+        // Even if haptics fail, ensure success is shown
+        setStep('success');
+        setTimeout(onCancel, 2000);
+      }
     }
   };
 
@@ -322,13 +342,17 @@ export function TransactionConfirmation({
 
   const handlePinSubmit = async (enteredPin: string) => {
     setStep('processing');
+    // Clear any stale error state from previous attempts
+    setErrorInfo(null);
+    setPinError(null);
+
+    let transactionSucceeded = false;
 
     try {
       const mnemonic = await getMnemonicForSigning(enteredPin);
       await onConfirm(mnemonic);
-      setStep('success');
-      tg?.HapticFeedback?.notificationOccurred('success');
-      setTimeout(onCancel, 2000);
+      // If we reach here, the transaction succeeded
+      transactionSucceeded = true;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Transaction failed';
 
@@ -356,6 +380,21 @@ export function TransactionConfirmation({
         setErrorInfo(parseErrorMessage(errorMsg));
         setStep('error');
         tg?.HapticFeedback?.notificationOccurred('error');
+      }
+      return; // Exit early on error
+    }
+
+    // Transaction succeeded - show success UI
+    // This is separated to ensure success is always shown
+    if (transactionSucceeded) {
+      try {
+        setStep('success');
+        tg?.HapticFeedback?.notificationOccurred('success');
+        setTimeout(onCancel, 2000);
+      } catch {
+        // Even if haptics fail, ensure success is shown
+        setStep('success');
+        setTimeout(onCancel, 2000);
       }
     }
   };
@@ -554,7 +593,7 @@ export function TransactionConfirmation({
                   </button>
                 )}
 
-                <button className="tx-back-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); }}>
+                <button className="tx-back-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); setErrorInfo(null); setPinError(null); }}>
                   Back
                 </button>
               </>
@@ -605,7 +644,7 @@ export function TransactionConfirmation({
               </div>
             )}
             <div className="tx-error-buttons">
-              <button className="tx-retry-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); }}>
+              <button className="tx-retry-btn" onClick={() => { setStep('review'); setSlideProgress(0); setSlideCompleted(false); setErrorInfo(null); setPinError(null); }}>
                 Try Again
               </button>
               <button className="tx-dismiss-btn" onClick={onCancel}>
