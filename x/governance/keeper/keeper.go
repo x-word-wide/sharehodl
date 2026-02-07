@@ -43,6 +43,10 @@ type EquityKeeper interface {
 	// GetVotingSharesForCompany returns total voting shares (direct + beneficial ownership)
 	// for a voter in a specific company - used for company proposal voting
 	GetVotingSharesForCompany(ctx sdk.Context, companyID uint64, voter string) math.Int
+	// ApproveDividendDistribution approves a dividend for distribution (governance only)
+	ApproveDividendDistribution(ctx sdk.Context, dividendID uint64, proposalID uint64) error
+	// RejectDividendDistribution rejects a dividend distribution (governance only)
+	RejectDividendDistribution(ctx sdk.Context, dividendID uint64, proposalID uint64, reason string) error
 }
 
 // BeneficialOwnership is an alias to equitytypes.BeneficialOwnership for local use

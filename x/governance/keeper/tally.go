@@ -222,6 +222,8 @@ func (k Keeper) executeProposal(ctx sdk.Context, proposal types.Proposal) error 
 		return k.executeEmergencyActionProposal(ctx, proposal)
 	case types.ProposalTypeSetCharityWallet:
 		return k.ExecuteSetCharityWalletProposal(ctx, proposal)
+	case types.ProposalTypeDividendDistribution:
+		return k.executeDividendDistributionProposal(ctx, proposal)
 	default:
 		return types.ErrInvalidProposalType
 	}
@@ -331,6 +333,65 @@ func (k Keeper) executeTreasurySpendProposal(ctx sdk.Context, proposal types.Pro
 func (k Keeper) executeEmergencyActionProposal(ctx sdk.Context, proposal types.Proposal) error {
 	// Implementation would execute emergency actions
 	return nil
+}
+
+// executeDividendDistributionProposal approves a dividend for distribution
+// This is called when validators approve a dividend proposal with verified audit
+func (k Keeper) executeDividendDistributionProposal(ctx sdk.Context, proposal types.Proposal) error {
+	// Extract dividend_id from proposal metadata with type assertion
+	dividendIDVal, ok := proposal.Metadata["dividend_id"]
+	if !ok {
+		return fmt.Errorf("dividend distribution proposal missing dividend_id")
+	}
+
+	// Handle both string and float64 (JSON number) types
+	var dividendID uint64
+	switch v := dividendIDVal.(type) {
+	case string:
+		var err error
+		dividendID, err = parseUint64(v)
+		if err != nil {
+			return fmt.Errorf("invalid dividend_id: %w", err)
+		}
+	case float64:
+		dividendID = uint64(v)
+	case uint64:
+		dividendID = v
+	default:
+		return fmt.Errorf("dividend_id must be a number or string, got %T", dividendIDVal)
+	}
+
+	if dividendID == 0 {
+		return fmt.Errorf("dividend_id cannot be zero")
+	}
+
+	// Call equity keeper to approve the dividend
+	if k.equityKeeper == nil {
+		return fmt.Errorf("equity keeper not available")
+	}
+
+	if err := k.equityKeeper.ApproveDividendDistribution(ctx, dividendID, proposal.ID); err != nil {
+		return fmt.Errorf("failed to approve dividend distribution: %w", err)
+	}
+
+	// Emit dividend approval event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_distribution_approved",
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposal.ID)),
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("title", proposal.Title),
+		),
+	)
+
+	return nil
+}
+
+// parseUint64 parses a string to uint64
+func parseUint64(s string) (uint64, error) {
+	var result uint64
+	_, err := fmt.Sscanf(s, "%d", &result)
+	return result, err
 }
 
 // refundProposalDeposits refunds deposits to depositors

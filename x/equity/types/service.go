@@ -52,6 +52,10 @@ type QueryServer interface {
 	IssuanceHistory(context.Context, *QueryIssuanceHistoryRequest) (*QueryIssuanceHistoryResponse, error)
 	AdjustmentHistory(context.Context, *QueryAdjustmentHistoryRequest) (*QueryAdjustmentHistoryResponse, error)
 	CompanyCapTable(context.Context, *QueryCompanyCapTableRequest) (*QueryCompanyCapTableResponse, error)
+
+	// Dividend queries
+	PendingDividends(context.Context, *QueryPendingDividendsRequest) (*QueryPendingDividendsResponse, error)
+	DividendsByCompany(context.Context, *QueryDividendsByCompanyRequest) (*QueryDividendsByCompanyResponse, error)
 }
 
 // =============================================================================
@@ -252,4 +256,48 @@ type PageRequest struct {
 type PageResponse struct {
 	NextKey []byte `json:"next_key,omitempty"`
 	Total   uint64 `json:"total,omitempty"`
+}
+
+// =============================================================================
+// Dividend Query Types
+// =============================================================================
+
+// QueryPendingDividendsRequest queries pending dividends for a shareholder
+type QueryPendingDividendsRequest struct {
+	Shareholder string `json:"shareholder"` // Shareholder address
+}
+
+// QueryPendingDividendsResponse returns pending dividends
+type QueryPendingDividendsResponse struct {
+	Dividends []PendingDividendInfo `json:"dividends"`
+}
+
+// PendingDividendInfo contains dividend info with estimated payment
+type PendingDividendInfo struct {
+	DividendID      uint64  `json:"dividend_id"`
+	CompanyID       uint64  `json:"company_id"`
+	CompanyName     string  `json:"company_name"`
+	CompanySymbol   string  `json:"company_symbol"`
+	Type            string  `json:"type"`             // "cash" or "stock"
+	Status          string  `json:"status"`           // "pending_approval", "declared", etc.
+	AmountPerShare  string  `json:"amount_per_share"` // Amount per share
+	Currency        string  `json:"currency"`
+	SharesHeld      string  `json:"shares_held"`      // User's shares at record date (estimate)
+	EstimatedAmount string  `json:"estimated_amount"` // Estimated dividend payment
+	RecordDate      string  `json:"record_date"`
+	PaymentDate     string  `json:"payment_date"`
+	ProposalID      uint64  `json:"proposal_id,omitempty"` // Governance proposal ID
+	AuditHash       string  `json:"audit_hash,omitempty"`  // Audit document hash
+	Description     string  `json:"description"`
+}
+
+// QueryDividendsByCompanyRequest queries dividends for a company
+type QueryDividendsByCompanyRequest struct {
+	CompanyID uint64 `json:"company_id"`
+	Status    string `json:"status,omitempty"` // Filter by status
+}
+
+// QueryDividendsByCompanyResponse returns company dividends
+type QueryDividendsByCompanyResponse struct {
+	Dividends []Dividend `json:"dividends"`
 }

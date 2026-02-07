@@ -36,16 +36,20 @@ func (dt DividendType) String() string {
 type DividendStatus int32
 
 const (
-	DividendStatusDeclared   DividendStatus = 0
-	DividendStatusRecorded   DividendStatus = 1
-	DividendStatusProcessing DividendStatus = 2
-	DividendStatusPaid       DividendStatus = 3
-	DividendStatusCancelled  DividendStatus = 4
+	DividendStatusPendingApproval DividendStatus = 0 // Awaiting governance vote
+	DividendStatusDeclared        DividendStatus = 1 // Approved by governance, ready for processing
+	DividendStatusRecorded        DividendStatus = 2 // Shareholder snapshot taken
+	DividendStatusProcessing      DividendStatus = 3 // Payments being processed
+	DividendStatusPaid            DividendStatus = 4 // All payments complete
+	DividendStatusCancelled       DividendStatus = 5 // Cancelled (rejected or manual)
+	DividendStatusRejected        DividendStatus = 6 // Rejected by governance vote
 )
 
 // String returns the string representation of DividendStatus
 func (ds DividendStatus) String() string {
 	switch ds {
+	case DividendStatusPendingApproval:
+		return "pending_approval"
 	case DividendStatusDeclared:
 		return "declared"
 	case DividendStatusRecorded:
@@ -56,6 +60,8 @@ func (ds DividendStatus) String() string {
 		return "paid"
 	case DividendStatusCancelled:
 		return "cancelled"
+	case DividendStatusRejected:
+		return "rejected"
 	default:
 		return "unknown"
 	}
@@ -102,6 +108,12 @@ type Dividend struct {
 	// Audit requirement (mandatory for dividend declaration)
 	AuditID      uint64    `json:"audit_id"`      // Reference to the DividendAudit record
 	AuditHash    string    `json:"audit_hash"`    // Content hash of audit document for quick reference
+
+	// Governance approval (required for distribution)
+	ProposalID      uint64    `json:"proposal_id,omitempty"`      // Governance proposal for approval
+	ApprovedAt      time.Time `json:"approved_at,omitempty"`      // When governance approved
+	RejectedAt      time.Time `json:"rejected_at,omitempty"`      // When governance rejected (if applicable)
+	RejectionReason string    `json:"rejection_reason,omitempty"` // Reason for rejection
 }
 
 // DividendPayment represents a dividend payment to a specific shareholder
@@ -188,7 +200,7 @@ func NewDividend(
 		ExDividendDate:  exDividendDate,
 		RecordDate:      recordDate,
 		PaymentDate:     paymentDate,
-		Status:          DividendStatusDeclared,
+		Status:          DividendStatusPendingApproval, // Requires governance approval
 		EligibleShares:  math.ZeroInt(),
 		SharesProcessed: math.ZeroInt(),
 		ShareholdersEligible: 0,

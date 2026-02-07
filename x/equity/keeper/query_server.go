@@ -348,6 +348,92 @@ func (q queryServer) CompanyCapTable(goCtx context.Context, req *types.QueryComp
 }
 
 // =============================================================================
+// Dividend Queries
+// =============================================================================
+
+// PendingDividends returns pending dividends for a shareholder
+func (q queryServer) PendingDividends(goCtx context.Context, req *types.QueryPendingDividendsRequest) (*types.QueryPendingDividendsResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	// Get all dividends that are pending approval or declared (but not yet paid)
+	allDividends := q.GetAllDividends(ctx)
+	pendingInfos := []types.PendingDividendInfo{}
+
+	for _, dividend := range allDividends {
+		// Include pending_approval and declared dividends
+		if dividend.Status != types.DividendStatusPendingApproval &&
+			dividend.Status != types.DividendStatusDeclared &&
+			dividend.Status != types.DividendStatusRecorded {
+			continue
+		}
+
+		// Check if shareholder has shares in this company
+		sharesHeld := q.GetTotalSharesForAddress(ctx, dividend.CompanyID, req.Shareholder)
+		if sharesHeld.IsZero() {
+			continue
+		}
+
+		// Get company info
+		company, found := q.getCompany(ctx, dividend.CompanyID)
+		companyName := ""
+		companySymbol := ""
+		if found {
+			companyName = company.Name
+			companySymbol = company.Symbol
+		}
+
+		// Calculate estimated dividend amount
+		estimatedAmount := dividend.AmountPerShare.MulInt(sharesHeld)
+
+		pendingInfo := types.PendingDividendInfo{
+			DividendID:      dividend.ID,
+			CompanyID:       dividend.CompanyID,
+			CompanyName:     companyName,
+			CompanySymbol:   companySymbol,
+			Type:            dividend.Type.String(),
+			Status:          dividend.Status.String(),
+			AmountPerShare:  dividend.AmountPerShare.String(),
+			Currency:        dividend.Currency,
+			SharesHeld:      sharesHeld.String(),
+			EstimatedAmount: estimatedAmount.String(),
+			RecordDate:      dividend.RecordDate.Format("2006-01-02"),
+			PaymentDate:     dividend.PaymentDate.Format("2006-01-02"),
+			ProposalID:      dividend.ProposalID,
+			AuditHash:       dividend.AuditHash,
+			Description:     dividend.Description,
+		}
+
+		pendingInfos = append(pendingInfos, pendingInfo)
+	}
+
+	return &types.QueryPendingDividendsResponse{
+		Dividends: pendingInfos,
+	}, nil
+}
+
+// DividendsByCompany returns dividends for a specific company
+func (q queryServer) DividendsByCompany(goCtx context.Context, req *types.QueryDividendsByCompanyRequest) (*types.QueryDividendsByCompanyResponse, error) {
+	ctx := sdk.UnwrapSDKContext(goCtx)
+
+	dividends := q.GetDividendsByCompany(ctx, req.CompanyID)
+
+	// Filter by status if specified
+	if req.Status != "" {
+		filtered := []types.Dividend{}
+		for _, d := range dividends {
+			if d.Status.String() == req.Status {
+				filtered = append(filtered, d)
+			}
+		}
+		dividends = filtered
+	}
+
+	return &types.QueryDividendsByCompanyResponse{
+		Dividends: dividends,
+	}, nil
+}
+
+// =============================================================================
 // Shareholder Alert Queries
 // =============================================================================
 

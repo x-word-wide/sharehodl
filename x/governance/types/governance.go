@@ -25,6 +25,9 @@ const (
 	ProposalTypeFeeAbstractionParams ProposalType = 50 // Update fee abstraction parameters
 	ProposalTypeTreasuryGrant        ProposalType = 51 // Grant treasury allowance
 	ProposalTypeTreasuryFunding      ProposalType = 52 // Fund protocol treasury
+
+	// Dividend proposal types
+	ProposalTypeDividendDistribution ProposalType = 60 // Approve dividend distribution with audit
 )
 
 // String returns the string representation of ProposalType
@@ -56,6 +59,8 @@ func (pt ProposalType) String() string {
 		return "treasury_grant"
 	case ProposalTypeTreasuryFunding:
 		return "treasury_funding"
+	case ProposalTypeDividendDistribution:
+		return "dividend_distribution"
 	default:
 		return "unknown"
 	}

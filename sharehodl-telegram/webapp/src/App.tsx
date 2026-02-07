@@ -102,6 +102,7 @@ import { GovernanceScreen } from './screens/GovernanceScreen';
 import { AssetDetailScreen } from './screens/AssetDetailScreen';
 import { EquityDetailScreen } from './screens/EquityDetailScreen';
 import { EquityProfileScreen } from './screens/EquityProfileScreen';
+import { DividendsScreen } from './screens/DividendsScreen';
 
 // Components
 import { BottomNav } from './components/BottomNav';
@@ -281,6 +282,7 @@ function AppContent() {
           <Route path="/asset/:tokenId" element={<AssetDetailScreen />} />
           <Route path="/equity/:equityId" element={<EquityDetailScreen />} />
           <Route path="/equity-profile/:equityId" element={<EquityProfileScreen />} />
+          <Route path="/dividends" element={<DividendsScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/portfolio" replace />} />
         </Routes>

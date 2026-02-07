@@ -897,3 +897,169 @@ func (k Keeper) GetAllDividends(ctx sdk.Context) []types.Dividend {
 
 	return dividends
 }
+
+// =============================================================================
+// GOVERNANCE-CONTROLLED DIVIDEND APPROVAL
+// These methods are called by the governance module when proposals pass/fail
+// =============================================================================
+
+// ApproveDividendDistribution approves a dividend for distribution after governance vote
+// This transitions the dividend from PendingApproval to Declared status
+func (k Keeper) ApproveDividendDistribution(ctx sdk.Context, dividendID uint64, proposalID uint64) error {
+	dividend, found := k.GetDividend(ctx, dividendID)
+	if !found {
+		return types.ErrDividendNotFound
+	}
+
+	// Can only approve dividends that are pending approval
+	if dividend.Status != types.DividendStatusPendingApproval {
+		return fmt.Errorf("dividend %d is not pending approval, current status: %s", dividendID, dividend.Status.String())
+	}
+
+	// Verify the audit is in place
+	if dividend.AuditID > 0 {
+		audit, found := k.GetDividendAudit(ctx, dividend.AuditID)
+		if !found {
+			return types.ErrAuditNotFound
+		}
+
+		// Mark audit as verified since governance approved it
+		if audit.Status != types.AuditStatusVerified {
+			audit.Status = types.AuditStatusVerified
+			audit.VerifiedAt = ctx.BlockTime()
+			audit.VerifiedBy = []string{"governance"}
+			if err := k.SetDividendAudit(ctx, audit); err != nil {
+				return fmt.Errorf("failed to update audit status: %w", err)
+			}
+		}
+	}
+
+	// Update dividend status to Declared (approved for distribution)
+	dividend.Status = types.DividendStatusDeclared
+	dividend.ProposalID = proposalID
+	dividend.ApprovedAt = ctx.BlockTime()
+	dividend.UpdatedAt = ctx.BlockTime()
+
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return fmt.Errorf("failed to update dividend: %w", err)
+	}
+
+	k.Logger(ctx).Info("dividend distribution approved by governance",
+		"dividend_id", dividendID,
+		"proposal_id", proposalID,
+		"company_id", dividend.CompanyID,
+		"total_amount", dividend.TotalAmount.String(),
+	)
+
+	// Emit approval event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_approved",
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", dividend.CompanyID)),
+			sdk.NewAttribute("total_amount", dividend.TotalAmount.String()),
+			sdk.NewAttribute("currency", dividend.Currency),
+		),
+	)
+
+	return nil
+}
+
+// RejectDividendDistribution rejects a dividend distribution after governance vote fails
+// This transitions the dividend to Rejected status and releases any locked funds
+func (k Keeper) RejectDividendDistribution(ctx sdk.Context, dividendID uint64, proposalID uint64, reason string) error {
+	dividend, found := k.GetDividend(ctx, dividendID)
+	if !found {
+		return types.ErrDividendNotFound
+	}
+
+	// Can only reject dividends that are pending approval
+	if dividend.Status != types.DividendStatusPendingApproval {
+		return fmt.Errorf("dividend %d is not pending approval, current status: %s", dividendID, dividend.Status.String())
+	}
+
+	// Update dividend status to Rejected
+	dividend.Status = types.DividendStatusRejected
+	dividend.ProposalID = proposalID
+	dividend.RejectedAt = ctx.BlockTime()
+	dividend.RejectionReason = reason
+	dividend.UpdatedAt = ctx.BlockTime()
+
+	// Release locked funds back to treasury if cash dividend
+	if dividend.Type == types.DividendTypeCash && dividend.TotalAmount.IsPositive() {
+		treasury, found := k.GetCompanyTreasury(ctx, dividend.CompanyID)
+		if found {
+			// Return locked funds to treasury balance
+			releasedCoins := sdk.NewCoins(sdk.NewCoin(dividend.Currency, dividend.TotalAmount.TruncateInt()))
+			treasury.Balance = treasury.Balance.Add(releasedCoins...)
+			treasury.UpdatedAt = ctx.BlockTime()
+			if err := k.SetCompanyTreasury(ctx, treasury); err != nil {
+				k.Logger(ctx).Error("failed to release funds to treasury", "error", err)
+			}
+		}
+	}
+
+	if err := k.SetDividend(ctx, dividend); err != nil {
+		return fmt.Errorf("failed to update dividend: %w", err)
+	}
+
+	k.Logger(ctx).Info("dividend distribution rejected by governance",
+		"dividend_id", dividendID,
+		"proposal_id", proposalID,
+		"company_id", dividend.CompanyID,
+		"reason", reason,
+	)
+
+	// Emit rejection event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"dividend_rejected",
+			sdk.NewAttribute("dividend_id", fmt.Sprintf("%d", dividendID)),
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposalID)),
+			sdk.NewAttribute("company_id", fmt.Sprintf("%d", dividend.CompanyID)),
+			sdk.NewAttribute("reason", reason),
+		),
+	)
+
+	return nil
+}
+
+// GetPendingDividendsForShareholder returns all pending dividends that a shareholder is eligible for
+// This is used to show users their pending (not yet approved) dividend distributions
+func (k Keeper) GetPendingDividendsForShareholder(ctx sdk.Context, shareholder string) []types.Dividend {
+	allDividends := k.GetAllDividends(ctx)
+	pendingDividends := []types.Dividend{}
+
+	for _, dividend := range allDividends {
+		// Only include pending approval dividends
+		if dividend.Status != types.DividendStatusPendingApproval {
+			continue
+		}
+
+		// Check if shareholder has shares in this company
+		shareholderShares := k.GetTotalSharesForAddress(ctx, dividend.CompanyID, shareholder)
+		if shareholderShares.GT(math.ZeroInt()) {
+			pendingDividends = append(pendingDividends, dividend)
+		}
+	}
+
+	return pendingDividends
+}
+
+// GetTotalSharesForAddress returns total shares held by an address across all share classes
+func (k Keeper) GetTotalSharesForAddress(ctx sdk.Context, companyID uint64, address string) math.Int {
+	total := math.ZeroInt()
+
+	// Get all share classes for the company and check each one
+	shareClasses := k.GetCompanyShareClasses(ctx, companyID)
+	for _, class := range shareClasses {
+		// Get shareholding for this address in this share class (use internal method)
+		shareholding, found := k.getShareholding(ctx, companyID, class.ClassID, address)
+		if found {
+			total = total.Add(shareholding.Shares)
+		}
+	}
+
+	return total
+}

@@ -12,6 +12,7 @@ import { Chain, AssetHolding, CHAIN_CONFIGS, TokenType } from '../types';
 const SERVICES = [
   { id: 'staking', iconType: 'star', title: 'Staking', desc: 'Earn rewards', path: '/staking', color: '#1E40AF' },
   { id: 'governance', iconType: 'governance', title: 'Governance', desc: 'Vote & delegate', path: '/governance', color: '#8B5CF6' },
+  { id: 'dividends', iconType: 'dividends', title: 'Dividends', desc: 'Equity payouts', path: '/dividends', color: '#10B981' },
   { id: 'inheritance', iconType: 'inherit', title: 'Inherit', desc: 'Asset transfer', path: '/inheritance', color: '#14B8A6' },
   { id: 'p2p', iconType: 'users', title: 'P2P', desc: 'Peer trading', path: '/p2p', color: '#10B981' },
   { id: 'lending', iconType: 'coins', title: 'Lending', desc: 'Supply & borrow', path: '/lending', color: '#F59E0B' },
@@ -87,6 +88,16 @@ const ServiceIcon = ({ type, color }: { type: string; color: string }) => {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           <path d="M12 8v4" />
           <path d="M12 16h.01" />
+        </svg>
+      );
+    case 'dividends':
+      return (
+        <svg viewBox="0 0 24 24" {...iconProps}>
+          <rect x="3" y="4" width="18" height="16" rx="2" />
+          <path d="M7 8h10" />
+          <path d="M7 12h6" />
+          <path d="M7 16h4" />
+          <circle cx="17" cy="14" r="2" fill={color} />
         </svg>
       );
     default:
