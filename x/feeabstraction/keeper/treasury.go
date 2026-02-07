@@ -245,3 +245,117 @@ func (k Keeper) RevokeGrant(ctx sdk.Context, grantee string) error {
 
 	return nil
 }
+
+// =============================================================================
+// TREASURY WHITELIST MANAGEMENT
+// Governance-controlled treasury: only whitelisted addresses can deposit,
+// and withdrawals require governance proposals.
+// =============================================================================
+
+// SetTreasuryOwner sets the treasury owner address (governance only)
+func (k Keeper) SetTreasuryOwner(ctx sdk.Context, owner string) {
+	store := ctx.KVStore(k.storeKey)
+	store.Set(types.TreasuryOwnerKey, []byte(owner))
+
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"treasury_owner_set",
+			sdk.NewAttribute("owner", owner),
+		),
+	)
+}
+
+// GetTreasuryOwner returns the treasury owner address
+func (k Keeper) GetTreasuryOwner(ctx sdk.Context) string {
+	store := ctx.KVStore(k.storeKey)
+	bz := store.Get(types.TreasuryOwnerKey)
+	if bz == nil {
+		return ""
+	}
+	return string(bz)
+}
+
+// AddToWhitelist adds an address to the treasury deposit whitelist
+func (k Keeper) AddToWhitelist(ctx sdk.Context, addr string) {
+	store := ctx.KVStore(k.storeKey)
+	store.Set(types.TreasuryWhitelistKey(addr), []byte{1})
+
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"treasury_whitelist_added",
+			sdk.NewAttribute("address", addr),
+		),
+	)
+}
+
+// RemoveFromWhitelist removes an address from the treasury deposit whitelist
+func (k Keeper) RemoveFromWhitelist(ctx sdk.Context, addr string) {
+	store := ctx.KVStore(k.storeKey)
+	store.Delete(types.TreasuryWhitelistKey(addr))
+
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"treasury_whitelist_removed",
+			sdk.NewAttribute("address", addr),
+		),
+	)
+}
+
+// IsWhitelisted checks if an address is whitelisted for treasury deposits
+func (k Keeper) IsWhitelisted(ctx sdk.Context, addr string) bool {
+	store := ctx.KVStore(k.storeKey)
+	return store.Has(types.TreasuryWhitelistKey(addr))
+}
+
+// GetWhitelistedAddresses returns all whitelisted addresses
+func (k Keeper) GetWhitelistedAddresses(ctx sdk.Context) []string {
+	store := ctx.KVStore(k.storeKey)
+	prefixStore := prefix.NewStore(store, types.TreasuryWhitelistPrefix)
+	iterator := prefixStore.Iterator(nil, nil)
+	defer iterator.Close()
+
+	var addresses []string
+	for ; iterator.Valid(); iterator.Next() {
+		// The key after prefix is the address
+		addr := string(iterator.Key())
+		addresses = append(addresses, addr)
+	}
+	return addresses
+}
+
+// CanFundTreasury checks if an address is allowed to fund the treasury
+func (k Keeper) CanFundTreasury(ctx sdk.Context, funder sdk.AccAddress) bool {
+	funderStr := funder.String()
+	owner := k.GetTreasuryOwner(ctx)
+
+	// Treasury owner can always fund
+	if funderStr == owner {
+		return true
+	}
+
+	// Check if address is whitelisted
+	return k.IsWhitelisted(ctx, funderStr)
+}
+
+// FundTreasuryWithWhitelist adds funds to the treasury from a whitelisted funder only
+func (k Keeper) FundTreasuryWithWhitelist(ctx sdk.Context, funder sdk.AccAddress, amount math.Int) error {
+	if !k.CanFundTreasury(ctx, funder) {
+		return types.ErrNotWhitelisted
+	}
+
+	return k.FundTreasury(ctx, funder, amount)
+}
+
+// GetTreasuryAddress returns the treasury module account address
+func (k Keeper) GetTreasuryAddress(ctx sdk.Context) sdk.AccAddress {
+	return k.accountKeeper.GetModuleAddress(types.TreasuryPoolName)
+}
+
+// IsTreasuryAddress checks if an address is the treasury address
+func (k Keeper) IsTreasuryAddress(ctx sdk.Context, addr sdk.AccAddress) bool {
+	treasuryAddr := k.GetTreasuryAddress(ctx)
+	if treasuryAddr == nil {
+		return false
+	}
+	return addr.Equals(treasuryAddr)
+}

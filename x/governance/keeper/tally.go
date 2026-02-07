@@ -269,7 +269,62 @@ func (k Keeper) executeProtocolUpgradeProposal(ctx sdk.Context, proposal types.P
 }
 
 func (k Keeper) executeTreasurySpendProposal(ctx sdk.Context, proposal types.Proposal) error {
-	// Implementation would transfer funds from treasury
+	// Extract recipient from proposal metadata with type assertion
+	recipientVal, ok := proposal.Metadata["recipient"]
+	if !ok {
+		return fmt.Errorf("treasury spend proposal missing recipient")
+	}
+	recipientStr, ok := recipientVal.(string)
+	if !ok || recipientStr == "" {
+		return fmt.Errorf("treasury spend proposal recipient must be a non-empty string")
+	}
+
+	// Extract amount from proposal metadata with type assertion
+	amountVal, ok := proposal.Metadata["amount"]
+	if !ok {
+		return fmt.Errorf("treasury spend proposal missing amount")
+	}
+	amountStr, ok := amountVal.(string)
+	if !ok || amountStr == "" {
+		return fmt.Errorf("treasury spend proposal amount must be a non-empty string")
+	}
+
+	// Parse recipient address
+	recipient, err := sdk.AccAddressFromBech32(recipientStr)
+	if err != nil {
+		return fmt.Errorf("invalid recipient address: %w", err)
+	}
+
+	// Parse amount
+	amount, ok := math.NewIntFromString(amountStr)
+	if !ok {
+		return fmt.Errorf("invalid amount: %s", amountStr)
+	}
+
+	// Check treasury has sufficient funds
+	if k.feeAbstractionKeeper != nil {
+		balance := k.feeAbstractionKeeper.GetTreasuryBalance(ctx)
+		if balance.LT(amount) {
+			return fmt.Errorf("insufficient treasury funds: have %s, need %s", balance.String(), amount.String())
+		}
+
+		// Execute the withdrawal via feeabstraction treasury
+		if err := k.feeAbstractionKeeper.WithdrawFromTreasury(ctx, recipient, amount); err != nil {
+			return fmt.Errorf("treasury withdrawal failed: %w", err)
+		}
+	}
+
+	// Emit treasury spend event
+	ctx.EventManager().EmitEvent(
+		sdk.NewEvent(
+			"treasury_spend_executed",
+			sdk.NewAttribute("proposal_id", fmt.Sprintf("%d", proposal.ID)),
+			sdk.NewAttribute("recipient", recipientStr),
+			sdk.NewAttribute("amount", amountStr),
+			sdk.NewAttribute("title", proposal.Title),
+		),
+	)
+
 	return nil
 }
 

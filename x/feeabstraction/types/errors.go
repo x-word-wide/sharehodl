@@ -43,4 +43,8 @@ var (
 	ErrZeroAmount = sdkerrors.Register(ModuleName, 19, "amount cannot be zero")
 
 	ErrInvalidAddress = sdkerrors.Register(ModuleName, 20, "invalid address")
+
+	ErrNotWhitelisted = sdkerrors.Register(ModuleName, 21, "address not whitelisted to fund treasury")
+
+	ErrTreasuryWithdrawalNotAllowed = sdkerrors.Register(ModuleName, 22, "direct treasury withdrawals not allowed - use governance proposal")
 )

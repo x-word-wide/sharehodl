@@ -108,6 +108,10 @@ type FeeAbstractionKeeper interface {
 	ProcessFeeAbstraction(ctx sdk.Context, payer sdk.AccAddress, requiredFeeUhodl math.Int) (math.Int, error)
 	// IsEnabled returns whether fee abstraction is enabled
 	IsEnabled(ctx sdk.Context) bool
+	// WithdrawFromTreasury withdraws funds from treasury (governance only)
+	WithdrawFromTreasury(ctx sdk.Context, recipient sdk.AccAddress, amount math.Int) error
+	// GetTreasuryBalance returns the current treasury balance
+	GetTreasuryBalance(ctx sdk.Context) math.Int
 }
 
 // =============================================================================
