@@ -583,7 +583,7 @@ export async function claimRewards(
 
 /**
  * Fetch transaction history for an address
- * Uses the REST API to query blockchain transactions
+ * Uses Tendermint RPC tx_search for reliable querying
  */
 export async function fetchTransactionHistory(
   address: string,
@@ -607,16 +607,6 @@ export async function fetchTransactionHistory(
   }
 
   try {
-    // Query sent transactions
-    const sentResponse = await fetch(
-      `${REST_URL}/cosmos/tx/v1beta1/txs?events=transfer.sender%3D%27${address}%27&order_by=ORDER_BY_DESC&pagination.limit=${limit}`
-    );
-
-    // Query received transactions
-    const receivedResponse = await fetch(
-      `${REST_URL}/cosmos/tx/v1beta1/txs?events=transfer.recipient%3D%27${address}%27&order_by=ORDER_BY_DESC&pagination.limit=${limit}`
-    );
-
     const transactions: Array<{
       hash: string;
       type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM';
@@ -627,78 +617,163 @@ export async function fetchTransactionHistory(
       counterparty?: string;
     }> = [];
 
-    // Process sent transactions
+    // Use Tendermint RPC tx_search - more reliable than REST API
+    // Query by transfer.sender (sent transactions)
+    const sentQuery = encodeURIComponent(`transfer.sender='${address}'`);
+    const sentResponse = await fetch(
+      `${RPC_URL}/tx_search?query="${sentQuery}"&per_page=${limit}&order_by="desc"`
+    );
+
     if (sentResponse.ok) {
       const sentData = await sentResponse.json();
-      for (const tx of sentData.tx_responses || []) {
-        const msg = tx.tx?.body?.messages?.[0];
-        if (msg) {
-          const typeUrl = msg['@type'] || '';
-          let type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM' = 'SEND';
-          let amount = '0';
-          let counterparty = '';
-
-          if (typeUrl.includes('MsgSend')) {
-            type = 'SEND';
-            amount = msg.amount?.[0]?.amount || '0';
-            counterparty = msg.to_address || '';
-          } else if (typeUrl.includes('MsgDelegate')) {
-            type = 'STAKE';
-            amount = msg.amount?.amount || '0';
-            counterparty = msg.validator_address || '';
-          } else if (typeUrl.includes('MsgUndelegate')) {
-            type = 'UNSTAKE';
-            amount = msg.amount?.amount || '0';
-            counterparty = msg.validator_address || '';
-          } else if (typeUrl.includes('MsgWithdrawDelegatorReward')) {
-            type = 'CLAIM';
-            // Amount comes from events
-            const rewardEvent = tx.events?.find((e: { type: string }) => e.type === 'withdraw_rewards');
-            amount = rewardEvent?.attributes?.find((a: { key: string }) => a.key === 'amount')?.value?.replace('uhodl', '') || '0';
-          }
-
-          transactions.push({
-            hash: tx.txhash,
-            type,
-            amount: (parseInt(amount) / 1_000_000).toFixed(6),
-            symbol: 'HODL',
-            timestamp: new Date(tx.timestamp).getTime(),
-            height: parseInt(tx.height),
-            counterparty,
-          });
+      for (const tx of sentData.result?.txs || []) {
+        const txResult = await parseTendermintTx(tx, address, 'SEND');
+        if (txResult) {
+          transactions.push(txResult);
         }
       }
     }
 
-    // Process received transactions
+    // Query by transfer.recipient (received transactions)
+    const receivedQuery = encodeURIComponent(`transfer.recipient='${address}'`);
+    const receivedResponse = await fetch(
+      `${RPC_URL}/tx_search?query="${receivedQuery}"&per_page=${limit}&order_by="desc"`
+    );
+
     if (receivedResponse.ok) {
       const receivedData = await receivedResponse.json();
-      for (const tx of receivedData.tx_responses || []) {
-        const msg = tx.tx?.body?.messages?.[0];
-        if (msg && (msg['@type'] || '').includes('MsgSend')) {
-          // Only add if not already in transactions (avoid duplicates)
-          if (!transactions.some(t => t.hash === tx.txhash)) {
-            transactions.push({
-              hash: tx.txhash,
-              type: 'RECEIVE',
-              amount: (parseInt(msg.amount?.[0]?.amount || '0') / 1_000_000).toFixed(6),
-              symbol: 'HODL',
-              timestamp: new Date(tx.timestamp).getTime(),
-              height: parseInt(tx.height),
-              counterparty: msg.from_address || '',
-            });
+      for (const tx of receivedData.result?.txs || []) {
+        // Skip if already added
+        if (!transactions.some(t => t.hash === tx.hash)) {
+          const txResult = await parseTendermintTx(tx, address, 'RECEIVE');
+          if (txResult) {
+            transactions.push(txResult);
           }
         }
       }
     }
 
-    // Sort by timestamp descending
-    transactions.sort((a, b) => b.timestamp - a.timestamp);
+    // Also query by message.sender for staking transactions
+    const msgQuery = encodeURIComponent(`message.sender='${address}'`);
+    const msgResponse = await fetch(
+      `${RPC_URL}/tx_search?query="${msgQuery}"&per_page=${limit}&order_by="desc"`
+    );
+
+    if (msgResponse.ok) {
+      const msgData = await msgResponse.json();
+      for (const tx of msgData.result?.txs || []) {
+        // Skip if already added
+        if (!transactions.some(t => t.hash === tx.hash)) {
+          const txResult = await parseTendermintTx(tx, address, 'SEND');
+          if (txResult) {
+            transactions.push(txResult);
+          }
+        }
+      }
+    }
+
+    // Sort by height descending (newest first)
+    transactions.sort((a, b) => b.height - a.height);
 
     return { transactions: transactions.slice(0, limit) };
   } catch (error) {
     logger.error('Failed to fetch transaction history:', error);
     return { transactions: [], error: 'Failed to fetch transactions' };
+  }
+}
+
+/**
+ * Parse a Tendermint tx_search result into a transaction item
+ */
+async function parseTendermintTx(
+  tx: { hash: string; height: string; tx_result?: { events?: Array<{ type: string; attributes: Array<{ key: string; value: string }> }> } },
+  _userAddress: string,
+  defaultType: 'SEND' | 'RECEIVE'
+): Promise<{
+  hash: string;
+  type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM';
+  amount: string;
+  symbol: string;
+  timestamp: number;
+  height: number;
+  counterparty?: string;
+} | null> {
+  try {
+    const events = tx.tx_result?.events || [];
+    let type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM' = defaultType;
+    let amount = '0';
+    let counterparty = '';
+
+    // Look for message type in events
+    const messageEvent = events.find(e => e.type === 'message');
+    const messageAction = messageEvent?.attributes.find(a => {
+      // Tendermint RPC returns base64 encoded values
+      const decodedKey = atob(a.key);
+      return decodedKey === 'action';
+    });
+
+    if (messageAction) {
+      const action = atob(messageAction.value);
+      if (action.includes('MsgDelegate')) type = 'STAKE';
+      else if (action.includes('MsgUndelegate')) type = 'UNSTAKE';
+      else if (action.includes('MsgWithdrawDelegatorReward')) type = 'CLAIM';
+    }
+
+    // Get amount from transfer event
+    const transferEvent = events.find(e => e.type === 'transfer');
+    if (transferEvent) {
+      for (const attr of transferEvent.attributes) {
+        const key = atob(attr.key);
+        const value = atob(attr.value);
+        if (key === 'amount') {
+          // Parse amount like "100000000uhodl"
+          const match = value.match(/(\d+)/);
+          if (match) {
+            amount = match[1];
+          }
+        }
+        if (key === 'recipient' && defaultType === 'SEND') {
+          counterparty = value;
+        }
+        if (key === 'sender' && defaultType === 'RECEIVE') {
+          counterparty = value;
+        }
+      }
+    }
+
+    // For staking, get amount from delegate/unbond event
+    if (type === 'STAKE' || type === 'UNSTAKE') {
+      const stakingEvent = events.find(e => e.type === 'delegate' || e.type === 'unbond');
+      if (stakingEvent) {
+        for (const attr of stakingEvent.attributes) {
+          const key = atob(attr.key);
+          const value = atob(attr.value);
+          if (key === 'amount') {
+            const match = value.match(/(\d+)/);
+            if (match) {
+              amount = match[1];
+            }
+          }
+          if (key === 'validator') {
+            counterparty = value;
+          }
+        }
+      }
+    }
+
+    const height = parseInt(tx.height);
+
+    return {
+      hash: tx.hash,
+      type,
+      amount: (parseInt(amount) / 1_000_000).toFixed(6),
+      symbol: 'HODL',
+      timestamp: Date.now() - (height * 2000), // Approximate timestamp (2s blocks)
+      height,
+      counterparty,
+    };
+  } catch {
+    return null;
   }
 }
 

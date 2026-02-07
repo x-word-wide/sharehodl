@@ -182,14 +182,8 @@ export function TransactionConfirmation({
     const progress = Math.max(0, Math.min(100, (deltaX / slideWidthRef.current) * 100));
     setSlideProgress(progress);
 
-    // Haptic feedback at milestones
-    if (progress >= 25 && progress < 27) {
-      tg?.HapticFeedback?.impactOccurred('light');
-    } else if (progress >= 50 && progress < 52) {
-      tg?.HapticFeedback?.impactOccurred('medium');
-    } else if (progress >= 75 && progress < 77) {
-      tg?.HapticFeedback?.impactOccurred('medium');
-    } else if (progress >= 95) {
+    // Haptic feedback only at 95% (almost complete)
+    if (progress >= 95 && progress < 97) {
       tg?.HapticFeedback?.impactOccurred('heavy');
     }
   }, [isSliding, slideCompleted, tg]);
