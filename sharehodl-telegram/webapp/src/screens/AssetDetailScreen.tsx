@@ -3,10 +3,21 @@
  * Similar to Trust Wallet's asset view
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useWalletStore } from '../services/walletStore';
-import { CHAIN_CONFIGS, getTokenById, Transaction } from '../types';
+import { fetchTransactionHistory } from '../services/blockchainService';
+import { CHAIN_CONFIGS, getTokenById, Chain } from '../types';
+
+interface TransactionItem {
+  hash: string;
+  type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM';
+  amount: string;
+  symbol: string;
+  timestamp: number;
+  height: number;
+  counterparty?: string;
+}
 
 export function AssetDetailScreen() {
   const navigate = useNavigate();
@@ -15,10 +26,31 @@ export function AssetDetailScreen() {
   const tg = window.Telegram?.WebApp;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const [isLoadingTxs, setIsLoadingTxs] = useState(true);
 
   // Find the asset
   const asset = assets.find(a => a.token.id === tokenId);
   const token = tokenId ? getTokenById(tokenId) : undefined;
+
+  // Fetch transactions for ShareHODL chain
+  const loadTransactions = useCallback(async () => {
+    if (!asset || token?.chain !== Chain.SHAREHODL) {
+      setTransactions([]);
+      setIsLoadingTxs(false);
+      return;
+    }
+
+    setIsLoadingTxs(true);
+    try {
+      const result = await fetchTransactionHistory(asset.address, 20);
+      setTransactions(result.transactions);
+    } catch (error) {
+      console.error('Failed to load transactions:', error);
+    } finally {
+      setIsLoadingTxs(false);
+    }
+  }, [asset, token?.chain]);
 
   useEffect(() => {
     if (!asset && !token) {
@@ -26,10 +58,15 @@ export function AssetDetailScreen() {
     }
   }, [asset, token, navigate]);
 
+  // Load transactions on mount and when asset changes
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     tg?.HapticFeedback?.impactOccurred('light');
-    await refreshBalances();
+    await Promise.all([refreshBalances(), loadTransactions()]);
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
@@ -61,10 +98,6 @@ export function AssetDetailScreen() {
 
   const chainConfig = CHAIN_CONFIGS[token.chain];
   const isPositive = asset.priceChange24h >= 0;
-
-  // Real transactions will be fetched from blockchain
-  // Empty array until transaction indexer is connected
-  const transactions: Transaction[] = [];
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -167,32 +200,58 @@ export function AssetDetailScreen() {
       <div className="transactions-section">
         <h3 className="section-title">Recent Transactions</h3>
 
-        {transactions.length > 0 ? (
+        {isLoadingTxs ? (
+          <div className="empty-transactions">
+            <div className="spinner" />
+            <p>Loading transactions...</p>
+          </div>
+        ) : transactions.length > 0 ? (
           <div className="transactions-list">
-            {transactions.map((tx) => (
-              <div key={tx.hash} className="transaction-item">
-                <div className={`tx-icon ${tx.type.toLowerCase()}`}>
-                  {tx.type === 'RECEIVE' ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 19V5M5 12l7 7 7-7" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 5v14M5 12l7-7 7 7" />
-                    </svg>
-                  )}
+            {transactions.map((tx) => {
+              const txTypeLabels: Record<string, string> = {
+                SEND: 'Sent',
+                RECEIVE: 'Received',
+                STAKE: 'Staked',
+                UNSTAKE: 'Unstaked',
+                CLAIM: 'Claimed Rewards',
+              };
+              const isIncoming = tx.type === 'RECEIVE' || tx.type === 'CLAIM';
+              const txIconClass = tx.type.toLowerCase();
+
+              return (
+                <div key={tx.hash} className="transaction-item">
+                  <div className={`tx-icon ${txIconClass}`}>
+                    {tx.type === 'RECEIVE' || tx.type === 'CLAIM' ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 19V5M5 12l7 7 7-7" />
+                      </svg>
+                    ) : tx.type === 'STAKE' ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z" />
+                      </svg>
+                    ) : tx.type === 'UNSTAKE' ? (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M8 12h8" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 5v14M5 12l7-7 7 7" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="tx-info">
+                    <span className="tx-type">{txTypeLabels[tx.type]}</span>
+                    <span className="tx-date">{formatDate(tx.timestamp)}</span>
+                  </div>
+                  <div className="tx-amount">
+                    <span className={isIncoming ? 'positive' : 'negative'}>
+                      {isIncoming ? '+' : '-'}{tx.amount} {tx.symbol}
+                    </span>
+                  </div>
                 </div>
-                <div className="tx-info">
-                  <span className="tx-type">{tx.type === 'RECEIVE' ? 'Received' : 'Sent'}</span>
-                  <span className="tx-date">{formatDate(tx.timestamp)}</span>
-                </div>
-                <div className="tx-amount">
-                  <span className={tx.type === 'RECEIVE' ? 'positive' : 'negative'}>
-                    {tx.type === 'RECEIVE' ? '+' : '-'}{tx.amount} {tx.symbol}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="empty-transactions">
@@ -460,7 +519,7 @@ export function AssetDetailScreen() {
           justify-content: center;
         }
 
-        .tx-icon.receive {
+        .tx-icon.receive, .tx-icon.claim {
           background: rgba(16, 185, 129, 0.1);
           color: #10b981;
         }
@@ -468,6 +527,16 @@ export function AssetDetailScreen() {
         .tx-icon.send {
           background: rgba(239, 68, 68, 0.1);
           color: #ef4444;
+        }
+
+        .tx-icon.stake {
+          background: rgba(245, 158, 11, 0.1);
+          color: #F59E0B;
+        }
+
+        .tx-icon.unstake {
+          background: rgba(139, 92, 246, 0.1);
+          color: #8B5CF6;
         }
 
         .tx-icon svg {

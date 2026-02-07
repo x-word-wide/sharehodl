@@ -308,10 +308,16 @@ export async function sendTokens(
       return { success: false, error: 'Insufficient balance for transaction and fees' };
     }
     if (errorMessage.includes('account sequence mismatch')) {
-      return { success: false, error: 'Transaction conflict. Please try again.' };
+      return { success: false, error: 'Transaction conflict. Please wait a moment and try again.' };
     }
     if (errorMessage.includes('decoding bech32 failed')) {
       return { success: false, error: 'Invalid recipient address format' };
+    }
+    if (errorMessage.includes('does not exist on chain') || errorMessage.includes('account not found')) {
+      return {
+        success: false,
+        error: "Account 'does not exist on chain'. Send some tokens there before trying to query sequence."
+      };
     }
 
     return { success: false, error: errorMessage };
@@ -389,6 +395,21 @@ export async function delegateTokens(
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // User-friendly error messages for delegation
+    if (errorMessage.includes('does not exist on chain') || errorMessage.includes('account not found')) {
+      return {
+        success: false,
+        error: "Account 'does not exist on chain'. Send some tokens there before trying to query sequence."
+      };
+    }
+    if (errorMessage.includes('account sequence mismatch')) {
+      return { success: false, error: 'Transaction conflict. Please wait a moment and try again.' };
+    }
+    if (errorMessage.includes('insufficient funds')) {
+      return { success: false, error: 'Insufficient balance for staking and fees' };
+    }
+
     return { success: false, error: errorMessage };
   }
 }
@@ -464,6 +485,18 @@ export async function undelegateTokens(
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // User-friendly error messages for undelegation
+    if (errorMessage.includes('does not exist on chain') || errorMessage.includes('account not found')) {
+      return {
+        success: false,
+        error: "Account 'does not exist on chain'. Send some tokens there before trying to query sequence."
+      };
+    }
+    if (errorMessage.includes('account sequence mismatch')) {
+      return { success: false, error: 'Transaction conflict. Please wait a moment and try again.' };
+    }
+
     return { success: false, error: errorMessage };
   }
 }
@@ -532,7 +565,140 @@ export async function claimRewards(
     }
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    // User-friendly error messages for reward claims
+    if (errorMessage.includes('does not exist on chain') || errorMessage.includes('account not found')) {
+      return {
+        success: false,
+        error: "Account 'does not exist on chain'. Send some tokens there before trying to query sequence."
+      };
+    }
+    if (errorMessage.includes('account sequence mismatch')) {
+      return { success: false, error: 'Transaction conflict. Please wait a moment and try again.' };
+    }
+
     return { success: false, error: errorMessage };
+  }
+}
+
+/**
+ * Fetch transaction history for an address
+ * Uses the REST API to query blockchain transactions
+ */
+export async function fetchTransactionHistory(
+  address: string,
+  limit: number = 20
+): Promise<{
+  transactions: Array<{
+    hash: string;
+    type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM';
+    amount: string;
+    symbol: string;
+    timestamp: number;
+    height: number;
+    counterparty?: string;
+  }>;
+  error?: string;
+}> {
+  // SECURITY: Rate limiting check
+  if (!queryRateLimiter.check(`txHistory:${address}`)) {
+    logger.warn('Rate limit exceeded for transaction history', { address });
+    return { transactions: [], error: 'Rate limit exceeded' };
+  }
+
+  try {
+    // Query sent transactions
+    const sentResponse = await fetch(
+      `${REST_URL}/cosmos/tx/v1beta1/txs?events=transfer.sender%3D%27${address}%27&order_by=ORDER_BY_DESC&pagination.limit=${limit}`
+    );
+
+    // Query received transactions
+    const receivedResponse = await fetch(
+      `${REST_URL}/cosmos/tx/v1beta1/txs?events=transfer.recipient%3D%27${address}%27&order_by=ORDER_BY_DESC&pagination.limit=${limit}`
+    );
+
+    const transactions: Array<{
+      hash: string;
+      type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM';
+      amount: string;
+      symbol: string;
+      timestamp: number;
+      height: number;
+      counterparty?: string;
+    }> = [];
+
+    // Process sent transactions
+    if (sentResponse.ok) {
+      const sentData = await sentResponse.json();
+      for (const tx of sentData.tx_responses || []) {
+        const msg = tx.tx?.body?.messages?.[0];
+        if (msg) {
+          const typeUrl = msg['@type'] || '';
+          let type: 'SEND' | 'RECEIVE' | 'STAKE' | 'UNSTAKE' | 'CLAIM' = 'SEND';
+          let amount = '0';
+          let counterparty = '';
+
+          if (typeUrl.includes('MsgSend')) {
+            type = 'SEND';
+            amount = msg.amount?.[0]?.amount || '0';
+            counterparty = msg.to_address || '';
+          } else if (typeUrl.includes('MsgDelegate')) {
+            type = 'STAKE';
+            amount = msg.amount?.amount || '0';
+            counterparty = msg.validator_address || '';
+          } else if (typeUrl.includes('MsgUndelegate')) {
+            type = 'UNSTAKE';
+            amount = msg.amount?.amount || '0';
+            counterparty = msg.validator_address || '';
+          } else if (typeUrl.includes('MsgWithdrawDelegatorReward')) {
+            type = 'CLAIM';
+            // Amount comes from events
+            const rewardEvent = tx.events?.find((e: { type: string }) => e.type === 'withdraw_rewards');
+            amount = rewardEvent?.attributes?.find((a: { key: string }) => a.key === 'amount')?.value?.replace('uhodl', '') || '0';
+          }
+
+          transactions.push({
+            hash: tx.txhash,
+            type,
+            amount: (parseInt(amount) / 1_000_000).toFixed(6),
+            symbol: 'HODL',
+            timestamp: new Date(tx.timestamp).getTime(),
+            height: parseInt(tx.height),
+            counterparty,
+          });
+        }
+      }
+    }
+
+    // Process received transactions
+    if (receivedResponse.ok) {
+      const receivedData = await receivedResponse.json();
+      for (const tx of receivedData.tx_responses || []) {
+        const msg = tx.tx?.body?.messages?.[0];
+        if (msg && (msg['@type'] || '').includes('MsgSend')) {
+          // Only add if not already in transactions (avoid duplicates)
+          if (!transactions.some(t => t.hash === tx.txhash)) {
+            transactions.push({
+              hash: tx.txhash,
+              type: 'RECEIVE',
+              amount: (parseInt(msg.amount?.[0]?.amount || '0') / 1_000_000).toFixed(6),
+              symbol: 'HODL',
+              timestamp: new Date(tx.timestamp).getTime(),
+              height: parseInt(tx.height),
+              counterparty: msg.from_address || '',
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by timestamp descending
+    transactions.sort((a, b) => b.timestamp - a.timestamp);
+
+    return { transactions: transactions.slice(0, limit) };
+  } catch (error) {
+    logger.error('Failed to fetch transaction history:', error);
+    return { transactions: [], error: 'Failed to fetch transactions' };
   }
 }
 
