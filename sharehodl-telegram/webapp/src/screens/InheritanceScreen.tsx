@@ -15,8 +15,8 @@ interface Beneficiary {
 export function InheritanceScreen() {
   const [showAddBeneficiary, setShowAddBeneficiary] = useState(false);
   const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([
-    { id: '1', name: 'John Doe', address: 'sharehodl1abc...xyz', allocation: 50 },
-    { id: '2', name: 'Jane Doe', address: 'sharehodl1def...uvw', allocation: 50 }
+    { id: '1', name: 'John Doe', address: 'hodl1abc...xyz', allocation: 50 },
+    { id: '2', name: 'Jane Doe', address: 'hodl1def...uvw', allocation: 50 }
   ]);
   const tg = window.Telegram?.WebApp;
 
@@ -229,7 +229,7 @@ function AddBeneficiaryDialog({
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="sharehodl1..."
+              placeholder="hodl1..."
               className="input"
             />
           </div>

@@ -35,7 +35,7 @@ import {
   Pencil,
   Trash2
 } from 'lucide-react';
-import { useWalletStore } from '../services/walletStore';
+import { useWalletStore, generateRandomWalletName } from '../services/walletStore';
 import { SecureMnemonic, scheduleSecureCleanup } from '../utils/secureMemory';
 
 // Theme storage key
@@ -43,7 +43,7 @@ const THEME_KEY = 'sh_theme';
 const BIOMETRIC_ENABLED_KEY = 'sh_biometric_enabled';
 
 type Theme = 'dark' | 'light' | 'system';
-type ModalType = 'none' | 'view-phrase' | 'change-pin' | 'wallets' | 'add-wallet' | 'edit-wallet' | 'setup-biometric';
+type ModalType = 'none' | 'view-phrase' | 'change-pin' | 'wallets' | 'add-wallet' | 'edit-wallet' | 'setup-biometric' | 'switch-wallet';
 type AddWalletMode = 'choose' | 'create' | 'import';
 
 const PIN_LENGTH = 6;
@@ -62,6 +62,7 @@ export function SettingsScreen() {
     importNewWallet,
     renameWallet,
     deleteWallet,
+    switchWallet,
     clearBiometricToken
   } = useWalletStore();
   const tg = window.Telegram?.WebApp;
@@ -91,6 +92,8 @@ export function SettingsScreen() {
   const [editingWallet, setEditingWallet] = useState<{ id: string; name: string } | null>(null);
   const [editWalletName, setEditWalletName] = useState('');
   const [deleteConfirmStep, setDeleteConfirmStep] = useState(0);
+  // Switch wallet state
+  const [switchingWalletId, setSwitchingWalletId] = useState<string | null>(null);
   // Biometric for add wallet flow
   const [addWalletBiometricAttempted, setAddWalletBiometricAttempted] = useState(false);
   const [addWalletUsePinFallback, setAddWalletUsePinFallback] = useState(false);
@@ -317,6 +320,8 @@ export function SettingsScreen() {
     setAddWalletBiometricAttempted(false);
     setAddWalletUsePinFallback(false);
     setImportMnemonicConfirmed(false);
+    // Switch wallet state
+    setSwitchingWalletId(null);
   }, [clearRecoveryPhrase]);
 
   const closeModal = () => {
@@ -359,9 +364,11 @@ export function SettingsScreen() {
         await handleBiometricSetupPin(updatedPin);
       } else if (activeModal === 'edit-wallet' && deleteConfirmStep === 2) {
         await handleDeleteWalletPinSubmit(updatedPin);
+      } else if (activeModal === 'switch-wallet' && switchingWalletId) {
+        await handleSwitchWalletPinSubmit(updatedPin);
       }
     }
-  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, addWalletMode, deleteConfirmStep, tg]);
+  }, [pin, newPin, confirmPin, pinStep, isLoading, activeModal, addWalletMode, deleteConfirmStep, switchingWalletId, tg]);
 
   // View Recovery Phrase
   const handleViewPhraseSubmit = async (enteredPin: string) => {
@@ -526,7 +533,7 @@ export function SettingsScreen() {
   // Trigger biometric for add wallet when reaching PIN step
   useEffect(() => {
     if (activeModal === 'add-wallet' && biometricEnabled && !addWalletBiometricAttempted && !addWalletUsePinFallback) {
-      // For create mode, trigger when user has entered wallet name (moved past choose)
+      // For create mode, trigger when in create mode (name has a default)
       // For import mode, only trigger when user has confirmed the mnemonic (clicked Continue)
       const shouldTrigger =
         (addWalletMode === 'create' && !walletMnemonic && !success) ||
@@ -680,6 +687,30 @@ export function SettingsScreen() {
         setPin('');
       }, 500);
       setError(err instanceof Error ? err.message : 'Failed to delete wallet');
+    }
+    setIsLoading(false);
+  };
+
+  // Handle wallet switch with PIN verification
+  const handleSwitchWalletPinSubmit = async (enteredPin: string) => {
+    if (!switchingWalletId) return;
+
+    setIsLoading(true);
+    try {
+      await switchWallet(switchingWalletId, enteredPin);
+      tg?.HapticFeedback?.notificationOccurred('success');
+      setSuccess('Wallet switched successfully!');
+      setTimeout(() => {
+        closeModal();
+      }, 1000);
+    } catch (err) {
+      tg?.HapticFeedback?.notificationOccurred('error');
+      setShake(true);
+      setTimeout(() => {
+        setShake(false);
+        setPin('');
+      }, 500);
+      setError(err instanceof Error ? err.message : 'Failed to switch wallet');
     }
     setIsLoading(false);
   };
@@ -1199,7 +1230,19 @@ export function SettingsScreen() {
 
             <div className="wallets-list">
               {(wallets.length > 0 ? wallets : [{ id: 'default', name: 'Main Wallet', sharehodlAddress: '', createdAt: 0 }]).map((wallet) => (
-                <div key={wallet.id} className={`wallet-item ${wallet.id === activeWalletId ? 'active' : ''}`}>
+                <div
+                  key={wallet.id}
+                  className={`wallet-item ${wallet.id === activeWalletId ? 'active' : ''} ${wallet.id !== activeWalletId ? 'clickable' : ''}`}
+                  onClick={() => {
+                    if (wallet.id !== activeWalletId) {
+                      tg?.HapticFeedback?.impactOccurred('light');
+                      setSwitchingWalletId(wallet.id);
+                      setPin('');
+                      setError('');
+                      setActiveModal('switch-wallet');
+                    }
+                  }}
+                >
                   <div className="wallet-info">
                     <div className="wallet-icon">
                       <Wallet size={20} />
@@ -1239,12 +1282,62 @@ export function SettingsScreen() {
               onClick={() => {
                 tg?.HapticFeedback?.impactOccurred('light');
                 resetModalState();
+                setNewWalletName(generateRandomWalletName());
                 setActiveModal('add-wallet');
               }}
             >
               <Plus size={20} />
               <span>Add New Wallet</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Switch Wallet Modal */}
+      {activeModal === 'switch-wallet' && switchingWalletId && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={closeModal}>
+              <X size={24} />
+            </button>
+
+            {success ? (
+              <>
+                <div className="modal-icon success">
+                  <CheckCircle size={32} />
+                </div>
+                <h2 className="modal-title">Wallet Switched!</h2>
+                <p className="modal-subtitle">
+                  You are now using {wallets.find(w => w.id === switchingWalletId)?.name || 'the selected wallet'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="modal-icon">
+                  <Wallet size={32} />
+                </div>
+                <h2 className="modal-title">Switch Wallet</h2>
+                <p className="modal-subtitle">
+                  Enter your PIN to switch to {wallets.find(w => w.id === switchingWalletId)?.name || 'the selected wallet'}
+                </p>
+
+                {/* PIN dots */}
+                <div className={`pin-dots ${shake ? 'shake' : ''}`}>
+                  {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+                    <div key={i} className={`pin-dot ${i < pin.length ? 'filled' : ''}`} />
+                  ))}
+                </div>
+
+                {error && (
+                  <div className="error-message">
+                    <AlertCircle size={16} />
+                    <span>{error}</span>
+                  </div>
+                )}
+
+                {renderNumpad(handlePinKey)}
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1362,7 +1455,7 @@ export function SettingsScreen() {
                       type="text"
                       value={newWalletName}
                       onChange={(e) => setNewWalletName(e.target.value)}
-                      placeholder={`Wallet ${wallets.length + 1}`}
+                      placeholder="Enter wallet name"
                       className="text-input"
                     />
                   </div>
@@ -1424,13 +1517,12 @@ export function SettingsScreen() {
                       type="text"
                       value={newWalletName}
                       onChange={(e) => setNewWalletName(e.target.value)}
-                      placeholder={`Wallet ${wallets.length + 1}`}
+                      placeholder="Enter wallet name"
                       className="text-input"
                     />
                   </div>
 
                   <p className="modal-subtitle">Enter PIN to create wallet</p>
-
                   {renderPinDots(pin.length)}
 
                   {error && (
@@ -1493,7 +1585,7 @@ export function SettingsScreen() {
                       type="text"
                       value={newWalletName}
                       onChange={(e) => setNewWalletName(e.target.value)}
-                      placeholder={`Imported Wallet ${wallets.length + 1}`}
+                      placeholder="Enter wallet name"
                       className="text-input"
                     />
                   </div>
@@ -1749,6 +1841,7 @@ export function SettingsScreen() {
                       onChange={(e) => setEditWalletName(e.target.value)}
                       placeholder="Enter wallet name"
                       className="text-input"
+                      maxLength={30}
                     />
                   </div>
 
@@ -2360,6 +2453,19 @@ export function SettingsScreen() {
         .wallet-item.active {
           background: rgba(30, 64, 175, 0.2);
           border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .wallet-item.clickable {
+          cursor: pointer;
+          transition: background 0.2s ease;
+        }
+
+        .wallet-item.clickable:hover {
+          background: var(--surface-bg);
+        }
+
+        .wallet-item.clickable:active {
+          background: rgba(30, 64, 175, 0.15);
         }
 
         .wallet-info {

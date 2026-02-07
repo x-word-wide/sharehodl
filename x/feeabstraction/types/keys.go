@@ -36,6 +36,12 @@ var (
 
 	// RecordCounterKey stores the next record ID
 	RecordCounterKey = []byte{0x40}
+
+	// TreasuryWhitelistPrefix is the prefix for whitelisted treasury depositors
+	TreasuryWhitelistPrefix = []byte{0x50}
+
+	// TreasuryOwnerKey stores the treasury owner address
+	TreasuryOwnerKey = []byte{0x51}
 )
 
 // TreasuryGrantKey returns the key for a treasury grant
@@ -55,4 +61,9 @@ func FeeAbstractionRecordKey(id uint64) []byte {
 	bz[6] = byte(id >> 8)
 	bz[7] = byte(id)
 	return append(FeeAbstractionRecordPrefix, bz...)
+}
+
+// TreasuryWhitelistKey returns the key for a whitelisted address
+func TreasuryWhitelistKey(addr string) []byte {
+	return append(TreasuryWhitelistPrefix, []byte(addr)...)
 }

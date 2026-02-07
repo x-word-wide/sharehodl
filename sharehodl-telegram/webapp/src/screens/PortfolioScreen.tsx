@@ -18,54 +18,17 @@ const SERVICES = [
   { id: 'bridge', iconType: 'bridge', title: 'Bridge', desc: 'Cross-chain', path: '/bridge', color: '#3B82F6' }
 ];
 
-// Demo equity holdings
-const DEMO_EQUITIES = [
-  {
-    id: 'sharehodl-plc',
-    symbol: 'SHDL',
-    name: 'ShareHODL PLC',
-    shares: 1250,
-    pricePerShare: 12.50,
-    change24h: 4.25,
-    color: '#1E40AF'
-  },
-  {
-    id: 'property-mainnet',
-    symbol: 'PROP',
-    name: 'Property Mainnet',
-    shares: 500,
-    pricePerShare: 8.75,
-    change24h: -1.30,
-    color: '#10B981'
-  },
-  {
-    id: 'tech-ventures',
-    symbol: 'TVNT',
-    name: 'Tech Ventures Ltd',
-    shares: 2000,
-    pricePerShare: 3.20,
-    change24h: 7.80,
-    color: '#F59E0B'
-  },
-  {
-    id: 'green-energy',
-    symbol: 'GREN',
-    name: 'Green Energy Corp',
-    shares: 750,
-    pricePerShare: 15.00,
-    change24h: 2.15,
-    color: '#059669'
-  },
-  {
-    id: 'fintech-global',
-    symbol: 'FNTK',
-    name: 'FinTech Global',
-    shares: 300,
-    pricePerShare: 45.00,
-    change24h: -0.50,
-    color: '#6366F1'
-  }
-];
+// Equity holdings - will be fetched from blockchain when available
+// Empty array for now until equity module is connected
+const EQUITIES: Array<{
+  id: string;
+  symbol: string;
+  name: string;
+  shares: number;
+  pricePerShare: number;
+  change24h: number;
+  color: string;
+}> = [];
 
 // Service icons
 const ServiceIcon = ({ type, color }: { type: string; color: string }) => {
@@ -396,8 +359,8 @@ export function PortfolioScreen() {
                 </button>
               </div>
             )
-          ) : (
-            DEMO_EQUITIES.map((equity) => {
+          ) : EQUITIES.length > 0 ? (
+            EQUITIES.map((equity) => {
               const totalValue = equity.shares * equity.pricePerShare;
               const isPositive = equity.change24h >= 0;
 
@@ -429,6 +392,12 @@ export function PortfolioScreen() {
                 </button>
               );
             })
+          ) : (
+            <div className="empty-state">
+              <span className="empty-icon">📈</span>
+              <p className="empty-title">No Equities Yet</p>
+              <p className="empty-desc">Tokenized shares will appear here</p>
+            </div>
           )}
         </div>
 

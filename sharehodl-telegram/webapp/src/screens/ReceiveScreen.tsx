@@ -3,14 +3,16 @@
  */
 
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Copy, Check, ChevronDown, Share2 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWalletStore } from '../services/walletStore';
 import { Chain, CHAIN_CONFIGS } from '../types';
+import { BottomSheet } from '../components/BottomSheet';
 
 export function ReceiveScreen() {
   const { chain: chainParam } = useParams();
+  const navigate = useNavigate();
   const { accounts } = useWalletStore();
   const tg = window.Telegram?.WebApp;
 
@@ -47,10 +49,9 @@ export function ReceiveScreen() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-dark-bg p-4">
-      <h1 className="text-xl font-bold text-white mb-6">Receive</h1>
-
-      {/* Chain selector */}
+    <BottomSheet title="Receive" onClose={() => navigate(-1)}>
+      <div className="flex flex-col p-4">
+        {/* Chain selector */}
       <button
         onClick={() => setShowChainPicker(true)}
         className="w-full input flex items-center justify-between mb-6"
@@ -158,6 +159,7 @@ export function ReceiveScreen() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </BottomSheet>
   );
 }

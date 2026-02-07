@@ -106,6 +106,7 @@ import { EquityProfileScreen } from './screens/EquityProfileScreen';
 // Components
 import { BottomNav } from './components/BottomNav';
 import { LoadingScreen } from './components/LoadingScreen';
+import { ScrollToTop } from './components/ScrollToTop';
 
 logger.debug('App.tsx loaded');
 
@@ -260,6 +261,7 @@ function AppContent() {
 
   return (
     <div className="flex flex-col min-h-screen">
+      <ScrollToTop />
       <main className="flex-1 pb-20">
         <Routes>
           <Route path="/" element={<Navigate to="/portfolio" replace />} />

@@ -15,7 +15,7 @@ const PROPOSALS = [
     votesAgainst: 450000,
     votesAbstain: 120000,
     endDate: '2026-02-12',
-    proposer: 'sharehodl1abc...xyz'
+    proposer: 'hodl1abc...xyz'
   },
   {
     id: 2,
@@ -26,7 +26,7 @@ const PROPOSALS = [
     votesAgainst: 120000,
     votesAbstain: 50000,
     endDate: '2026-02-15',
-    proposer: 'sharehodl1def...uvw'
+    proposer: 'hodl1def...uvw'
   },
   {
     id: 3,
@@ -37,7 +37,7 @@ const PROPOSALS = [
     votesAgainst: 300000,
     votesAbstain: 80000,
     endDate: '2026-01-28',
-    proposer: 'sharehodl1ghi...rst'
+    proposer: 'hodl1ghi...rst'
   }
 ];
 
@@ -46,7 +46,7 @@ const VALIDATORS = [
   {
     id: 'val1',
     name: 'ShareHODL Genesis',
-    address: 'sharehodl1val...abc',
+    address: 'hodl1val...abc',
     votingPower: 15.2,
     delegators: 1250,
     commission: 5,
@@ -55,7 +55,7 @@ const VALIDATORS = [
   {
     id: 'val2',
     name: 'Cosmos Guardian',
-    address: 'sharehodl1val...def',
+    address: 'hodl1val...def',
     votingPower: 12.8,
     delegators: 980,
     commission: 8,
@@ -64,7 +64,7 @@ const VALIDATORS = [
   {
     id: 'val3',
     name: 'StakeFlow',
-    address: 'sharehodl1val...ghi',
+    address: 'hodl1val...ghi',
     votingPower: 10.5,
     delegators: 720,
     commission: 10,

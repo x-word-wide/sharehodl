@@ -33,6 +33,9 @@ export function UnlockScreen() {
   const [biometricType, setBiometricType] = useState<string>('Biometric');
   const [biometricLoading, setBiometricLoading] = useState(false);
 
+  // Track if we've already auto-triggered biometric
+  const [autoTriggered, setAutoTriggered] = useState(false);
+
   // Check biometric availability and status on mount
   useEffect(() => {
     const enabled = localStorage.getItem(BIOMETRIC_ENABLED_KEY) === 'true';
@@ -188,6 +191,32 @@ export function UnlockScreen() {
       setBiometricLoading(false);
     }
   }, [biometricEnabled, biometricType, tg, clearError, unlockWallet]);
+
+  // Auto-trigger biometric after a short delay when screen opens
+  useEffect(() => {
+    // Only auto-trigger if:
+    // - Biometric is enabled
+    // - Not already triggered
+    // - Not locked out
+    // - Not already loading
+    if (!biometricEnabled || autoTriggered || securityState.isLocked || biometricLoading) {
+      return;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const biometricManager = (tg as any)?.BiometricManager;
+    if (!biometricManager) {
+      return;
+    }
+
+    // Wait for screen to render, then auto-trigger Face ID
+    const timer = setTimeout(() => {
+      setAutoTriggered(true);
+      handleBiometric();
+    }, 600); // 600ms delay for smooth UX
+
+    return () => clearTimeout(timer);
+  }, [biometricEnabled, autoTriggered, securityState.isLocked, biometricLoading, tg, handleBiometric]);
 
   const isLocked = securityState.isLocked && lockoutTimer > 0;
 

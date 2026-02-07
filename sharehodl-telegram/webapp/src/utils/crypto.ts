@@ -126,7 +126,7 @@ function isCosmosChain(chain: Chain): boolean {
 
 function getPrefix(chain: Chain): string {
   const prefixes: Partial<Record<Chain, string>> = {
-    [Chain.SHAREHODL]: 'sharehodl',
+    [Chain.SHAREHODL]: 'hodl',
     [Chain.COSMOS]: 'cosmos',
     [Chain.OSMOSIS]: 'osmo',
     [Chain.CELESTIA]: 'celestia'

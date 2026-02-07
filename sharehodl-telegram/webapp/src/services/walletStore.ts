@@ -38,6 +38,33 @@ import {
   type SecurityState
 } from '../utils/security';
 
+// ShareHODL-themed wallet name generator
+const HODL_ADJECTIVES = [
+  'Diamond', 'Platinum', 'Titanium', 'Quantum', 'Genesis', 'Prime', 'Alpha', 'Apex',
+  'Stellar', 'Sovereign', 'Cardinal', 'Sentinel', 'Founder', 'Pioneer', 'Vanguard', 'Elite'
+];
+const HODL_NOUNS = [
+  'HODL', 'Vault', 'Reserve', 'Treasury', 'Stake', 'Holdings', 'Capital', 'Assets',
+  'Portfolio', 'Ledger', 'Chain', 'Block', 'Node', 'Validator', 'Stash', 'Fund'
+];
+
+export function generateRandomWalletName(): string {
+  const adjective = HODL_ADJECTIVES[Math.floor(Math.random() * HODL_ADJECTIVES.length)];
+  const noun = HODL_NOUNS[Math.floor(Math.random() * HODL_NOUNS.length)];
+  return `${adjective} ${noun}`;
+}
+
+// Generate cryptographically secure wallet ID
+function generateSecureWalletId(): string {
+  const randomBytes = new Uint8Array(12);
+  crypto.getRandomValues(randomBytes);
+  const randomPart = Array.from(randomBytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 12);
+  return `wallet_${Date.now()}_${randomPart}`;
+}
+
 // Storage keys
 const STORAGE_KEYS = {
   ENCRYPTED_MNEMONIC: 'sh_encrypted_mnemonic',
@@ -80,9 +107,9 @@ interface WalletStore {
 
   // Actions
   initialize: () => Promise<void>;
-  createWallet: (pin: string) => Promise<string>;
+  createWallet: (pin: string, name?: string) => Promise<string>;
   completeWalletSetup: () => void;  // Call after seed phrase verification
-  importWallet: (mnemonic: string, pin: string) => Promise<void>;
+  importWallet: (mnemonic: string, pin: string, name?: string) => Promise<void>;
   unlockWallet: (pin: string) => Promise<void>;
   lockWallet: () => void;
   refreshBalances: () => Promise<void>;
@@ -184,24 +211,42 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   // Create new wallet
-  createWallet: async (pin: string) => {
+  createWallet: async (pin: string, name?: string) => {
     set({ isLoading: true, error: null });
 
     try {
       // Generate mnemonic
       const mnemonic = generateMnemonic(256); // 24 words
 
-      // Encrypt and store mnemonic
+      // Generate a wallet ID for this wallet
+      const walletId = generateSecureWalletId();
+
+      // Encrypt and store mnemonic (both main key and wallet-specific key)
       const encrypted = await encryptData(mnemonic, pin);
       localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
+      localStorage.setItem(`${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`, encrypted);
       localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
 
       // Generate accounts for all supported chains
       const accounts = generateAccounts(mnemonic);
       const enabledTokenIds = DEFAULT_ENABLED_TOKENS;
+      const sharehodlAddress = accounts.find(a => a.chain === Chain.SHAREHODL)?.address || '';
 
       // Generate initial assets from enabled tokens
       const assets = generateAssets(accounts, enabledTokenIds);
+
+      // Create wallet entry with provided name or generate random name
+      const walletName = name?.trim() || generateRandomWalletName();
+      const newWallet: WalletMetadata = {
+        id: walletId,
+        name: walletName,
+        createdAt: Date.now(),
+        sharehodlAddress
+      };
+
+      // Save wallet list and active wallet
+      localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify([newWallet]));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
 
       // Store data (public info only)
       localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
@@ -214,7 +259,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         isLoading: false,
         accounts,
         assets,
-        enabledTokenIds
+        enabledTokenIds,
+        wallets: [newWallet],
+        activeWalletId: walletId
       });
 
       return mnemonic;
@@ -232,7 +279,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   // Import existing wallet
-  importWallet: async (mnemonic: string, pin: string) => {
+  importWallet: async (mnemonic: string, pin: string, name?: string) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -243,15 +290,33 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
       const cleanMnemonic = mnemonic.trim().toLowerCase();
 
-      // Encrypt and store mnemonic
+      // Generate a wallet ID for this wallet
+      const walletId = generateSecureWalletId();
+
+      // Encrypt and store mnemonic (both main key and wallet-specific key)
       const encrypted = await encryptData(cleanMnemonic, pin);
       localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
+      localStorage.setItem(`${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${walletId}`, encrypted);
       localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
 
       // Generate accounts
       const accounts = generateAccounts(cleanMnemonic);
       const enabledTokenIds = DEFAULT_ENABLED_TOKENS;
       const assets = generateAssets(accounts, enabledTokenIds);
+      const sharehodlAddress = accounts.find(a => a.chain === Chain.SHAREHODL)?.address || '';
+
+      // Create wallet entry with provided name or generate random name
+      const walletName = name?.trim() || generateRandomWalletName();
+      const newWallet: WalletMetadata = {
+        id: walletId,
+        name: walletName,
+        createdAt: Date.now(),
+        sharehodlAddress
+      };
+
+      // Save wallet list and active wallet
+      localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify([newWallet]));
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
 
       localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
       localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify(assets));
@@ -263,7 +328,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         isLoading: false,
         accounts,
         assets,
-        enabledTokenIds
+        enabledTokenIds,
+        wallets: [newWallet],
+        activeWalletId: walletId
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import wallet';
@@ -324,12 +391,42 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         localStorage.setItem(STORAGE_KEYS.ENABLED_TOKENS, JSON.stringify(enabledTokenIds));
       }
 
+      // Load wallets list and active wallet ID
+      const walletsJson = localStorage.getItem(STORAGE_KEYS.WALLETS);
+      let wallets: WalletMetadata[] = walletsJson ? JSON.parse(walletsJson) : [];
+      let activeWalletId = localStorage.getItem(STORAGE_KEYS.ACTIVE_WALLET_ID);
+
+      // MIGRATION: If wallets list is empty but we have encrypted mnemonic,
+      // this is an old wallet that needs to be added to the multi-wallet list
+      if (wallets.length === 0 && encrypted) {
+        const sharehodlAddress = accounts.find((a: WalletAccount) => a.chain === Chain.SHAREHODL)?.address || '';
+        const mainWalletId = `wallet_main_${Date.now()}`;
+        const mainWallet: WalletMetadata = {
+          id: mainWalletId,
+          name: generateRandomWalletName(),
+          createdAt: Date.now(),
+          sharehodlAddress
+        };
+        wallets = [mainWallet];
+        activeWalletId = mainWalletId;
+
+        // Store the main wallet's mnemonic with its ID
+        const encryptedKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${mainWalletId}`;
+        localStorage.setItem(encryptedKey, encrypted);
+
+        // Save the migrated wallet list
+        localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, mainWalletId);
+      }
+
       set({
         isLocked: false,
         isLoading: false,
         accounts,
         assets,
         enabledTokenIds,
+        wallets,
+        activeWalletId,
         securityState: getSecurityState(),
         remainingAttempts: getRemainingAttempts(),
         _cachedPin: pin  // Cache PIN for transaction signing
@@ -413,25 +510,48 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   // Clear error
   clearError: () => set({ error: null }),
 
-  // Reset wallet (dangerous!)
+  // Reset wallet (dangerous!) - Complete cleanup of ALL wallet data
   resetWallet: () => {
+    // Get list of wallets to clear individual mnemonic keys
+    try {
+      const walletsJson = localStorage.getItem(STORAGE_KEYS.WALLETS);
+      if (walletsJson) {
+        const wallets: WalletMetadata[] = JSON.parse(walletsJson);
+        // Remove each wallet's individual encrypted mnemonic
+        for (const wallet of wallets) {
+          const walletKey = `${STORAGE_KEYS.ENCRYPTED_MNEMONIC}_${wallet.id}`;
+          localStorage.removeItem(walletKey);
+        }
+      }
+    } catch (e) {
+      // Ignore parsing errors, continue with cleanup
+    }
+
+    // Clear all wallet-related storage keys
     localStorage.removeItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC);
     localStorage.removeItem(STORAGE_KEYS.WALLET_INITIALIZED);
     localStorage.removeItem(STORAGE_KEYS.ACCOUNTS);
     localStorage.removeItem(STORAGE_KEYS.ASSETS);
     localStorage.removeItem(STORAGE_KEYS.ENABLED_TOKENS);
+    localStorage.removeItem(STORAGE_KEYS.WALLETS);
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_WALLET_ID);
+    localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
 
-    // Also clear security data
+    // Clear security data (failed attempts, lockout, etc.)
     clearSecurityData();
 
+    // Reset state to initial values
     set({
       isInitialized: false,
       isLocked: true,
       accounts: [],
       assets: [],
+      wallets: [],
+      activeWalletId: null,
       enabledTokenIds: DEFAULT_ENABLED_TOKENS,
       totalBalanceUsd: 0,
       error: null,
+      _cachedPin: null,
       securityState: getSecurityState(),
       remainingAttempts: getRemainingAttempts()
     });
@@ -569,7 +689,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     try {
       // Generate new mnemonic
       const mnemonic = generateMnemonic(256);
-      const walletId = `wallet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const walletId = generateSecureWalletId();
 
       // Encrypt and store
       const encrypted = await encryptData(mnemonic, pin);
@@ -591,18 +711,33 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       wallets.push(newWallet);
       localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
 
-      // If this is the first wallet, also set as primary
+      // If this is the first wallet, also set as primary mnemonic
       if (wallets.length === 1) {
         localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
         localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
       }
+
+      // Always switch to the new wallet
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
+
+      // Generate assets for the new wallet
+      const enabledTokenIds = get().enabledTokenIds;
+      const assets = generateAssets(accounts, enabledTokenIds);
+
+      // Save account and asset data for the new wallet
+      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+      localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify(assets));
 
       set({
         isLoading: false,
         wallets,
-        activeWalletId: wallets.length === 1 ? walletId : get().activeWalletId
+        activeWalletId: walletId,
+        accounts,
+        assets
       });
+
+      // Refresh balances for new wallet
+      get().refreshBalances();
 
       return mnemonic;
     } catch (error) {
@@ -622,7 +757,7 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       if (!validateMnemonic(cleanMnemonic)) {
         throw new Error('Invalid mnemonic phrase');
       }
-      const walletId = `wallet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const walletId = generateSecureWalletId();
 
       // Encrypt and store
       const encrypted = await encryptData(cleanMnemonic, pin);
@@ -644,18 +779,33 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       wallets.push(newWallet);
       localStorage.setItem(STORAGE_KEYS.WALLETS, JSON.stringify(wallets));
 
-      // If this is the first wallet, set as primary
+      // If this is the first wallet, set as primary mnemonic
       if (wallets.length === 1) {
         localStorage.setItem(STORAGE_KEYS.ENCRYPTED_MNEMONIC, encrypted);
         localStorage.setItem(STORAGE_KEYS.WALLET_INITIALIZED, 'true');
-        localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
       }
+
+      // Always switch to the new wallet
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_WALLET_ID, walletId);
+
+      // Generate assets for the new wallet
+      const enabledTokenIds = get().enabledTokenIds;
+      const assets = generateAssets(accounts, enabledTokenIds);
+
+      // Save account and asset data for the new wallet
+      localStorage.setItem(STORAGE_KEYS.ACCOUNTS, JSON.stringify(accounts));
+      localStorage.setItem(STORAGE_KEYS.ASSETS, JSON.stringify(assets));
 
       set({
         isLoading: false,
         wallets,
-        activeWalletId: wallets.length === 1 ? walletId : get().activeWalletId
+        activeWalletId: walletId,
+        accounts,
+        assets
       });
+
+      // Refresh balances for new wallet
+      get().refreshBalances();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to import wallet';
       set({ isLoading: false, error: message });
@@ -835,9 +985,9 @@ function generateAssets(accounts: WalletAccount[], enabledTokenIds: string[]): A
     const account = accounts.find(a => a.chain === token.chain);
     if (!account) continue;
 
-    // Get demo balance for this token
-    const balance = getDemoTokenBalance(token);
-    const price = getDemoPrice(token);
+    // Get balance for this token (0 until fetched from blockchain)
+    const balance = getTokenBalance(token);
+    const price = getTokenPrice(token);
     const balanceNum = parseFloat(balance);
     const balanceUsd = (balanceNum * price).toFixed(2);
 
@@ -847,7 +997,7 @@ function generateAssets(accounts: WalletAccount[], enabledTokenIds: string[]): A
       balanceFormatted: formatBalance(balance, token.decimals),
       balanceUsd,
       price,
-      priceChange24h: getDemoPriceChange(token),
+      priceChange24h: getPriceChange(token),
       address: account.address
     });
   }
@@ -876,12 +1026,12 @@ async function generateAssetsWithPrices(
       if (token.type === TokenType.NATIVE) {
         balance = await fetchBalance(token.chain, account.address);
       } else {
-        // For tokens, fetch ERC20 balance (demo for now)
-        balance = getDemoTokenBalance(token);
+        // For tokens, ERC20 balance fetching not yet implemented
+        balance = getTokenBalance(token);
       }
 
       const price = await fetchTokenPrice(token);
-      const priceChange = getDemoPriceChange(token);
+      const priceChange = getPriceChange(token);
       const balanceNum = parseFloat(balance);
       const balanceUsd = (balanceNum * price).toFixed(2);
 
@@ -895,16 +1045,16 @@ async function generateAssetsWithPrices(
         address: account.address
       });
     } catch {
-      // Use demo data on error
-      const balance = getDemoTokenBalance(token);
-      const price = getDemoPrice(token);
+      // Return 0 balance on error
+      const balance = getTokenBalance(token);
+      const price = getTokenPrice(token);
       assets.push({
         token,
         balance,
         balanceFormatted: formatBalance(balance, token.decimals),
         balanceUsd: (parseFloat(balance) * price).toFixed(2),
         price,
-        priceChange24h: getDemoPriceChange(token),
+        priceChange24h: getPriceChange(token),
         address: account.address
       });
     }
@@ -934,8 +1084,8 @@ async function fetchBalance(chain: Chain, address: string): Promise<string> {
       return balanceNum.toString();
     } catch (error) {
       logger.error('Failed to fetch ShareHODL balance:', error);
-      // Fallback to demo balance on error
-      return getDemoBalance(chain);
+      // Return 0 on error (blockchain not reachable)
+      return getRealBalance(chain);
     }
   }
 
@@ -957,23 +1107,25 @@ async function fetchBalance(chain: Chain, address: string): Promise<string> {
     }
   }
 
-  // Return demo balance for now (for chains without real integration)
-  return getDemoBalance(chain);
+  // Return 0 for chains without real integration
+  return getRealBalance(chain);
 }
 
 async function fetchPrice(chain: Chain): Promise<number> {
-  // Demo prices - in production, fetch from CoinGecko or similar
-  return getDemoChainPrice(chain);
+  // Reference prices - in production, fetch from CoinGecko or similar
+  return getChainPrice(chain);
 }
 
 async function fetchTokenPrice(token: Token): Promise<number> {
   // In production, use CoinGecko API with token.coingeckoId
-  return getDemoPrice(token);
+  return getTokenPrice(token);
 }
 
-function getDemoChainPrice(chain: Chain): number {
+// Reference prices for USD conversion (these are static for now)
+// In production, these would be fetched from a price oracle like CoinGecko
+function getChainPrice(chain: Chain): number {
   const prices: Record<Chain, number> = {
-    [Chain.SHAREHODL]: 1.0,
+    [Chain.SHAREHODL]: 1.0,  // HODL is pegged to $1
     [Chain.ETHEREUM]: 3450,
     [Chain.BITCOIN]: 67500,
     [Chain.COSMOS]: 8.50,
@@ -991,56 +1143,21 @@ function getDemoChainPrice(chain: Chain): number {
   return prices[chain] || 0;
 }
 
-function getDemoBalance(chain: Chain): string {
-  const balances: Record<Chain, string> = {
-    [Chain.SHAREHODL]: '10000.00',
-    [Chain.ETHEREUM]: '0.5',
-    [Chain.BITCOIN]: '0.01',
-    [Chain.COSMOS]: '25.5',
-    [Chain.OSMOSIS]: '100.0',
-    [Chain.POLYGON]: '150.0',
-    [Chain.ARBITRUM]: '0.1',
-    [Chain.OPTIMISM]: '0.1',
-    [Chain.BASE]: '0.05',
-    [Chain.AVALANCHE]: '5.0',
-    [Chain.BNB]: '0.5',
-    [Chain.SOLANA]: '2.0',
-    [Chain.CELESTIA]: '50.0'
-  };
-
-  return balances[chain] || '0';
+// Real balance - returns 0 until fetched from blockchain
+function getRealBalance(_chain: Chain): string {
+  // All balances start at 0 until fetched from blockchain
+  return '0';
 }
 
-// Token-specific demo balances
-function getDemoTokenBalance(token: Token): string {
-  const balances: Record<string, string> = {
-    'btc': '0.015',
-    'eth': '0.5',
-    'matic': '250.0',
-    'bnb': '1.2',
-    'sol': '3.5',
-    'avax': '8.0',
-    'atom': '25.5',
-    'hodl': '10000.0',
-    // Stablecoins
-    'usdt-eth': '500.0',
-    'usdc-eth': '750.0',
-    'usdt-polygon': '200.0',
-    'usdc-polygon': '300.0',
-    'usdt-bsc': '150.0',
-    'usdc-bsc': '250.0',
-    'usdt-arb': '100.0',
-    'usdc-arb': '175.0',
-    'usdc-base': '125.0',
-    'usdt-avax': '80.0',
-    'usdc-avax': '120.0',
-  };
-
-  return balances[token.id] || '0';
+// Token-specific balance - returns 0 until fetched from blockchain
+function getTokenBalance(_token: Token): string {
+  // All balances start at 0 until fetched from blockchain
+  return '0';
 }
 
-// Demo prices for tokens
-function getDemoPrice(token: Token): number {
+// Token prices (for USD conversion)
+// In production, these would be fetched from a price API
+function getTokenPrice(token: Token): number {
   const prices: Record<string, number> = {
     'btc': 67500,
     'eth': 3450,
@@ -1049,7 +1166,7 @@ function getDemoPrice(token: Token): number {
     'sol': 145,
     'avax': 35,
     'atom': 8.50,
-    'hodl': 1.0,
+    'hodl': 1.0,  // HODL is pegged to $1
     // Stablecoins
     'usdt-eth': 1.0,
     'usdc-eth': 1.0,
@@ -1067,30 +1184,8 @@ function getDemoPrice(token: Token): number {
   return prices[token.id] || 0;
 }
 
-// Demo 24h price changes
-function getDemoPriceChange(token: Token): number {
-  const changes: Record<string, number> = {
-    'btc': 2.5,
-    'eth': 3.2,
-    'matic': -1.8,
-    'bnb': 1.5,
-    'sol': 5.2,
-    'avax': -0.8,
-    'atom': 4.1,
-    'hodl': 0.5,
-    // Stablecoins are stable
-    'usdt-eth': 0.01,
-    'usdc-eth': -0.02,
-    'usdt-polygon': 0.01,
-    'usdc-polygon': -0.01,
-    'usdt-bsc': 0.02,
-    'usdc-bsc': -0.01,
-    'usdt-arb': 0.01,
-    'usdc-arb': 0.0,
-    'usdc-base': -0.01,
-    'usdt-avax': 0.01,
-    'usdc-avax': 0.0,
-  };
-
-  return changes[token.id] || 0;
+// Price change - returns 0 until we have real price history
+function getPriceChange(_token: Token): number {
+  // No price change data until connected to price API
+  return 0;
 }

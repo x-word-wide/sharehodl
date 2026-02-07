@@ -15,9 +15,8 @@ import {
   STAKING_TIERS
 } from '../types';
 
-// API base URL (will be configured for production)
-// TODO: Replace demo data with actual API calls
-export const API_BASE = import.meta.env.VITE_API_URL || 'https://api.sharehodl.network';
+// API base URL for ShareHODL blockchain
+export const API_BASE = import.meta.env.VITE_SHAREHODL_REST || 'https://api.sharehodl.com';
 
 interface StakingStore {
   // State
@@ -76,40 +75,166 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Fetch user's staking position
+  // Fetch user's staking position from blockchain
   fetchStakingPosition: async (address: string) => {
     set({ isLoading: true, error: null });
 
     try {
-      // In production, fetch from blockchain API
-      // For now, use demo data
-      const demoPosition = createDemoPosition(address);
-      set({ position: demoPosition, isLoading: false });
+      // Fetch delegations from blockchain
+      const delegationsResponse = await fetch(`${API_BASE}/cosmos/staking/v1beta1/delegations/${address}`);
+      const delegationsData = await delegationsResponse.json();
 
-      // TODO: Replace with actual API call
-      // const response = await fetch(`${API_BASE}/cosmos/staking/v1beta1/delegations/${address}`);
-      // const data = await response.json();
-      // ...process data
+      // Fetch rewards from blockchain
+      const rewardsResponse = await fetch(`${API_BASE}/cosmos/distribution/v1beta1/delegators/${address}/rewards`);
+      const rewardsData = await rewardsResponse.json();
+
+      // Fetch unbonding from blockchain
+      const unbondingResponse = await fetch(`${API_BASE}/cosmos/staking/v1beta1/delegators/${address}/unbonding_delegations`);
+      const unbondingData = await unbondingResponse.json();
+
+      // Get validators list for tier info
+      const validators = get().validators;
+
+      // Parse delegations
+      const delegations: Delegation[] = (delegationsData.delegation_responses || []).map((del: {
+        delegation: { validator_address: string };
+        balance: { amount: string };
+      }) => {
+        const validatorAddress = del.delegation.validator_address;
+        const validator = validators.find(v => v.address === validatorAddress);
+        const amount = parseInt(del.balance.amount) / 1_000_000; // uhodl to HODL
+
+        // Find rewards for this validator
+        const validatorRewards = (rewardsData.rewards || []).find((r: { validator_address: string }) =>
+          r.validator_address === validatorAddress
+        );
+        const rewards = validatorRewards?.reward?.[0]?.amount
+          ? parseFloat(validatorRewards.reward[0].amount) / 1_000_000
+          : 0;
+
+        return {
+          validatorAddress,
+          validatorName: validator?.name || validatorAddress.slice(0, 12) + '...',
+          validatorTier: validator?.tier || ValidatorTier.BRONZE,
+          amount,
+          rewards,
+          commission: validator?.commission || 0.05
+        };
+      });
+
+      // Parse unbondings
+      const unbondings: Unbonding[] = (unbondingData.unbonding_responses || []).flatMap((unbond: {
+        validator_address: string;
+        entries: Array<{ balance: string; completion_time: string }>;
+      }) =>
+        unbond.entries.map(entry => ({
+          validatorAddress: unbond.validator_address,
+          amount: parseInt(entry.balance) / 1_000_000,
+          completionTime: new Date(entry.completion_time).getTime()
+        }))
+      );
+
+      // Calculate total staked and rewards
+      const stakedAmount = delegations.reduce((sum, d) => sum + d.amount, 0);
+      const pendingRewards = delegations.reduce((sum, d) => sum + d.rewards, 0);
+
+      // Calculate tier
+      const tierConfig = calculateTier(stakedAmount);
+      const { nextTier, progress } = calculateNextTierProgress(stakedAmount, tierConfig);
+
+      const baseApr = 12; // 12% base APR
+      const effectiveApr = baseApr * tierConfig.rewardMultiplier;
+
+      const position: StakingPosition = {
+        stakedAmount,
+        pendingRewards,
+        tier: tierConfig.tier,
+        tierConfig,
+        delegations,
+        unbondings,
+        apr: effectiveApr,
+        nextTier,
+        nextTierProgress: progress
+      };
+
+      set({ position, isLoading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch staking position';
-      set({ isLoading: false, error: message });
+      console.error('Failed to fetch staking position:', error);
+      // If API fails, show empty position
+      const tierConfig = calculateTier(0);
+      set({
+        position: {
+          stakedAmount: 0,
+          pendingRewards: 0,
+          tier: tierConfig.tier,
+          tierConfig,
+          delegations: [],
+          unbondings: [],
+          apr: 12,
+          nextTier: STAKING_TIERS[1],
+          nextTierProgress: 0
+        },
+        isLoading: false
+      });
     }
   },
 
-  // Fetch list of validators
+  // Fetch list of validators from blockchain
   fetchValidators: async () => {
     set({ isLoading: true, error: null });
 
     try {
-      // In production, fetch from blockchain API
-      const demoValidators = createDemoValidators();
-      set({ validators: demoValidators, isLoading: false });
+      // Fetch bonded validators
+      const response = await fetch(`${API_BASE}/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED`);
+      const data = await response.json();
 
-      // TODO: Replace with actual API call
-      // const response = await fetch(`${API_BASE}/cosmos/staking/v1beta1/validators?status=BOND_STATUS_BONDED`);
+      const validators: Validator[] = (data.validators || []).map((val: {
+        operator_address: string;
+        description: { moniker: string; details: string; website: string };
+        commission: { commission_rates: { rate: string } };
+        tokens: string;
+        delegator_shares: string;
+        jailed: boolean;
+      }, index: number) => {
+        const totalStaked = parseInt(val.tokens) / 1_000_000; // uhodl to HODL
+        const commission = parseFloat(val.commission.commission_rates.rate);
+
+        // Determine tier based on total staked
+        let tier = ValidatorTier.BRONZE;
+        if (totalStaked >= 10_000_000) tier = ValidatorTier.DIAMOND;
+        else if (totalStaked >= 5_000_000) tier = ValidatorTier.PLATINUM;
+        else if (totalStaked >= 1_000_000) tier = ValidatorTier.GOLD;
+        else if (totalStaked >= 100_000) tier = ValidatorTier.SILVER;
+
+        return {
+          address: val.operator_address,
+          name: val.description.moniker || `Validator ${index + 1}`,
+          description: val.description.details || 'No description provided',
+          website: val.description.website || '',
+          commission,
+          tier,
+          totalStaked,
+          delegatorCount: 0, // Would need additional query
+          uptime: 99.9, // Would need slashing info
+          isJailed: val.jailed,
+          votingPower: 0 // Calculated separately
+        };
+      });
+
+      // Sort by total staked (most staked first)
+      validators.sort((a, b) => b.totalStaked - a.totalStaked);
+
+      // Calculate voting power as percentage
+      const totalStakedAll = validators.reduce((sum, v) => sum + v.totalStaked, 0);
+      validators.forEach(v => {
+        v.votingPower = totalStakedAll > 0 ? (v.totalStaked / totalStakedAll) * 100 : 0;
+      });
+
+      set({ validators, isLoading: false });
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to fetch validators';
-      set({ isLoading: false, error: message });
+      console.error('Failed to fetch validators:', error);
+      // If API fails, show empty list
+      set({ validators: [], isLoading: false });
     }
   },
 
@@ -312,162 +437,5 @@ export const useStakingStore = create<StakingStore>((set, get) => ({
 }));
 
 // ============================================
-// Demo Data Generators
-// ============================================
-
-function createDemoPosition(address: string): StakingPosition {
-  // Generate consistent demo data based on address
-  const seed = address.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const stakedAmount = (seed % 50000) + 5000; // 5,000 - 55,000 HODL
-
-  const tierConfig = calculateTier(stakedAmount);
-  const { nextTier, progress } = calculateNextTierProgress(stakedAmount, tierConfig);
-
-  const baseApr = 12; // 12% base APR
-  const effectiveApr = baseApr * tierConfig.rewardMultiplier;
-
-  const delegations: Delegation[] = [
-    {
-      validatorAddress: 'sharehodlvaloper1abc123',
-      validatorName: 'ShareHODL Foundation',
-      validatorTier: ValidatorTier.PLATINUM,
-      amount: stakedAmount * 0.6,
-      rewards: stakedAmount * 0.6 * (effectiveApr / 100) * (7 / 365), // ~1 week rewards
-      commission: 0.03
-    },
-    {
-      validatorAddress: 'sharehodlvaloper1def456',
-      validatorName: 'Cosmos Validators',
-      validatorTier: ValidatorTier.GOLD,
-      amount: stakedAmount * 0.4,
-      rewards: stakedAmount * 0.4 * (effectiveApr / 100) * (7 / 365),
-      commission: 0.05
-    }
-  ];
-
-  const pendingRewards = delegations.reduce((sum, d) => sum + d.rewards, 0);
-
-  return {
-    stakedAmount,
-    pendingRewards,
-    tier: tierConfig.tier,
-    tierConfig,
-    delegations,
-    unbondings: [],
-    apr: effectiveApr,
-    nextTier,
-    nextTierProgress: progress
-  };
-}
-
-function createDemoValidators(): Validator[] {
-  return [
-    {
-      address: 'sharehodlvaloper1abc123',
-      name: 'ShareHODL Foundation',
-      description: 'Official ShareHODL Foundation validator. Supporting network security and decentralization.',
-      website: 'https://sharehodl.network',
-      commission: 0.03,
-      tier: ValidatorTier.PLATINUM,
-      totalStaked: 15_000_000,
-      delegatorCount: 2450,
-      uptime: 99.98,
-      isJailed: false,
-      votingPower: 12.5
-    },
-    {
-      address: 'sharehodlvaloper1def456',
-      name: 'Cosmos Validators',
-      description: 'Professional validator service with 99.9% uptime guarantee.',
-      website: 'https://cosmosvalidators.io',
-      commission: 0.05,
-      tier: ValidatorTier.GOLD,
-      totalStaked: 8_500_000,
-      delegatorCount: 1820,
-      uptime: 99.95,
-      isJailed: false,
-      votingPower: 8.2
-    },
-    {
-      address: 'sharehodlvaloper1ghi789',
-      name: 'Stake Capital',
-      description: 'Enterprise-grade staking infrastructure.',
-      website: 'https://stakecapital.com',
-      commission: 0.05,
-      tier: ValidatorTier.GOLD,
-      totalStaked: 6_200_000,
-      delegatorCount: 1340,
-      uptime: 99.92,
-      isJailed: false,
-      votingPower: 6.1
-    },
-    {
-      address: 'sharehodlvaloper1jkl012',
-      name: 'Figment',
-      description: 'Leading Web3 infrastructure provider.',
-      website: 'https://figment.io',
-      commission: 0.08,
-      tier: ValidatorTier.SILVER,
-      totalStaked: 4_100_000,
-      delegatorCount: 980,
-      uptime: 99.88,
-      isJailed: false,
-      votingPower: 4.0
-    },
-    {
-      address: 'sharehodlvaloper1mno345',
-      name: 'Chorus One',
-      description: 'Institutional staking provider.',
-      website: 'https://chorus.one',
-      commission: 0.10,
-      tier: ValidatorTier.SILVER,
-      totalStaked: 3_500_000,
-      delegatorCount: 720,
-      uptime: 99.85,
-      isJailed: false,
-      votingPower: 3.4
-    },
-    {
-      address: 'sharehodlvaloper1pqr678',
-      name: 'Everstake',
-      description: 'Multi-chain staking platform.',
-      website: 'https://everstake.one',
-      commission: 0.05,
-      tier: ValidatorTier.BRONZE,
-      totalStaked: 2_200_000,
-      delegatorCount: 540,
-      uptime: 99.80,
-      isJailed: false,
-      votingPower: 2.1
-    },
-    {
-      address: 'sharehodlvaloper1stu901',
-      name: 'P2P Validator',
-      description: 'Non-custodial staking provider.',
-      website: 'https://p2p.org',
-      commission: 0.07,
-      tier: ValidatorTier.BRONZE,
-      totalStaked: 1_800_000,
-      delegatorCount: 380,
-      uptime: 99.75,
-      isJailed: false,
-      votingPower: 1.8
-    },
-    {
-      address: 'sharehodlvaloper1vwx234',
-      name: 'Blockdaemon',
-      description: 'Enterprise blockchain infrastructure.',
-      website: 'https://blockdaemon.com',
-      commission: 0.06,
-      tier: ValidatorTier.BRONZE,
-      totalStaked: 1_500_000,
-      delegatorCount: 290,
-      uptime: 99.70,
-      isJailed: false,
-      votingPower: 1.5
-    }
-  ];
-}
-
 // Export helper functions
 export { calculateTier, calculateNextTierProgress };

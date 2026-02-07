@@ -16,7 +16,7 @@ const RPC_URL = SHAREHODL_CONFIG.rpcUrl || 'https://rpc.sharehodl.com';
 const REST_URL = SHAREHODL_CONFIG.restUrl || 'https://api.sharehodl.com';
 const DENOM = 'uhodl';
 const GAS_PRICE = GasPrice.fromString('0.025uhodl');
-const ADDRESS_PREFIX = 'sharehodl';
+const ADDRESS_PREFIX = 'hodl';
 
 // Response types
 export interface TransactionResult {
@@ -445,7 +445,7 @@ export function validateAddress(address: string): { valid: boolean; error?: stri
     return { valid: false, error: `Address must start with '${ADDRESS_PREFIX}'` };
   }
 
-  // Check length (sharehodl addresses are typically 43-45 chars)
+  // Check length (hodl addresses are typically 43-45 chars)
   if (address.length < 40 || address.length > 60) {
     return { valid: false, error: 'Invalid address length' };
   }

@@ -10,6 +10,7 @@ import { Scan, ChevronDown, AlertCircle, CheckCircle, Loader2, ExternalLink } fr
 import { useWalletStore } from '../services/walletStore';
 import { Chain, CHAIN_CONFIGS } from '../types';
 import { sendTokens, validateAddress, type TransactionResult } from '../services/blockchainService';
+import { BottomSheet } from '../components/BottomSheet';
 
 type SendStep = 'form' | 'pin' | 'sending' | 'success' | 'error';
 const PIN_LENGTH = 6;
@@ -173,8 +174,8 @@ export function SendScreen() {
   // Main form view
   if (step === 'form') {
     return (
-      <div className="flex flex-col min-h-screen bg-dark-bg p-4">
-        <h1 className="text-xl font-bold text-white mb-6">Send</h1>
+      <BottomSheet title="Send" fullHeight onClose={() => navigate(-1)}>
+        <div className="flex flex-col p-4 pb-8">
 
         {/* Chain selector */}
         <div className="mb-4">
@@ -339,19 +340,16 @@ export function SendScreen() {
             </div>
           </div>
         )}
-      </div>
+        </div>
+      </BottomSheet>
     );
   }
 
   // PIN entry view
   if (step === 'pin') {
     return (
-      <div className="flex flex-col min-h-screen bg-dark-bg p-4">
-        <button onClick={handleBack} className="text-gray-400 text-sm mb-4">
-          ← Back
-        </button>
-
-        <div className="flex-1 flex flex-col items-center justify-center">
+      <BottomSheet title="Confirm" fullHeight onClose={handleBack}>
+        <div className="flex flex-col items-center justify-center p-4 pt-8">
           <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4">
             <span className="text-2xl">🔐</span>
           </div>
@@ -408,47 +406,50 @@ export function SendScreen() {
               )
             )}
           </div>
-        </div>
 
-        <style>{`
-          @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            20%, 60% { transform: translateX(-10px); }
-            40%, 80% { transform: translateX(10px); }
-          }
-          .animate-shake { animation: shake 0.5s ease-in-out; }
-        `}</style>
-      </div>
+          <style>{`
+            @keyframes shake {
+              0%, 100% { transform: translateX(0); }
+              20%, 60% { transform: translateX(-10px); }
+              40%, 80% { transform: translateX(10px); }
+            }
+            .animate-shake { animation: shake 0.5s ease-in-out; }
+          `}</style>
+        </div>
+      </BottomSheet>
     );
   }
 
   // Sending view
   if (step === 'sending') {
     return (
-      <div className="flex flex-col min-h-screen bg-dark-bg items-center justify-center p-4">
-        <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6">
-          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      <BottomSheet fullHeight>
+        <div className="flex flex-col items-center justify-center p-4 pt-16">
+          <div className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6">
+            <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          </div>
+          <h2 className="text-xl font-bold text-white mb-2">Sending Transaction</h2>
+          <p className="text-gray-400 text-center">
+            Please wait while your transaction is being processed...
+          </p>
         </div>
-        <h2 className="text-xl font-bold text-white mb-2">Sending Transaction</h2>
-        <p className="text-gray-400 text-center">
-          Please wait while your transaction is being processed...
-        </p>
-      </div>
+      </BottomSheet>
     );
   }
 
   // Success view
   if (step === 'success' && txResult) {
     return (
-      <div className="flex flex-col min-h-screen bg-dark-bg items-center justify-center p-4">
-        <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
-          <CheckCircle className="w-10 h-10 text-green-500" />
-        </div>
+      <BottomSheet fullHeight onClose={() => navigate('/portfolio')}>
+        <div className="flex flex-col items-center justify-center p-4 pt-12">
+          <div className="w-20 h-20 rounded-full bg-green-500/20 flex items-center justify-center mb-6">
+            <CheckCircle className="w-10 h-10 text-green-500" />
+          </div>
 
-        <h2 className="text-xl font-bold text-white mb-2">Transaction Sent!</h2>
-        <p className="text-gray-400 text-center mb-6">
-          Your {amount} {config.symbol} has been sent successfully.
-        </p>
+          <h2 className="text-xl font-bold text-white mb-2">Transaction Sent!</h2>
+          <p className="text-gray-400 text-center mb-6">
+            Your {amount} {config.symbol} has been sent successfully.
+          </p>
 
         {/* Transaction details */}
         <div className="w-full max-w-sm bg-dark-card rounded-xl p-4 mb-6">
@@ -478,44 +479,47 @@ export function SendScreen() {
           )}
         </div>
 
-        <button
-          onClick={() => navigate('/portfolio')}
-          className="w-full max-w-sm btn-primary"
-        >
-          Done
-        </button>
-      </div>
+          <button
+            onClick={() => navigate('/portfolio')}
+            className="w-full max-w-sm btn-primary"
+          >
+            Done
+          </button>
+        </div>
+      </BottomSheet>
     );
   }
 
   // Error view
   if (step === 'error') {
     return (
-      <div className="flex flex-col min-h-screen bg-dark-bg items-center justify-center p-4">
-        <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center mb-6">
-          <AlertCircle className="w-10 h-10 text-red-500" />
-        </div>
+      <BottomSheet fullHeight onClose={() => navigate('/portfolio')}>
+        <div className="flex flex-col items-center justify-center p-4 pt-12">
+          <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center mb-6">
+            <AlertCircle className="w-10 h-10 text-red-500" />
+          </div>
 
-        <h2 className="text-xl font-bold text-white mb-2">Transaction Failed</h2>
-        <p className="text-gray-400 text-center mb-4">
-          {txResult?.error || 'An error occurred while sending your transaction.'}
-        </p>
+          <h2 className="text-xl font-bold text-white mb-2">Transaction Failed</h2>
+          <p className="text-gray-400 text-center mb-4">
+            {txResult?.error || 'An error occurred while sending your transaction.'}
+          </p>
 
-        <div className="flex gap-4 w-full max-w-sm">
-          <button
-            onClick={handleBack}
-            className="flex-1 btn-secondary"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={() => navigate('/portfolio')}
-            className="flex-1 btn-primary"
-          >
-            Done
-          </button>
+          <div className="flex gap-4 w-full max-w-sm">
+            <button
+              onClick={handleBack}
+              className="flex-1 btn-secondary"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => navigate('/portfolio')}
+              className="flex-1 btn-primary"
+            >
+              Done
+            </button>
+          </div>
         </div>
-      </div>
+      </BottomSheet>
     );
   }
 

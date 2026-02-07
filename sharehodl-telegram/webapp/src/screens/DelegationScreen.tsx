@@ -9,7 +9,7 @@ const DELEGATES = [
   {
     id: 'val1',
     name: 'ShareHODL Foundation',
-    address: 'sharehodl1abc...xyz',
+    address: 'hodl1abc...xyz',
     votingPower: 15000000,
     delegators: 1250,
     commission: 5,
@@ -19,7 +19,7 @@ const DELEGATES = [
   {
     id: 'val2',
     name: 'Community Validator',
-    address: 'sharehodl1def...uvw',
+    address: 'hodl1def...uvw',
     votingPower: 8500000,
     delegators: 890,
     commission: 8,
@@ -29,7 +29,7 @@ const DELEGATES = [
   {
     id: 'val3',
     name: 'DeFi Alliance',
-    address: 'sharehodl1ghi...rst',
+    address: 'hodl1ghi...rst',
     votingPower: 6200000,
     delegators: 650,
     commission: 10,
@@ -39,7 +39,7 @@ const DELEGATES = [
   {
     id: 'val4',
     name: 'Governance Guild',
-    address: 'sharehodl1jkl...opq',
+    address: 'hodl1jkl...opq',
     votingPower: 4100000,
     delegators: 420,
     commission: 7,
@@ -49,7 +49,7 @@ const DELEGATES = [
   {
     id: 'val5',
     name: 'Staking Pro',
-    address: 'sharehodl1mno...lmn',
+    address: 'hodl1mno...lmn',
     votingPower: 2800000,
     delegators: 310,
     commission: 12,

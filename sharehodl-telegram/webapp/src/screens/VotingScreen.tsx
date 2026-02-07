@@ -14,7 +14,7 @@ const PROPOSALS = [
     votesFor: 1250000,
     votesAgainst: 450000,
     endDate: '2026-02-12',
-    proposer: 'sharehodl1abc...xyz'
+    proposer: 'hodl1abc...xyz'
   },
   {
     id: 2,
@@ -24,7 +24,7 @@ const PROPOSALS = [
     votesFor: 890000,
     votesAgainst: 120000,
     endDate: '2026-02-15',
-    proposer: 'sharehodl1def...uvw'
+    proposer: 'hodl1def...uvw'
   },
   {
     id: 3,
@@ -34,7 +34,7 @@ const PROPOSALS = [
     votesFor: 2100000,
     votesAgainst: 300000,
     endDate: '2026-01-28',
-    proposer: 'sharehodl1ghi...rst'
+    proposer: 'hodl1ghi...rst'
   },
   {
     id: 4,
@@ -44,7 +44,7 @@ const PROPOSALS = [
     votesFor: 400000,
     votesAgainst: 1800000,
     endDate: '2026-01-20',
-    proposer: 'sharehodl1jkl...opq'
+    proposer: 'hodl1jkl...opq'
   }
 ];
 

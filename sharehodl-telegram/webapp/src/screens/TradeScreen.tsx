@@ -1,171 +1,333 @@
 /**
- * Trade Screen - Buy/Sell equities
+ * Trade Screen - DEX Trading
+ * Shows Coming Soon state until DEX module is live
  */
 
-import { useState } from 'react';
-import { Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
+
+const API_BASE = import.meta.env.VITE_SHAREHODL_REST || 'https://api.sharehodl.com';
+
+interface TradingPair {
+  id: string;
+  baseDenom: string;
+  quoteDenom: string;
+  baseSymbol: string;
+  quoteSymbol: string;
+  lastPrice: string;
+  volume24h: string;
+  priceChange24h: string;
+}
+
 
 export function TradeScreen() {
-  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
-  const [orderType, setOrderType] = useState<'market' | 'limit'>('market');
-  const [symbol, setSymbol] = useState('AAPL');
-  const [amount, setAmount] = useState('');
-  const [limitPrice, setLimitPrice] = useState('');
-  const tg = window.Telegram?.WebApp;
+  const [isLoading, setIsLoading] = useState(true);
+  const [pairs, setPairs] = useState<TradingPair[]>([]);
+  const [isLive, setIsLive] = useState(false);
 
-  const currentPrice = 189.45;
-  const estimatedTotal = parseFloat(amount || '0') * (orderType === 'limit' ? parseFloat(limitPrice || '0') : currentPrice);
+  useEffect(() => {
+    const checkDexStatus = async () => {
+      try {
+        // Try to fetch trading pairs from DEX module
+        const response = await fetch(`${API_BASE}/sharehodl/dex/v1/pairs`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.pairs && data.pairs.length > 0) {
+            setPairs(data.pairs);
+            setIsLive(true);
+          }
+        }
+      } catch {
+        // DEX module not live yet
+        setIsLive(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const handleTrade = () => {
-    tg?.HapticFeedback?.impactOccurred('heavy');
-    tg?.showAlert(`${tradeType === 'buy' ? 'Buy' : 'Sell'} order placed for ${amount} ${symbol}`);
-  };
+    checkDexStatus();
+  }, []);
 
+  if (isLoading) {
+    return (
+      <div className="trade-screen">
+        <div className="loading-state">
+          <Loader2 className="spin" size={40} />
+          <p>Loading trading pairs...</p>
+        </div>
+        <style>{styles}</style>
+      </div>
+    );
+  }
+
+  // Coming Soon State
+  if (!isLive) {
+    return (
+      <div className="trade-screen">
+        <div className="coming-soon">
+          <div className="coming-soon-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 3v18h18" />
+              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+            </svg>
+          </div>
+          <h1 className="coming-soon-title">Trading</h1>
+          <p className="coming-soon-subtitle">Coming Soon</p>
+          <div className="coming-soon-desc">
+            <p>The ShareHODL decentralized exchange is under development.</p>
+            <p className="features-title">Upcoming Features:</p>
+            <ul className="features-list">
+              <li>Trade tokenized equities 24/7</li>
+              <li>Market and limit orders</li>
+              <li>Ultra-low trading fees (0.3%)</li>
+              <li>Instant settlement on-chain</li>
+              <li>Advanced order book trading</li>
+            </ul>
+          </div>
+          <div className="status-badge">
+            <span className="status-dot" />
+            <span>Development in Progress</span>
+          </div>
+        </div>
+        <style>{styles}</style>
+      </div>
+    );
+  }
+
+  // Live State - Show real trading pairs when API is ready
   return (
-    <div className="flex flex-col min-h-screen bg-dark-bg p-4">
-      {/* Header */}
-      <h1 className="text-xl font-bold text-white mb-4">Trade</h1>
-
-      {/* Buy/Sell Toggle */}
-      <div className="flex gap-2 p-1 bg-dark-surface rounded-xl mb-6">
-        <button
-          onClick={() => setTradeType('buy')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-            tradeType === 'buy'
-              ? 'bg-accent-green text-white'
-              : 'text-gray-500'
-          }`}
-        >
-          Buy
-        </button>
-        <button
-          onClick={() => setTradeType('sell')}
-          className={`flex-1 py-3 rounded-lg font-semibold transition-colors ${
-            tradeType === 'sell'
-              ? 'bg-accent-red text-white'
-              : 'text-gray-500'
-          }`}
-        >
-          Sell
-        </button>
+    <div className="trade-screen">
+      <div className="trade-header">
+        <h1 className="trade-title">Trading</h1>
       </div>
 
-      {/* Symbol selector */}
-      <div className="mb-4">
-        <label className="text-sm text-gray-400 mb-2 block">Stock</label>
-        <select
-          value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
-          className="input"
-        >
-          <option value="AAPL">AAPL - Apple Inc.</option>
-          <option value="GOOGL">GOOGL - Alphabet Inc.</option>
-          <option value="MSFT">MSFT - Microsoft Corp.</option>
-          <option value="AMZN">AMZN - Amazon.com Inc.</option>
-          <option value="NVDA">NVDA - NVIDIA Corp.</option>
-        </select>
-      </div>
-
-      {/* Current price */}
-      <div className="p-4 bg-dark-card rounded-xl mb-4">
-        <div className="flex items-center justify-between">
-          <span className="text-gray-400">Current Price</span>
-          <span className="text-white font-semibold text-xl">${currentPrice}</span>
+      {pairs.length === 0 ? (
+        <div className="empty-state">
+          <p>No trading pairs available yet</p>
         </div>
-      </div>
-
-      {/* Order type */}
-      <div className="mb-4">
-        <label className="text-sm text-gray-400 mb-2 block">Order Type</label>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setOrderType('market')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium ${
-              orderType === 'market'
-                ? 'bg-primary text-white'
-                : 'bg-dark-surface text-gray-400'
-            }`}
-          >
-            Market
-          </button>
-          <button
-            onClick={() => setOrderType('limit')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium ${
-              orderType === 'limit'
-                ? 'bg-primary text-white'
-                : 'bg-dark-surface text-gray-400'
-            }`}
-          >
-            Limit
-          </button>
-        </div>
-      </div>
-
-      {/* Limit price */}
-      {orderType === 'limit' && (
-        <div className="mb-4">
-          <label className="text-sm text-gray-400 mb-2 block">Limit Price</label>
-          <input
-            type="number"
-            value={limitPrice}
-            onChange={(e) => setLimitPrice(e.target.value)}
-            placeholder="0.00"
-            className="input"
-          />
+      ) : (
+        <div className="pairs-list">
+          {pairs.map((pair) => (
+            <div key={pair.id} className="pair-card">
+              <div className="pair-info">
+                <span className="pair-symbol">{pair.baseSymbol}/{pair.quoteSymbol}</span>
+              </div>
+              <div className="pair-price">
+                <span className="price">{pair.lastPrice}</span>
+                <span className={`change ${parseFloat(pair.priceChange24h) >= 0 ? 'positive' : 'negative'}`}>
+                  {parseFloat(pair.priceChange24h) >= 0 ? '+' : ''}{pair.priceChange24h}%
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Amount */}
-      <div className="mb-4">
-        <label className="text-sm text-gray-400 mb-2 block">Shares</label>
-        <input
-          type="number"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0"
-          className="input text-xl"
-        />
-      </div>
-
-      {/* Quick amounts */}
-      <div className="flex gap-2 mb-6">
-        {['10', '50', '100', '500'].map((val) => (
-          <button
-            key={val}
-            onClick={() => setAmount(val)}
-            className="flex-1 py-2 bg-dark-surface rounded-lg text-gray-400 text-sm"
-          >
-            {val}
-          </button>
-        ))}
-      </div>
-
-      {/* Estimated total */}
-      <div className="p-4 bg-dark-card rounded-xl mb-6">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-400">Estimated Total</span>
-          <span className="text-white font-semibold text-xl">
-            ${estimatedTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Info size={12} />
-          <span>Plus ~0.3% trading fee</span>
-        </div>
-      </div>
-
-      {/* Trade button */}
-      <button
-        onClick={handleTrade}
-        disabled={!amount || parseFloat(amount) <= 0}
-        className={`w-full py-4 rounded-xl font-semibold text-white transition-colors ${
-          tradeType === 'buy'
-            ? 'bg-accent-green disabled:bg-accent-green/50'
-            : 'bg-accent-red disabled:bg-accent-red/50'
-        }`}
-      >
-        {tradeType === 'buy' ? 'Buy' : 'Sell'} {symbol}
-      </button>
+      <style>{styles}</style>
     </div>
   );
 }
+
+const styles = `
+  .trade-screen {
+    min-height: 100vh;
+    padding: 16px;
+    padding-bottom: 100px;
+  }
+
+  .loading-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    color: #8b949e;
+    gap: 16px;
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+    color: #3B82F6;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
+  .coming-soon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 70vh;
+    padding: 20px;
+  }
+
+  .coming-soon-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+
+  .coming-soon-icon svg {
+    width: 40px;
+    height: 40px;
+    color: #3B82F6;
+  }
+
+  .coming-soon-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    margin: 0 0 8px;
+  }
+
+  .coming-soon-subtitle {
+    font-size: 18px;
+    color: #8b949e;
+    margin: 0 0 24px;
+  }
+
+  .coming-soon-desc {
+    max-width: 320px;
+    color: #8b949e;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .coming-soon-desc p {
+    margin: 0 0 16px;
+  }
+
+  .features-title {
+    color: white;
+    font-weight: 600;
+    margin-bottom: 8px !important;
+  }
+
+  .features-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+  }
+
+  .features-list li {
+    padding: 8px 0;
+    padding-left: 24px;
+    position: relative;
+  }
+
+  .features-list li::before {
+    content: '✓';
+    position: absolute;
+    left: 0;
+    color: #10b981;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 24px;
+    padding: 8px 16px;
+    background: rgba(245, 158, 11, 0.1);
+    border-radius: 20px;
+    font-size: 13px;
+    color: #f59e0b;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .trade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  .trade-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    margin: 0;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: #8b949e;
+    background: #161B22;
+    border-radius: 14px;
+  }
+
+  .pairs-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .pair-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #161B22;
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .pair-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pair-symbol {
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .pair-price {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .price {
+    font-size: 16px;
+    font-weight: 600;
+    color: white;
+  }
+
+  .change {
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .change.positive {
+    color: #10b981;
+  }
+
+  .change.negative {
+    color: #ef4444;
+  }
+`;

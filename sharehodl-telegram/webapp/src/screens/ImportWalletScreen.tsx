@@ -5,13 +5,13 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertCircle } from 'lucide-react';
-import { useWalletStore } from '../services/walletStore';
+import { AlertCircle, Wallet } from 'lucide-react';
+import { useWalletStore, generateRandomWalletName } from '../services/walletStore';
 import { validateMnemonic } from '../utils/crypto';
 import { validatePinComplexity, type PinValidationResult } from '../utils/security';
 import { SecureMnemonic } from '../utils/secureMemory';
 
-type Step = 'mnemonic' | 'pin' | 'confirm-pin';
+type Step = 'mnemonic' | 'name' | 'pin' | 'confirm-pin';
 const PIN_LENGTH = 6;
 
 export function ImportWalletScreen() {
@@ -23,6 +23,7 @@ export function ImportWalletScreen() {
   // SECURITY: Use SecureMnemonic for secure memory handling instead of plain useState
   const secureMnemonicRef = useRef<SecureMnemonic>(new SecureMnemonic());
   const [mnemonicInput, setMnemonicInput] = useState('');  // Only for display in input field
+  const [walletName, setWalletName] = useState(() => generateRandomWalletName());
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [mnemonicError, setMnemonicError] = useState('');
@@ -70,6 +71,11 @@ export function ImportWalletScreen() {
     setMnemonicInput('');  // Clear the input display for security
 
     tg?.HapticFeedback?.impactOccurred('medium');
+    setStep('name');
+  };
+
+  const handleNameSubmit = () => {
+    tg?.HapticFeedback?.impactOccurred('medium');
     setStep('pin');
   };
 
@@ -112,7 +118,7 @@ export function ImportWalletScreen() {
           tg?.HapticFeedback?.notificationOccurred('success');
           try {
             const mnemonic = secureMnemonicRef.current.get();
-            await importWallet(mnemonic, newPin);
+            await importWallet(mnemonic, newPin, walletName);
             // SECURITY: Clear mnemonic from memory after import
             secureMnemonicRef.current.clear();
             navigate('/portfolio');
@@ -130,7 +136,7 @@ export function ImportWalletScreen() {
         }
       }
     }
-  }, [currentPin, step, pin, importWallet, tg, setCurrentPin, isLoading, navigate]);
+  }, [currentPin, step, pin, walletName, importWallet, tg, setCurrentPin, isLoading, navigate]);
 
   return (
     <div className="import-screen">
@@ -140,8 +146,9 @@ export function ImportWalletScreen() {
           <div
             className="progress-fill"
             style={{
-              width: step === 'mnemonic' ? '33%' :
-                     step === 'pin' ? '66%' : '100%'
+              width: step === 'mnemonic' ? '25%' :
+                     step === 'name' ? '50%' :
+                     step === 'pin' ? '75%' : '100%'
             }}
           />
         </div>
@@ -195,6 +202,46 @@ export function ImportWalletScreen() {
           <button
             onClick={handleMnemonicSubmit}
             disabled={!mnemonicInput.trim()}
+            className="continue-btn"
+          >
+            Continue
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Name Step */}
+      {step === 'name' && (
+        <div className="name-step">
+          <div className="step-header">
+            <div className="step-icon">
+              <Wallet size={28} color="white" />
+            </div>
+            <h1 className="step-title">Name Your Wallet</h1>
+            <p className="step-subtitle">Give your wallet a memorable name</p>
+          </div>
+
+          <div className="name-input-area">
+            <input
+              type="text"
+              value={walletName}
+              onChange={(e) => setWalletName(e.target.value)}
+              placeholder="Enter wallet name"
+              className="name-input"
+              autoComplete="off"
+              autoCorrect="off"
+              maxLength={30}
+            />
+            <p className="name-hint">
+              You can change this later in Settings
+            </p>
+          </div>
+
+          <button
+            onClick={handleNameSubmit}
+            disabled={!walletName.trim()}
             className="continue-btn"
           >
             Continue
@@ -436,6 +483,49 @@ export function ImportWalletScreen() {
           content: '-';
           position: absolute;
           left: 0;
+        }
+
+        /* Name Step */
+        .name-step {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 20px 24px 40px;
+        }
+
+        .name-input-area {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .name-input {
+          width: 100%;
+          padding: 16px;
+          background: #161B22;
+          border: 1px solid #30363d;
+          border-radius: 14px;
+          color: white;
+          font-size: 18px;
+          font-weight: 500;
+          outline: none;
+          transition: border-color 0.2s ease;
+        }
+
+        .name-input:focus {
+          border-color: #3B82F6;
+        }
+
+        .name-input::placeholder {
+          color: #8b949e;
+        }
+
+        .name-hint {
+          font-size: 13px;
+          color: #8b949e;
+          text-align: center;
+          margin: 0;
         }
 
         .continue-btn {

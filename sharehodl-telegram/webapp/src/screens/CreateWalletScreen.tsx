@@ -8,11 +8,12 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWalletStore } from '../services/walletStore';
+import { Wallet } from 'lucide-react';
+import { useWalletStore, generateRandomWalletName } from '../services/walletStore';
 import { validatePinComplexity, type PinValidationResult } from '../utils/security';
 import { SecureMnemonic, scheduleSecureCleanup } from '../utils/secureMemory';
 
-type Step = 'pin' | 'confirm-pin' | 'mnemonic' | 'verify' | 'backup-confirm';
+type Step = 'name' | 'pin' | 'confirm-pin' | 'mnemonic' | 'verify' | 'backup-confirm';
 const PIN_LENGTH = 6;
 
 // Quiz question type for seed phrase verification
@@ -61,7 +62,8 @@ export function CreateWalletScreen() {
   const { createWallet, completeWalletSetup, isLoading } = useWalletStore();
   const tg = window.Telegram?.WebApp;
 
-  const [step, setStep] = useState<Step>('pin');
+  const [step, setStep] = useState<Step>('name');
+  const [walletName, setWalletName] = useState(() => generateRandomWalletName());
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   // SECURITY: Use SecureMnemonic ref instead of useState to minimize memory exposure
@@ -139,7 +141,7 @@ export function CreateWalletScreen() {
           // PINs match, create wallet
           tg?.HapticFeedback?.notificationOccurred('success');
           try {
-            const generatedMnemonic = await createWallet(newPin);
+            const generatedMnemonic = await createWallet(newPin, walletName);
             // SECURITY: Store in SecureMnemonic instead of React state
             secureMnemonicRef.current.set(generatedMnemonic);
             setMnemonicVersion(v => v + 1); // Trigger re-render
@@ -159,7 +161,7 @@ export function CreateWalletScreen() {
         }
       }
     }
-  }, [currentPin, step, pin, createWallet, tg, setCurrentPin, isLoading]);
+  }, [currentPin, step, pin, walletName, createWallet, tg, setCurrentPin, isLoading]);
 
   const handleCopy = async () => {
     // SECURITY: Warn user about clipboard risks before copying
@@ -281,14 +283,58 @@ export function CreateWalletScreen() {
           <div
             className="progress-fill"
             style={{
-              width: step === 'pin' ? '20%' :
-                     step === 'confirm-pin' ? '40%' :
-                     step === 'mnemonic' ? '60%' :
-                     step === 'verify' ? '80%' : '100%'
+              width: step === 'name' ? '16%' :
+                     step === 'pin' ? '32%' :
+                     step === 'confirm-pin' ? '48%' :
+                     step === 'mnemonic' ? '64%' :
+                     step === 'verify' ? '82%' : '100%'
             }}
           />
         </div>
       </div>
+
+      {/* Name Step */}
+      {step === 'name' && (
+        <div className="name-step">
+          <div className="step-header">
+            <div className="step-icon">
+              <Wallet size={28} color="white" />
+            </div>
+            <h1 className="step-title">Name Your Wallet</h1>
+            <p className="step-subtitle">Give your wallet a memorable name</p>
+          </div>
+
+          <div className="name-input-area">
+            <input
+              type="text"
+              value={walletName}
+              onChange={(e) => setWalletName(e.target.value)}
+              placeholder="Enter wallet name"
+              className="name-input"
+              autoComplete="off"
+              autoCorrect="off"
+              maxLength={30}
+            />
+            <p className="name-hint">
+              You can change this later in Settings
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              tg?.HapticFeedback?.impactOccurred('medium');
+              setStep('pin');
+            }}
+            disabled={!walletName.trim()}
+            className="continue-btn"
+          >
+            Continue
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* PIN Steps */}
       {(step === 'pin' || step === 'confirm-pin') && (
@@ -582,6 +628,110 @@ export function CreateWalletScreen() {
           background: linear-gradient(90deg, #1E40AF, #3B82F6);
           border-radius: 2px;
           transition: width 0.3s ease;
+        }
+
+        /* Name Step */
+        .name-step {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          padding: 20px 24px 40px;
+        }
+
+        .step-header {
+          text-align: center;
+          margin-bottom: 32px;
+        }
+
+        .step-icon {
+          width: 64px;
+          height: 64px;
+          margin: 0 auto 16px;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .step-title {
+          font-size: 24px;
+          font-weight: 700;
+          color: white;
+          margin: 0 0 8px;
+        }
+
+        .step-subtitle {
+          font-size: 14px;
+          color: #8b949e;
+          margin: 0;
+        }
+
+        .name-input-area {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .name-input {
+          width: 100%;
+          padding: 16px;
+          background: #161B22;
+          border: 1px solid #30363d;
+          border-radius: 14px;
+          color: white;
+          font-size: 18px;
+          font-weight: 500;
+          outline: none;
+          transition: border-color 0.2s ease;
+        }
+
+        .name-input:focus {
+          border-color: #3B82F6;
+        }
+
+        .name-input::placeholder {
+          color: #8b949e;
+        }
+
+        .name-hint {
+          font-size: 13px;
+          color: #8b949e;
+          text-align: center;
+          margin: 0;
+        }
+
+        .continue-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          padding: 16px;
+          background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);
+          border: none;
+          border-radius: 14px;
+          font-size: 16px;
+          font-weight: 600;
+          color: white;
+          cursor: pointer;
+          margin-top: auto;
+          transition: all 0.2s ease;
+        }
+
+        .continue-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .continue-btn:not(:disabled):active {
+          transform: scale(0.98);
+        }
+
+        .continue-btn svg {
+          width: 20px;
+          height: 20px;
         }
 
         /* PIN Step */

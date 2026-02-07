@@ -146,11 +146,80 @@ See `.claude/memory/` for:
 - 5432: PostgreSQL
 - 6379: Redis
 
-### Test Accounts
-- alice, bob, charlie, diana (pre-funded in genesis)
+### Genesis Accounts
+| Account | Address | Balance |
+|---------|---------|---------|
+| **Validator** | `hodl1xwmmwhh95fdzw3an97v6369244477e9pvzm0wx` | 100M HODL (10M staked) |
+| **Treasury** | `hodl1dd0st03tk3fwd47r7h7rxcjchw40zph02qah7l` | 1B HODL |
+
+### Genesis Validator
+- Address: `hodl1xwmmwhh95fdzw3an97v6369244477e9pvzm0wx`
+- Operator: `hodlvaloper1xwmmwhh95fdzw3an97v6369244477e9phcfjmx`
+- Moniker: "ShareHODL Foundation"
+- Commission: 5%
+- Self-delegation: 10M HODL
+- Keyring: `file` backend (production secure)
 
 ### Chain ID
 - `sharehodl-1`
 
 ### Token Denomination
 - `uhodl` (micro HODL, 1 HODL = 1,000,000 uhodl)
+
+## Deployment
+
+### Production Server
+- **IP**: 178.63.13.190
+- **User**: root
+- **Blockchain Data**: /root/.sharehodl/
+- **Keyring Passphrase**: /root/.sharehodl/keyring-passphrase (chmod 600)
+- **Telegram Webapp Path**: /var/www/sharehodl-telegram/
+
+### Quick Deploy Commands
+
+```bash
+# Deploy Telegram Webapp (one command)
+cd sharehodl-telegram/webapp && npm run build && \
+ssh root@178.63.13.190 "rm -rf /var/www/sharehodl-telegram/*" && \
+scp -r dist/* root@178.63.13.190:/var/www/sharehodl-telegram/
+
+# Check blockchain status
+ssh root@178.63.13.190 "curl -s http://localhost:26657/status | jq '.result.sync_info.latest_block_height'"
+
+# View blockchain logs
+ssh root@178.63.13.190 "journalctl -u sharehodld -f"
+
+# Restart blockchain
+ssh root@178.63.13.190 "systemctl restart sharehodld"
+```
+
+### Deploy Telegram Webapp (Step by Step)
+```bash
+# 1. Build locally
+cd sharehodl-telegram/webapp
+npm run build
+
+# 2. Clear cache and deploy
+ssh root@178.63.13.190 "rm -rf /var/www/sharehodl-telegram/*"
+scp -r dist/* root@178.63.13.190:/var/www/sharehodl-telegram/
+```
+
+### Blockchain Management
+```bash
+# View validator status
+ssh root@178.63.13.190 "curl -s http://localhost:1317/cosmos/staking/v1beta1/validators | jq '.validators[0]'"
+
+# Check account balances
+ssh root@178.63.13.190 "curl -s http://localhost:1317/cosmos/bank/v1beta1/balances/hodl1xwmmwhh95fdzw3an97v6369244477e9pvzm0wx"
+
+# Service management
+ssh root@178.63.13.190 "systemctl status sharehodld"
+ssh root@178.63.13.190 "systemctl restart sharehodld"
+ssh root@178.63.13.190 "systemctl stop sharehodld"
+```
+
+### Security Notes
+- Keyring uses `file` backend with encrypted passphrase
+- Passphrase stored at `/root/.sharehodl/keyring-passphrase` (root only, chmod 600)
+- Never share mnemonics or passphrases in chat/logs
+- For key operations, SSH directly to server
