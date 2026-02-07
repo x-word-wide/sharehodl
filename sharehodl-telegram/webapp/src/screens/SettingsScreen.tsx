@@ -166,6 +166,53 @@ export function SettingsScreen() {
     }
   }, [recoveryPhraseLoaded, clearRecoveryPhrase, tg]);
 
+  // SECURITY: Prevent screenshots when viewing recovery phrase
+  useEffect(() => {
+    // @ts-expect-error - Telegram WebApp types may be incomplete
+    if (recoveryPhraseLoaded && tg?.isVersionAtLeast?.('6.9')) {
+      // Enable content protection (prevents screenshots)
+      try {
+        // @ts-expect-error - setContentProtected might not be in types yet
+        tg.setContentProtected?.(true);
+      } catch {
+        // Fallback: content protection not available
+      }
+
+      return () => {
+        // Disable content protection when phrase is hidden
+        try {
+          // @ts-expect-error - setContentProtected might not be in types yet
+          tg.setContentProtected?.(false);
+        } catch {
+          // Fallback: content protection not available
+        }
+      };
+    }
+  }, [recoveryPhraseLoaded, tg]);
+
+  // SECURITY: Prevent screenshots when viewing new wallet mnemonic
+  useEffect(() => {
+    const hasMnemonic = addWalletMnemonicRef.current.get() !== '';
+    // @ts-expect-error - Telegram WebApp types may be incomplete
+    if (hasMnemonic && tg?.isVersionAtLeast?.('6.9')) {
+      try {
+        // @ts-expect-error - setContentProtected might not be in types yet
+        tg.setContentProtected?.(true);
+      } catch {
+        // Fallback: content protection not available
+      }
+
+      return () => {
+        try {
+          // @ts-expect-error - setContentProtected might not be in types yet
+          tg.setContentProtected?.(false);
+        } catch {
+          // Fallback: content protection not available
+        }
+      };
+    }
+  }, [addWalletMnemonicVersion, tg]);
+
   // Helper functions for alerts/confirms with fallbacks
   const showAlert = useCallback((message: string) => {
     if (tg?.showAlert) {

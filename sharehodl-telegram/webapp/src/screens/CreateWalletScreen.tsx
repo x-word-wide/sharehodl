@@ -93,6 +93,28 @@ export function CreateWalletScreen() {
     });
   }, []);
 
+  // SECURITY: Prevent screenshots when viewing mnemonic
+  useEffect(() => {
+    // @ts-expect-error - Telegram WebApp types may be incomplete
+    if (step === 'mnemonic' && tg?.isVersionAtLeast?.('6.9')) {
+      try {
+        // @ts-expect-error - setContentProtected might not be in types yet
+        tg.setContentProtected?.(true);
+      } catch {
+        // Content protection not available
+      }
+
+      return () => {
+        try {
+          // @ts-expect-error - setContentProtected might not be in types yet
+          tg.setContentProtected?.(false);
+        } catch {
+          // Content protection not available
+        }
+      };
+    }
+  }, [step, tg]);
+
   // Validate PIN as user types
   useEffect(() => {
     if (step === 'pin' && pin.length > 0) {

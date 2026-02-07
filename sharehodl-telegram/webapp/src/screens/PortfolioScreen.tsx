@@ -513,33 +513,22 @@ export function PortfolioScreen() {
                     navigate(`/equity/${equity.id}`);
                   }}
                 >
-                  {/* Header row: Icon, Ticker, Company, Change */}
-                  <div className="equity-header">
-                    <TokenIcon symbol={equity.symbol} color={equity.color} size={48} />
-                    <div className="equity-title">
-                      <div className="equity-ticker-row">
-                        <span className="equity-ticker">{equity.symbol}</span>
-                        <span className={`equity-change ${isPositive ? 'positive' : 'negative'}`}>
-                          {isPositive ? '+' : ''}{equity.change24h.toFixed(2)}%
-                        </span>
-                      </div>
+                  {/* Compact single-row layout */}
+                  <div className="equity-row">
+                    <TokenIcon symbol={equity.symbol} color={equity.color} size={36} />
+                    <div className="equity-info">
+                      <span className="equity-ticker">{equity.symbol}</span>
                       <span className="equity-name">{equity.name}</span>
                     </div>
-                  </div>
-
-                  {/* Stats row: Shares, Price, Value */}
-                  <div className="equity-stats">
-                    <div className="equity-stat">
-                      <span className="stat-label">Shares</span>
-                      <span className="stat-value">{equity.shares.toLocaleString()}</span>
+                    <div className="equity-details">
+                      <span className="equity-shares">{equity.shares.toLocaleString()} shares</span>
+                      <span className="equity-price">@ ${equity.pricePerShare.toFixed(2)}</span>
                     </div>
-                    <div className="equity-stat">
-                      <span className="stat-label">Price</span>
-                      <span className="stat-value">${equity.pricePerShare.toFixed(2)}</span>
-                    </div>
-                    <div className="equity-stat primary">
-                      <span className="stat-label">Value</span>
-                      <span className="stat-value">${totalValue.toLocaleString()}</span>
+                    <div className="equity-value">
+                      <span className="value-amount">${totalValue.toLocaleString()}</span>
+                      <span className={`value-change ${isPositive ? 'positive' : 'negative'}`}>
+                        {isPositive ? '+' : ''}{equity.change24h.toFixed(2)}%
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -1304,15 +1293,15 @@ export function PortfolioScreen() {
           height: 20px;
         }
 
-        /* Equity Card Styles */
+        /* Equity Card Styles - Compact */
         .equity-card {
           width: 100%;
-          padding: 18px;
+          padding: 12px 14px;
           background: var(--surface-bg);
           backdrop-filter: blur(10px);
           -webkit-backdrop-filter: blur(10px);
           border: 1px solid var(--border-color);
-          border-radius: 18px;
+          border-radius: 14px;
           cursor: pointer;
           transition: all 0.2s ease;
           text-align: left;
@@ -1323,94 +1312,74 @@ export function PortfolioScreen() {
           background: rgba(30, 64, 175, 0.08);
         }
 
-        .equity-header {
+        .equity-row {
           display: flex;
           align-items: center;
-          gap: 14px;
-          margin-bottom: 16px;
+          gap: 10px;
         }
 
-        .equity-title {
+        .equity-info {
           flex: 1;
           min-width: 0;
         }
 
-        .equity-ticker-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 4px;
-        }
-
         .equity-ticker {
-          font-size: 20px;
+          display: block;
+          font-size: 14px;
           font-weight: 700;
           color: var(--text-primary);
-          letter-spacing: 0.5px;
-        }
-
-        .equity-change {
-          font-size: 14px;
-          font-weight: 600;
-          padding: 4px 10px;
-          border-radius: 8px;
-        }
-
-        .equity-change.positive {
-          color: #10b981;
-          background: rgba(16, 185, 129, 0.12);
-        }
-
-        .equity-change.negative {
-          color: #ef4444;
-          background: rgba(239, 68, 68, 0.12);
+          letter-spacing: 0.3px;
         }
 
         .equity-name {
-          font-size: 14px;
-          color: var(--text-secondary);
-          display: block;
-        }
-
-        .equity-stats {
-          display: flex;
-          gap: 12px;
-          padding: 14px;
-          background: rgba(0, 0, 0, 0.2);
-          border-radius: 12px;
-        }
-
-        .equity-stat {
-          flex: 1;
-          text-align: center;
-        }
-
-        .equity-stat.primary {
-          background: linear-gradient(135deg, rgba(30, 64, 175, 0.2) 0%, rgba(59, 130, 246, 0.15) 100%);
-          margin: -14px -14px -14px 0;
-          padding: 14px;
-          border-radius: 0 12px 12px 0;
-        }
-
-        .stat-label {
           display: block;
           font-size: 11px;
-          font-weight: 500;
           color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          margin-bottom: 4px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
-        .stat-value {
+        .equity-details {
+          text-align: right;
+        }
+
+        .equity-shares {
           display: block;
-          font-size: 16px;
+          font-size: 11px;
+          color: var(--text-secondary);
+        }
+
+        .equity-price {
+          display: block;
+          font-size: 10px;
+          color: var(--text-muted);
+        }
+
+        .equity-value {
+          text-align: right;
+          min-width: 70px;
+        }
+
+        .value-amount {
+          display: block;
+          font-size: 14px;
           font-weight: 700;
           color: var(--text-primary);
         }
 
-        .equity-stat.primary .stat-value {
-          color: #60a5fa;
+        .value-change {
+          display: block;
+          font-size: 11px;
+          font-weight: 600;
+        }
+
+        .value-change.positive {
+          color: #10b981;
+        }
+
+        .value-change.negative {
+          color: #ef4444;
         }
       `}</style>
     </div>
