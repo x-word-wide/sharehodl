@@ -208,11 +208,21 @@ export function PortfolioScreen() {
           </h2>
           <div className="balance-info">
             <div className="info-chip">
-              <span className="chip-emoji">🔗</span>
+              <span className="chip-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  <path d="M2 12h20" />
+                </svg>
+              </span>
               <span>{chainCount} chains</span>
             </div>
             <div className="info-chip">
-              <span className="chip-emoji">💎</span>
+              <span className="chip-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+              </span>
               <span>{assets.length} assets</span>
             </div>
           </div>
@@ -321,8 +331,9 @@ export function PortfolioScreen() {
               <p>Loading assets...</p>
             </div>
           ) : selectedTab === 'crypto' ? (
-            assets.length > 0 ? (
-              assets.map((asset: AssetHolding) => {
+            // Filter out HODL - it's shown in the equity/staking section
+            assets.filter(a => a.token.symbol !== 'HODL').length > 0 ? (
+              assets.filter(a => a.token.symbol !== 'HODL').map((asset: AssetHolding) => {
                 const priceChange = asset.priceChange24h;
                 const isPositive = priceChange >= 0;
                 const chainConfig = CHAIN_CONFIGS[asset.token.chain];
@@ -362,7 +373,12 @@ export function PortfolioScreen() {
               })
             ) : (
               <div className="empty-state">
-                <span className="empty-icon">💰</span>
+                <span className="empty-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="32" height="32">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                </span>
                 <p className="empty-title">No Assets Yet</p>
                 <p className="empty-desc">Receive crypto to see it here</p>
                 <button className="empty-btn" onClick={() => navigate('/receive')}>
@@ -586,8 +602,15 @@ export function PortfolioScreen() {
           transition: background 0.2s ease;
         }
 
-        .chip-emoji {
-          font-size: 12px;
+        .chip-icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .chip-icon svg {
+          width: 14px;
+          height: 14px;
         }
 
         .quick-actions {

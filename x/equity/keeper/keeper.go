@@ -437,11 +437,16 @@ func (k Keeper) TransferShares(
 	if !found {
 		return types.ErrShareClassNotFound
 	}
-	
+
 	if !shareClass.Transferable {
 		return types.ErrTransferRestricted
 	}
-	
+
+	// SECURITY: Check for trading halt - prevents transfers during fraud investigations
+	if k.IsTradingHalted(ctx, companyID) {
+		return types.ErrTradingHalted
+	}
+
 	// Get from shareholding
 	fromHolding, found := k.getShareholding(ctx, companyID, classID, from)
 	if !found {

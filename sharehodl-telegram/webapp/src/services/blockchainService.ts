@@ -18,6 +18,62 @@ const DENOM = 'uhodl';
 const GAS_PRICE = GasPrice.fromString('0.025uhodl');
 const ADDRESS_PREFIX = 'hodl';
 
+// =============================================================================
+// SECURITY: Rate Limiting
+// =============================================================================
+
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+class RateLimiter {
+  private limits: Map<string, RateLimitEntry> = new Map();
+  private readonly maxRequests: number;
+  private readonly windowMs: number;
+
+  constructor(maxRequests: number = 10, windowMs: number = 60000) {
+    this.maxRequests = maxRequests;
+    this.windowMs = windowMs;
+  }
+
+  /**
+   * Check if a request should be allowed
+   * @param key Identifier for rate limiting (e.g., function name or address)
+   * @returns true if allowed, false if rate limited
+   */
+  check(key: string): boolean {
+    const now = Date.now();
+    const entry = this.limits.get(key);
+
+    if (!entry || now >= entry.resetTime) {
+      // New window
+      this.limits.set(key, { count: 1, resetTime: now + this.windowMs });
+      return true;
+    }
+
+    if (entry.count >= this.maxRequests) {
+      return false;
+    }
+
+    entry.count++;
+    return true;
+  }
+
+  /**
+   * Get remaining time until rate limit resets
+   */
+  getRemainingTime(key: string): number {
+    const entry = this.limits.get(key);
+    if (!entry) return 0;
+    return Math.max(0, entry.resetTime - Date.now());
+  }
+}
+
+// SECURITY: Global rate limiters for different operation types
+const queryRateLimiter = new RateLimiter(30, 60000);  // 30 queries per minute
+const txRateLimiter = new RateLimiter(5, 60000);      // 5 transactions per minute
+
 // Response types
 export interface TransactionResult {
   success: boolean;
@@ -75,8 +131,15 @@ async function getSigningClient(
 
 /**
  * Fetch account balance from blockchain
+ * SECURITY: Rate limited to prevent API abuse
  */
 export async function fetchBalance(address: string): Promise<BalanceResult> {
+  // SECURITY: Rate limiting check
+  if (!queryRateLimiter.check(`balance:${address}`)) {
+    logger.warn('Rate limit exceeded for balance query', { address });
+    return { balance: '0', denom: DENOM };
+  }
+
   try {
     // Try RPC first
     const client = await getQueryClient();
@@ -142,6 +205,7 @@ export async function getAccountInfo(address: string): Promise<AccountInfo> {
 /**
  * Send tokens to another address
  * SECURITY: Mnemonic is used only for signing and then discarded
+ * SECURITY: Rate limited to prevent transaction spam
  */
 export async function sendTokens(
   mnemonic: string,
@@ -149,6 +213,16 @@ export async function sendTokens(
   amount: string,
   memo?: string
 ): Promise<TransactionResult> {
+  // SECURITY: Rate limiting check for transactions
+  if (!txRateLimiter.check('sendTokens')) {
+    const remainingMs = txRateLimiter.getRemainingTime('sendTokens');
+    const remainingSecs = Math.ceil(remainingMs / 1000);
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${remainingSecs} seconds before trying again.`
+    };
+  }
+
   let signingClient: SigningStargateClient | null = null;
 
   try {
@@ -246,12 +320,22 @@ export async function sendTokens(
 
 /**
  * Delegate tokens to a validator
+ * SECURITY: Rate limited to prevent transaction spam
  */
 export async function delegateTokens(
   mnemonic: string,
   validatorAddress: string,
   amount: string
 ): Promise<TransactionResult> {
+  // SECURITY: Rate limiting check
+  if (!txRateLimiter.check('delegateTokens')) {
+    const remainingMs = txRateLimiter.getRemainingTime('delegateTokens');
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${Math.ceil(remainingMs / 1000)} seconds.`
+    };
+  }
+
   let signingClient: SigningStargateClient | null = null;
 
   try {
@@ -311,12 +395,22 @@ export async function delegateTokens(
 
 /**
  * Undelegate tokens from a validator
+ * SECURITY: Rate limited to prevent transaction spam
  */
 export async function undelegateTokens(
   mnemonic: string,
   validatorAddress: string,
   amount: string
 ): Promise<TransactionResult> {
+  // SECURITY: Rate limiting check
+  if (!txRateLimiter.check('undelegateTokens')) {
+    const remainingMs = txRateLimiter.getRemainingTime('undelegateTokens');
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${Math.ceil(remainingMs / 1000)} seconds.`
+    };
+  }
+
   let signingClient: SigningStargateClient | null = null;
 
   try {
@@ -376,11 +470,21 @@ export async function undelegateTokens(
 
 /**
  * Claim staking rewards from a validator
+ * SECURITY: Rate limited to prevent transaction spam
  */
 export async function claimRewards(
   mnemonic: string,
   validatorAddress: string
 ): Promise<TransactionResult> {
+  // SECURITY: Rate limiting check
+  if (!txRateLimiter.check('claimRewards')) {
+    const remainingMs = txRateLimiter.getRemainingTime('claimRewards');
+    return {
+      success: false,
+      error: `Rate limit exceeded. Please wait ${Math.ceil(remainingMs / 1000)} seconds.`
+    };
+  }
+
   let signingClient: SigningStargateClient | null = null;
 
   try {

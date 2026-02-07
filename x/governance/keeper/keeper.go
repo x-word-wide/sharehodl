@@ -392,6 +392,11 @@ func (k Keeper) Vote(
 		return types.ErrProposalNotFound
 	}
 
+	// SECURITY: Conflict of interest check - proposer cannot vote on their own proposal
+	if proposal.Proposer == voter {
+		return types.ErrConflictOfInterest
+	}
+
 	// Validate voting conditions
 	if err := k.validateVoting(ctx, proposal, voterAddr); err != nil {
 		return err
@@ -460,6 +465,11 @@ func (k Keeper) VoteWeighted(
 	proposal, found := k.GetProposal(ctx, proposalID)
 	if !found {
 		return types.ErrProposalNotFound
+	}
+
+	// SECURITY: Conflict of interest check - proposer cannot vote on their own proposal
+	if proposal.Proposer == voter {
+		return types.ErrConflictOfInterest
 	}
 
 	// Validate voting conditions

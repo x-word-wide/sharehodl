@@ -33,16 +33,17 @@ var (
 	ErrInvalidProposer = errors.Register(DefaultCodespace, 114, "invalid proposer - only the original proposer can perform this action")
 
 	// Voting errors
-	ErrInvalidVote = errors.Register(DefaultCodespace, 200, "invalid vote")
-	ErrVoteNotFound = errors.Register(DefaultCodespace, 201, "vote not found")
-	ErrAlreadyVoted = errors.Register(DefaultCodespace, 202, "address has already voted on proposal")
-	ErrInvalidVoteOption = errors.Register(DefaultCodespace, 203, "invalid vote option")
-	ErrInvalidVoteWeight = errors.Register(DefaultCodespace, 204, "invalid vote weight")
-	ErrVotingPeriodEnded = errors.Register(DefaultCodespace, 205, "voting period has ended")
+	ErrInvalidVote            = errors.Register(DefaultCodespace, 200, "invalid vote")
+	ErrVoteNotFound           = errors.Register(DefaultCodespace, 201, "vote not found")
+	ErrAlreadyVoted           = errors.Register(DefaultCodespace, 202, "address has already voted on proposal")
+	ErrInvalidVoteOption      = errors.Register(DefaultCodespace, 203, "invalid vote option")
+	ErrInvalidVoteWeight      = errors.Register(DefaultCodespace, 204, "invalid vote weight")
+	ErrVotingPeriodEnded      = errors.Register(DefaultCodespace, 205, "voting period has ended")
 	ErrVotingPeriodNotStarted = errors.Register(DefaultCodespace, 206, "voting period has not started")
 	ErrInsufficientVotingPower = errors.Register(DefaultCodespace, 207, "insufficient voting power")
-	ErrVetoVote = errors.Register(DefaultCodespace, 208, "veto vote cast")
-	ErrInvalidWeightedVote = errors.Register(DefaultCodespace, 209, "invalid weighted vote options")
+	ErrVetoVote               = errors.Register(DefaultCodespace, 208, "veto vote cast")
+	ErrInvalidWeightedVote    = errors.Register(DefaultCodespace, 209, "invalid weighted vote options")
+	ErrConflictOfInterest     = errors.Register(DefaultCodespace, 210, "proposer cannot vote on their own proposal")
 
 	// Deposit errors
 	ErrInvalidDeposit = errors.Register(DefaultCodespace, 300, "invalid deposit")

@@ -79,6 +79,16 @@ const STORAGE_KEYS = {
   BIOMETRIC_TOKEN: 'sh_biometric_token'
 };
 
+// SECURITY: PIN cache timeout (5 minutes)
+// After this period, cached PIN is cleared to reduce exposure window
+const PIN_CACHE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+
+// Check if cached PIN has expired
+function isPinCacheExpired(timestamp: number | null): boolean {
+  if (!timestamp) return true;
+  return Date.now() - timestamp > PIN_CACHE_TIMEOUT_MS;
+}
+
 // Wallet metadata for multi-wallet support
 export interface WalletMetadata {
   id: string;
@@ -102,8 +112,9 @@ interface WalletStore {
   securityState: SecurityState;
   remainingAttempts: number;
 
-  // Cached PIN for transaction signing (cleared on lock)
+  // Cached PIN for transaction signing (cleared on lock or timeout)
   _cachedPin: string | null;
+  _pinCacheTimestamp: number | null;
 
   // Actions
   initialize: () => Promise<void>;
@@ -193,8 +204,10 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   securityState: getSecurityState(),
   remainingAttempts: getRemainingAttempts(),
 
-  // Cached PIN for transaction signing (cleared on lock)
+  // Cached PIN for transaction signing (cleared on lock or timeout)
+  // SECURITY: PIN is auto-cleared after 5 minutes of inactivity
   _cachedPin: null,
+  _pinCacheTimestamp: null,
 
   // Multi-wallet support
   wallets: [],
@@ -429,7 +442,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         activeWalletId,
         securityState: getSecurityState(),
         remainingAttempts: getRemainingAttempts(),
-        _cachedPin: pin  // Cache PIN for transaction signing
+        // SECURITY: Cache PIN for transaction signing with timestamp
+        _cachedPin: pin,
+        _pinCacheTimestamp: Date.now()
       });
 
       // Refresh balances in background
@@ -458,7 +473,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
 
   // Lock wallet
   lockWallet: () => {
-    set({ isLocked: true, _cachedPin: null });  // Clear cached PIN on lock
+    // SECURITY: Clear cached PIN and timestamp on lock
+    set({ isLocked: true, _cachedPin: null, _pinCacheTimestamp: null });
   },
 
   // Refresh all balances
@@ -551,7 +567,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
       enabledTokenIds: DEFAULT_ENABLED_TOKENS,
       totalBalanceUsd: 0,
       error: null,
+      // SECURITY: Clear PIN cache on reset
       _cachedPin: null,
+      _pinCacheTimestamp: null,
       securityState: getSecurityState(),
       remainingAttempts: getRemainingAttempts()
     });
@@ -563,8 +581,16 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
   },
 
   // Check if auto-lock should trigger
+  // SECURITY: Also clears stale PIN cache
   checkAutoLock: () => {
-    if (shouldAutoLock() && !get().isLocked) {
+    const state = get();
+
+    // SECURITY: Clear stale PIN cache even if not auto-locking
+    if (state._cachedPin && isPinCacheExpired(state._pinCacheTimestamp)) {
+      set({ _cachedPin: null, _pinCacheTimestamp: null });
+    }
+
+    if (shouldAutoLock() && !state.isLocked) {
       get().lockWallet();
       return true;
     }
@@ -674,7 +700,9 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
         accounts,
         assets,
         enabledTokenIds,
-        _cachedPin: pin
+        // SECURITY: Update PIN cache with timestamp
+        _cachedPin: pin,
+        _pinCacheTimestamp: Date.now()
       });
 
       get().refreshBalances();
@@ -897,8 +925,8 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     // Clear biometric token since PIN changed
     localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
 
-    // Update cached PIN
-    set({ _cachedPin: newPin });
+    // SECURITY: Update cached PIN with timestamp
+    set({ _cachedPin: newPin, _pinCacheTimestamp: Date.now() });
   },
 
   getRecoveryPhrase: async (pin: string): Promise<string> => {
@@ -926,22 +954,39 @@ export const useWalletStore = create<WalletStore>((set, get) => ({
     crypto.getRandomValues(tokenBytes);
     const token = btoa(String.fromCharCode(...tokenBytes));
 
-    // Encrypt the PIN with the token for later retrieval
-    const encryptedPin = await encryptData(pin, token);
-    localStorage.setItem(STORAGE_KEYS.BIOMETRIC_TOKEN, encryptedPin);
+    // SECURITY: Create payload with expiration (30 days)
+    const expiresAt = Date.now() + (30 * 24 * 60 * 60 * 1000);
+    const payload = JSON.stringify({ pin, expiresAt });
+
+    // Encrypt the payload with the token for later retrieval
+    const encryptedPayload = await encryptData(payload, token);
+    localStorage.setItem(STORAGE_KEYS.BIOMETRIC_TOKEN, encryptedPayload);
   },
 
   unlockWithBiometric: async (token: string): Promise<void> => {
-    const encryptedPin = localStorage.getItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
-    if (!encryptedPin) throw new Error('Biometric not set up');
+    const encryptedPayload = localStorage.getItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
+    if (!encryptedPayload) throw new Error('Biometric not set up');
 
     try {
-      // Decrypt the PIN using the biometric token
-      const pin = await decryptData(encryptedPin, token);
+      // Decrypt the payload using the biometric token
+      const payloadStr = await decryptData(encryptedPayload, token);
+      const payload = JSON.parse(payloadStr);
+
+      // SECURITY: Check if biometric token has expired
+      if (payload.expiresAt && Date.now() > payload.expiresAt) {
+        // Clear expired token
+        localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
+        throw new Error('Biometric authentication has expired. Please set up again.');
+      }
+
       // Use the PIN to unlock normally
-      await get().unlockWallet(pin);
-    } catch {
-      throw new Error('Biometric authentication failed');
+      await get().unlockWallet(payload.pin);
+    } catch (error) {
+      // Clear invalid token
+      if (error instanceof SyntaxError) {
+        localStorage.removeItem(STORAGE_KEYS.BIOMETRIC_TOKEN);
+      }
+      throw error instanceof Error ? error : new Error('Biometric authentication failed');
     }
   },
 
